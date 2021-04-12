@@ -25,8 +25,7 @@ from PyQt4.QtGui import QAction, QIcon
 # Initialize Qt resources from file resources.py
 import resources
 
-from QRAVE.settings import Settings
-from QRAVE.lib.async import ToolbarQueues
+from lib.settings import Settings
 
 # Import the code for the DockWidget
 from QRAVE.DockWidget import RiverscapesToolbarDockWidget
@@ -52,7 +51,6 @@ class QRAVE:
 
         # Call our singletons the first time to set/reset settings if necessary
         Settings()
-        ToolbarQueues()
 
         # initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
@@ -69,11 +67,11 @@ class QRAVE:
 
         # Declare instance attributes
         self.actions = []
-        self.menu = self.tr(u'&Riverscapes Toolbar')
+        self.menu = self.tr(u'&QRAVE Toolbar')
 
         # TODO: We are going to let the user set this up in a future iteration
-        self.toolbar = self.iface.addToolBar(u'RiverscapesToolbar')
-        self.toolbar.setObjectName(u'RiverscapesToolbar')
+        self.toolbar = self.iface.addToolBar(u'QRAVE')
+        self.toolbar.setObjectName(u'QRAVE Toolbar')
 
         self.pluginIsActive = False
         self.dockwidget = None
@@ -92,7 +90,7 @@ class QRAVE:
         :rtype: QString
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
-        return QCoreApplication.translate('RiverscapesToolbar', message)
+        return QCoreApplication.translate('QRAVEToolbar', message)
 
 
     def add_action(
@@ -172,10 +170,10 @@ class QRAVE:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
-        icon_path = ':/plugins/RiverscapesToolbar/icon.png'
+        icon_path = ':/plugins/QRAVE/icon.png'
         self.add_action(
             icon_path,
-            text=self.tr(u'Riverscapes Toolbar'),
+            text=self.tr(u'QRAVE Toolbar'),
             callback=self.run,
             parent=self.iface.mainWindow())
 

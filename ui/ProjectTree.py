@@ -10,14 +10,12 @@ from qgis.core import QgsProject, QgsMapLayerRegistry, QgsRasterLayer, QgsVector
 from DWTabProjectsItem import ProjectTreeItem
 
 from resources import qTreeIconStates
-from lib.s3.operations import S3Operation
-from AddQueueDialog import AddQueueDialog
-from project import Project
+from lib.project import Project
 
 
 program = Program()
 
-class DockWidgetTabProject():
+class ProjectTree():
 
     treectl = None
     dockwidget = None
@@ -27,8 +25,8 @@ class DockWidgetTabProject():
 
     def __init__(self, dockWidget):
 
-        DockWidgetTabProject.treectl = dockWidget.treeProject
-        DockWidgetTabProject.dockwidget = dockWidget
+        ProjectTree.treectl = dockWidget.treeProject
+        ProjectTree.dockwidget = dockWidget
         self.treectl.setColumnCount(1)
         self.treectl.setHeaderHidden(True)
 
@@ -62,7 +60,7 @@ class DockWidgetTabProject():
             self.projectLoad(path.join(filename, program.ProjectFile), outside=True)
 
     def projectUpload(self):
-        dialog = AddQueueDialog(S3Operation.Direction.UP, DockWidgetTabProject.project)
+        dialog = AddQueueDialog(S3Operation.Direction.UP, ProjectTree.project)
         if dialog.exec_():
             self.dockwidget.TabDownload.addToQueue(dialog.qItem)
 
@@ -178,7 +176,7 @@ class DockWidgetTabProject():
         filepath = nodeData.filepath
 
         # DEBUG
-        item = DockWidgetTabProject.treectl.itemFromIndex(qindex)
+        item = ProjectTree.treectl.itemFromIndex(qindex)
         order = item.parent().indexOfChild(item)
 
         print "ADDING TO MAP::", nodeData.filepath
@@ -188,7 +186,7 @@ class DockWidgetTabProject():
         if len(filepath) > 0:
             for aGroup in nodeData.getTreeAncestry():
                 # aGroup comes back as a tuple (name, order)
-                parentGroup = DockWidgetTabProject._addgrouptomap(aGroup[0], aGroup[1], parentGroup)
+                parentGroup = ProjectTree._addgrouptomap(aGroup[0], aGroup[1], parentGroup)
 
         assert parentGroup, "All rasters should be nested and so parentGroup should be instantiated by now"
 
@@ -223,10 +221,10 @@ class DockWidgetTabProject():
         :return: 
         """
 
-        DockWidgetTabProject.project = Project(absProjPath, outside=outside)
-        DockWidgetTabProject.project.load()
+        ProjectTree.project = Project(absProjPath, outside=outside)
+        ProjectTree.project.load()
 
-        if DockWidgetTabProject.project is None or not path.isfile(DockWidgetTabProject.project.absProjectFile):
+        if ProjectTree.project is None or not path.isfile(ProjectTree.project.absProjectFile):
             msg = "Could not find a valid '{}' file at that location".format(program.ProjectFile)
             q = QMessageBox(QMessageBox.Warning, "Could not find the project XML file", msg)
             q.setStandardButtons(QMessageBox.Ok)
@@ -235,5 +233,5 @@ class DockWidgetTabProject():
             q.setWindowIcon(i)
             q.exec_()
         else:
-            DockWidgetTabProject.treectl.takeTopLevelItem(0)
-            rootItem = ProjectTreeItem(dwtab=DockWidgetTabProject)
+            ProjectTree.treectl.takeTopLevelItem(0)
+            rootItem = ProjectTreeItem(dwtab=ProjectTree)

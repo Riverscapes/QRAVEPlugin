@@ -2,15 +2,15 @@ from PyQt4.QtCore import QSettings
 from os import path
 
 # BASE is the name we want to use inside the settings keys
-BASE="QGISRiverscapesToolbar"
+BASE="QRAVEToolbar"
 # DEFAULT SETTINGS: We may need to externalize this somehow
 _SETTINGS = {
-    "DataDir": {
-        "default": path.join(path.expanduser("~"), "RiverscapesData")
-    },
-    "ProgramXMLUrl": {
-        "default": "https://raw.githubusercontent.com/Riverscapes/Program/master/Program/Riverscapes.xml"
-    }
+    # "DataDir": {
+    #     "default": path.join(path.expanduser("~"), "RiverscapesData")
+    # }
+    # "ProgramXMLUrl": {
+    #     "default": "https://raw.githubusercontent.com/Riverscapes/Program/master/Program/Riverscapes.xml"
+    # }
 }
 
 class SettingsBorg(object):
