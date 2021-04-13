@@ -13,7 +13,7 @@
 		},
 		// "python.jediEnabled": true,
 		// Wait.. this isen't a python interpreter..
-		"python.pythonPath": "%QGIS_ROOT%/bin/python3.bat",
+		"python.pythonPath": "${env:OSGEO4W_ROOT}/apps/Python37/python.exe",
 		// Replicate the QGIS environment on the terminal
 		// {{INSERT_YOUR_USER}} or any path really should be replaced with your own installation path
 		// "terminal.integrated.env.windows": {

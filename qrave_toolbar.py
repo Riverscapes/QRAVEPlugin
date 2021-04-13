@@ -21,15 +21,15 @@
  *                                                                         *
  ***************************************************************************/
 """
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+import os.path
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QToolButton, QMenu
 
 # Initialize Qt resources from file resources.py
 from .resources import *
 # Import the code for the dialog
-from .qrave_toolbar_dialog import QRAVEDialog
-import os.path
+from .dockwidget import QRAVEDockWidget
 
 
 class QRAVE:
@@ -63,9 +63,14 @@ class QRAVE:
         self.actions = []
         self.menu = self.tr(u'&Riverscapes Plugin (QRAVE)')
 
-        # Check if plugin was started the first time in current QGIS session
-        # Must be set in initGui() to survive plugin reloads
-        self.first_start = None
+        # TODO: We are going to let the user set this up in a future iteration
+        self.toolbar = self.iface.addToolBar(u'QRAVE')
+        self.toolbar.setObjectName(u'QRAVE')
+
+        # print "** INITIALIZING HelloWorld"
+
+        self.pluginIsActive = False
+        self.dockwidget = None
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -82,18 +87,17 @@ class QRAVE:
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('QRAVE', message)
 
-
     def add_action(
-        self,
-        icon_path,
-        text,
-        callback,
-        enabled_flag=True,
-        add_to_menu=True,
-        add_to_toolbar=True,
-        status_tip=None,
-        whats_this=None,
-        parent=None):
+            self,
+            icon_path,
+            text,
+            callback,
+            enabled_flag=True,
+            add_to_menu=True,
+            add_to_toolbar=True,
+            status_tip=None,
+            whats_this=None,
+            parent=None):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -155,6 +159,11 @@ class QRAVE:
 
         self.actions.append(action)
 
+        # self.toolButton = QToolButton()
+        # self.toolButton.setMenu(QMenu())
+        # self.toolButton.setPopupMode(QToolButton.MenuButtonPopup)
+        # self.toolBtnAction = self.iface.addToolBarWidget(self.toolButton)
+
         return action
 
     def initGui(self):
@@ -167,9 +176,23 @@ class QRAVE:
             callback=self.run,
             parent=self.iface.mainWindow())
 
-        # will be set False in run()
-        self.first_start = True
+    # --------------------------------------------------------------------------
 
+    def onClosePlugin(self):
+        """Cleanup necessary items here when plugin dockwidget is closed"""
+
+        # print "** CLOSING QRAVE DockWidget"
+
+        # disconnects
+        self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
+
+        # remove this statement if dockwidget is to remain
+        # for reuse if plugin is reopened
+        # Commented next statement since it causes QGIS crashe
+        # when closing the docked window:
+        # self.dockwidget = None
+
+        self.pluginIsActive = False
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -178,23 +201,28 @@ class QRAVE:
                 self.tr(u'&Riverscapes Plugin (QRAVE)'),
                 action)
             self.iface.removeToolBarIcon(action)
-
+        # remove the toolbar
+        del self.toolbar
 
     def run(self):
         """Run method that performs all the real work"""
 
-        # Create the dialog with elements (after translation) and keep reference
-        # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if self.first_start == True:
-            self.first_start = False
-            self.dlg = QRAVEDialog()
+        if not self.pluginIsActive:
+            self.pluginIsActive = True
 
-        # show the dialog
-        self.dlg.show()
-        # Run the dialog event loop
-        result = self.dlg.exec_()
-        # See if OK was pressed
-        if result:
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
-            pass
+            # print "** STARTING QRAVE"
+
+            # dockwidget may not exist if:
+            #    first run of plugin
+            #    removed on close (see self.onClosePlugin method)
+            if self.dockwidget is None:
+                # Create the dockwidget (after translation) and keep reference
+                self.dockwidget = QRAVEDockWidget()
+
+            # connect to provide cleanup on closing of dockwidget
+            self.dockwidget.closingPlugin.connect(self.onClosePlugin)
+
+            # show the dockwidget
+            # TODO: fix to allow choice of dock location
+            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockwidget)
+            self.dockwidget.show()

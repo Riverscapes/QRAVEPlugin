@@ -22,9 +22,12 @@
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
 """
-
+import qrave_toolbar.resources as resources
+import qrave_toolbar.dockwidget as dockwidget
 
 # noinspection PyPep8Naming
+
+
 def classFactory(iface):  # pylint: disable=invalid-name
     """Load QRAVE class from file QRAVE.
 
@@ -32,5 +35,5 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :type iface: QgsInterface
     """
     #
-    from .qrave_toolbar import QRAVE
+    from qrave_toolbar.qrave_toolbar import QRAVE
     return QRAVE(iface)

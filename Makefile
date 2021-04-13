@@ -38,15 +38,15 @@ LOCALES =
 # translation
 SOURCES = \
 	__init__.py \
-	qrave_toolbar.py qrave_toolbar_dialog.py
+	qrave_toolbar.py dockwidget.py
 
 PLUGINNAME = qrave_toolbar
 
 PY_FILES = \
 	__init__.py \
-	qrave_toolbar.py qrave_toolbar_dialog.py
+	qrave_toolbar.py dockwidget.py
 
-UI_FILES = qrave_toolbar_dialog_base.ui
+UI_FILES = dockwidget_base.ui
 
 EXTRAS = metadata.txt icon.png
 
