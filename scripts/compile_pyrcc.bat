@@ -1,4 +1,4 @@
 @echo off
 echo Compiling...
-call pyrcc5 -o resources.py resources.qrc
+python3 -m PyQt5.pyrcc_main -o resources.py resources.qrc
 echo DONE

@@ -1,11 +1,11 @@
 #/***************************************************************************
-# HelloWorld
+# QRAVE
 #
-# this is the hello world NAR plugin
+# Explore symbolized Riverscapes projects
 #							 -------------------
-#		begin				: 2021-04-07
+#		begin				: 2021-04-13
 #		git sha				: $Format:%H$
-#		copyright			: (C) 2021 by NAR
+#		copyright			: (C) 2021 by North Arrow Research
 #		email				: info@northarrowresearch.com
 # ***************************************************************************/
 #
@@ -38,15 +38,15 @@ LOCALES =
 # translation
 SOURCES = \
 	__init__.py \
-	toolbar_viewer.py toolbar_dockwidget.py
+	qrave_toolbar.py qrave_toolbar_dialog.py
 
-PLUGINNAME = QRAVE
+PLUGINNAME = qrave_toolbar
 
 PY_FILES = \
 	__init__.py \
-	toolbar_viewer.py toolbar_dockwidget.py
+	qrave_toolbar.py qrave_toolbar_dialog.py
 
-UI_FILES = toolbar_dockwidget_base.ui
+UI_FILES = qrave_toolbar_dialog_base.ui
 
 EXTRAS = metadata.txt icon.png
 
@@ -71,7 +71,7 @@ QGISDIR=C:\Users\Matt\AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins
 # Normally you would not need to edit below here
 #################################################
 
-HELP = docs/_site
+HELP = help/build/html
 
 PLUGIN_UPLOAD = $(c)/plugin_upload.py
 

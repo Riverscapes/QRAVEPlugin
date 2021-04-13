@@ -9,8 +9,8 @@
 """
 
 __author__ = 'info@northarrowresearch.com'
-__date__ = '2021-04-07'
-__copyright__ = 'Copyright 2021, NAR'
+__date__ = '2021-04-13'
+__copyright__ = 'Copyright 2021, North Arrow Research'
 
 import unittest
 
@@ -18,7 +18,7 @@ from qgis.PyQt.QtGui import QIcon
 
 
 
-class HelloWorldDialogTest(unittest.TestCase):
+class QRAVEDialogTest(unittest.TestCase):
     """Test rerources work."""
 
     def setUp(self):
@@ -31,12 +31,12 @@ class HelloWorldDialogTest(unittest.TestCase):
 
     def test_icon_png(self):
         """Test we can click OK."""
-        path = ':/plugins/HelloWorld/icon.png'
+        path = ':/plugins/QRAVE/icon.png'
         icon = QIcon(path)
         self.assertFalse(icon.isNull())
 
 if __name__ == "__main__":
-    suite = unittest.makeSuite(HelloWorldResourcesTest)
+    suite = unittest.makeSuite(QRAVEResourcesTest)
     runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)
 

@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/plugins/asd" >
+    <qresource prefix="/plugins/qrave_toolbar" >
         <file>icon.png</file>
     </qresource>
 </RCC>

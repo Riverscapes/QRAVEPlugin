@@ -7,25 +7,25 @@ name=Riverscapes Plugin (QRAVE)
 qgisMinimumVersion=3.0
 description=Explore symbolized Riverscapes projects
 version=0.1
-author=NorthArrowResearch
+author=North Arrow Research
 email=info@northarrowresearch.com
 
 about=RAVE AddIn is part of the Riverscapes Consortium’s much larger family of tools for analyzing riverscapes. RAVE itself does not do any analysis, but allows exploring of any Riverscapes-compliant project. Rave provides an explorer in which you can navigate the “project tree”, and add any layer to map symbolized appropriately.
 
-tracker=https://github.com/Riverscapes/RiverscapesToolbar/issues
-repository=https://github.com/Riverscapes/RiverscapesToolbar
+tracker=https://github.com/Riverscapes/QRAVEPlugin/issues
+repository=https://github.com/Riverscapes/QRAVEPlugin
 # End of mandatory metadata
 
 # Recommended items:
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=https://github.com/Riverscapes/RiverscapesToolbar/blob/master/CHANGELOG.md
+# changelog=
 
 # Tags are comma separated with spaces allowed
-tags=repository,viewer,toolbar,riverscapes
+tags=python,riverscapes,rave
 
-homepage=http://riverscapes.xyz
+homepage=http://rave.riverscapes.xyz
 category=Plugins
 icon=icon.png
 # experimental flag
@@ -39,7 +39,7 @@ deprecated=False
 # Check the documentation for more information.
 # plugin_dependencies=
 
-# Category of the plugin: Raster, Vector, Database or Web
+Category of the plugin: Raster, Vector, Database or Web
 # category=
 
 # If the plugin can run on QGIS Server.
