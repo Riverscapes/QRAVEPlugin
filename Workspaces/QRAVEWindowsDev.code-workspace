@@ -17,6 +17,7 @@
 		// Replicate the QGIS environment on the terminal
 		// {{INSERT_YOUR_USER}} or any path really should be replaced with your own installation path
 		// "terminal.integrated.env.windows": {
+		// 	"PYTHONPATH": "${env:PYTHONPATH};${workspaceRoot}"
 		// // Path
 		// "PATH": "C:\\Program Files\\Git\\cmd;C:\\Users\\{{INSERT_YOUR_USER}}\\AppData\\Local\\GitHubDesktop\\bin;C:\\OSGEO4~1\\apps\\qgis\\bin;C:\\OSGEO4~1\\apps\\Python37;C:\\OSGEO4~1\\apps\\Python37\\Scripts;C:\\OSGEO4~1\\apps\\qt5\\bin;C:\\OSGEO4~1\\apps\\Python27\\Scripts;C:\\OSGEO4~1\\bin;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\WINDOWS\\system32\\WBem;C:\\OSGEO4~1\\apps\\Python37\\lib\\site-packages\\pywin32_system32;C:\\OSGEO4~1\\apps\\Python37\\lib\\site-packages\\numpy\\.libs",
 		// // Python
@@ -44,6 +45,7 @@
 		// "VSI_CACHE_SIZE": "1000000"
 		// },
 		// "python.languageServer": "Jedi", // PyLancer just came out recently, but i havent tested it out with this configuration
+		// }
 	},
 	"launch": {
 		"configurations": [

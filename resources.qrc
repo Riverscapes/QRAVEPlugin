@@ -1,5 +1,15 @@
 <RCC>
     <qresource prefix="/plugins/qrave_toolbar" >
         <file>icon.png</file>
+        <file alias="BrowseFolder.png">Images/BrowseFolder.png</file>
+        <file alias="Help.png">Images/Help.png</file>
+        <file alias="NewProject.png">Images/NewProject.png</file>
+        <file alias="OpenProject.png">Images/OpenProject.png</file>
+        <file alias="Options.png">Images/Options.png</file>
+        <file alias="RaveAddIn.png">Images/RaveAddIn.png</file>
+        <file alias="RaveAddIn_16px.png">Images/RaveAddIn_16px.png</file>
+        <file alias="ucProjectExplorer.png">Images/ucProjectExplorer.png</file>
     </qresource>
 </RCC>
+
+
