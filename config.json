@@ -8,6 +8,7 @@
     },
     "constants": {
         "digestSyncFreqHours": 24,
+        "lastProjectDir": null,
         "webUrl": "https://rave.riverscapes.xyz",
         "issueUrl": "http://rave.riverscapes.xyz/known-bugs.html",
         "resourcesUrl": "https://raw.githubusercontent.com/Riverscapes/RiverscapesXML/dev/"

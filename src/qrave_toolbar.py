@@ -30,6 +30,8 @@ from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu
 
 from .classes.settings import Settings, CONSTANTS
+from .classes.net_sync import NetSync
+from .classes.async_worker import QAsync
 
 # Initialize Qt resources from file resources.py
 # Import the code for the dialog
@@ -195,7 +197,7 @@ class QRAVE:
         Browse for a project directory
         :return:
         """
-        filename = QFileDialog.getExistingDirectory(self.dockwidget, "Open a project folder", self.settings.getValue('DataDir'))
+        filename = QFileDialog.getExistingDirectory(self.dockwidget, "Open a project folder", self.settings.getValue('lastProjectDir'))
         if filename is not None and filename != "":
             print(filename)
             # self.projectLoad(os.path.join(filename, program.ProjectFile), outside=True)
@@ -216,8 +218,16 @@ class QRAVE:
             print('nothing to do')
             return
 
-        print('nope. try a sync')
         dialog = ProgressDialog()
+        dialog.setWindowTitle('QRAVE Updater')
+
+        def closeMe():
+            print('closeme')
+
+        netsync = NetSync(dialog.progressLabel.setText, dialog.progressBar.setValue, closeMe)
+        worker = QAsync(netsync.run)
+        worker.run()
+
         dialog.exec_()
 
     def run(self):
