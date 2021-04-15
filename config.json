@@ -1,0 +1,15 @@
+{
+    "defaultSettings": {
+        "basemapRegion": 0,
+        "loadDefaultView": true,
+        "regionInclude": true,
+        "lastDigestSync": null,
+        "lastResourceSync": null
+    },
+    "constants": {
+        "digestSyncFreqHours": 24,
+        "webUrl": "https://rave.riverscapes.xyz",
+        "issueUrl": "http://rave.riverscapes.xyz/known-bugs.html",
+        "resourcesUrl": "https://raw.githubusercontent.com/Riverscapes/RiverscapesXML/dev/"
+    }
+}

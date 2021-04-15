@@ -22,16 +22,24 @@
  ***************************************************************************/
 """
 import os.path
+from time import time
+from functools import partial
+from qgis.utils import showPluginHelp
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu
-from .classes.settings import Settings
+
+from .classes.settings import Settings, CONSTANTS
+
 # Initialize Qt resources from file resources.py
-# from resources import qt_version
 # Import the code for the dialog
-from .ui.options import OptionsDialog
-from .ui.about import AboutDialog
-from .ui.dockwidget import QRAVEDockWidget
+from .options_dialog import OptionsDialog
+from .progress_dialog import ProgressDialog
+from .about_dialog import AboutDialog
+from .dock_widget import QRAVEDockWidget
+
+# initialize Qt resources from file resources.py
+from . import resources
 
 
 class QRAVE:
@@ -55,6 +63,7 @@ class QRAVE:
             self.plugin_dir,
             'i18n',
             'QRAVE_{}.qm'.format(locale))
+        self.settings = Settings()
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -69,7 +78,8 @@ class QRAVE:
         self.toolbar = self.iface.addToolBar(u'QRAVE')
         self.toolbar.setObjectName(u'QRAVE')
 
-        # print "** INITIALIZING HelloWorld"
+        # Run a network sync operation to get the latest stuff. Don't force it. This is just a quick check
+        self.netSyncLoad()
 
         self.pluginIsActive = False
         self.dockwidget = None
@@ -109,20 +119,32 @@ class QRAVE:
         helpButton.setPopupMode(QToolButton.MenuButtonPopup)
 
         m = helpButton.menu()
+
+        def openUrl():
+            QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz"))
+
         helpAction = QAction(
             self.tr('Help'),
             self.iface.mainWindow()
         )
-
-        def openUrl():
-            QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz"))
-        helpAction.triggered.connect(openUrl)
+        helpAction.triggered.connect(partial(showPluginHelp, None, filename=':/plugins/qrave_toolbar/help/build/html/index'))
+        websiteAction = QAction(
+            self.tr('Website'),
+            self.iface.mainWindow()
+        )
+        websiteAction.triggered.connect(openUrl)
 
         raveOptionsAction = QAction(
             self.tr('Settings'),
             self.iface.mainWindow()
         )
         raveOptionsAction.triggered.connect(self.optionsLoad)
+
+        netSyncAction = QAction(
+            self.tr('Update resources'),
+            self.iface.mainWindow()
+        )
+        netSyncAction.triggered.connect(lambda: self.netSyncLoad(force=True))
 
         aboutAction = QAction(
             self.tr('About QRAVE'),
@@ -131,7 +153,9 @@ class QRAVE:
         aboutAction.triggered.connect(self.aboutLoad)
 
         m.addAction(helpAction)
+        m.addAction(websiteAction)
         m.addAction(raveOptionsAction)
+        m.addAction(netSyncAction)
         m.addSeparator()
         m.addAction(aboutAction)
         helpButton.setDefaultAction(helpAction)
@@ -171,8 +195,7 @@ class QRAVE:
         Browse for a project directory
         :return:
         """
-        settings = Settings()
-        filename = QFileDialog.getExistingDirectory(self.dockwidget, "Open a project folder", settings.getSetting('DataDir'))
+        filename = QFileDialog.getExistingDirectory(self.dockwidget, "Open a project folder", self.settings.getValue('DataDir'))
         if filename is not None and filename != "":
             print(filename)
             # self.projectLoad(os.path.join(filename, program.ProjectFile), outside=True)
@@ -183,6 +206,18 @@ class QRAVE:
 
     def aboutLoad(self):
         dialog = AboutDialog()
+        dialog.exec_()
+
+    def netSyncLoad(self, force=False):
+        lastSync = self.settings.getValue('lastSync')
+        currTime = int(time())  # timestamp in seconds
+
+        if not force and isinstance(lastSync, int) and ((currTime - lastSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
+            print('nothing to do')
+            return
+
+        print('nope. try a sync')
+        dialog = ProgressDialog()
         dialog.exec_()
 
     def run(self):

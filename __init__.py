@@ -22,11 +22,10 @@
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
 """
-# import lib.resources as resources
-from qrave_toolbar.src.qrave_toolbar import QRAVE
-from qrave_toolbar.src import classes, ui
-from qrave_toolbar.src import resources
+import os
+import json
 # noinspection PyPep8Naming
+# config is where we keep our constants and configuration strings
 
 
 def classFactory(iface):  # pylint: disable=invalid-name
@@ -35,4 +34,7 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
+    # Yeah, this is annoying but QGIS needs it so....
+    # pylint: disable=import-error
+    from .src.qrave_toolbar import QRAVE
     return QRAVE(iface)

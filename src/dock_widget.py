@@ -28,7 +28,7 @@ from qgis.PyQt.QtWidgets import QDockWidget
 from qgis.PyQt.QtCore import pyqtSignal
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'dockwidget_base.ui'))
+    os.path.dirname(__file__), 'ui', 'dock_widget.ui'))
 
 
 class QRAVEDockWidget(QDockWidget, FORM_CLASS):
