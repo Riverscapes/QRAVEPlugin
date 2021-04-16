@@ -34,7 +34,7 @@ class QAsync():
         # Step 4: Move worker to the thread
         self.worker.moveToThread(self.thread)
 
-    def run(self):
+    def run(self, on_finish):
         # Step 5: Connect signals and slots
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(self.thread.quit)
@@ -46,9 +46,7 @@ class QAsync():
         self.thread.start()
         # Final resets
         # self.longRunningBtn.setEnabled(False)
-        # self.thread.finished.connect(
-        #     lambda: self.longRunningBtn.setEnabled(True)
-        # )
+        self.thread.finished.connect(on_finish)
         # self.thread.finished.connect(
         #     lambda: self.stepLabel.setText("Long-Running Step: 0")
         # )

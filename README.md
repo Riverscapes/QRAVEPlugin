@@ -14,15 +14,17 @@ The Riverscapes Toolbar Plugin software was developed by North Arrow Research Lt
 Licensed under the [GNU General Public License Version 3](https://github.com/Riverscapes/RiverscapesToolbar/blob/master/LICENSE).
 
 
+## Developing on windows
 
 
+1. Make a batch file on your desktop to launch VSCode with the QGIS development paths and environment
 
+fill in paths where appropriate
 
 ```batch
 @echo off
-set QGIS_ROOT="C:\Program Files\QGIS 3.18"
-cd QGIS_ROOT
-call %QGIS_ROOT%\bin\o4w_env.bat
+@REM First one needs an explicit path
+call "C:\Program Files\QGIS 3.18\bin\o4w_env.bat"
 call %OSGEO4W_ROOT%\bin\qt5_env.bat
 call %OSGEO4W_ROOT%\bin\py3_env.bat
 
@@ -33,7 +35,7 @@ path %PATH%;%OSGEO4W_ROOT%\apps\Python37\Scripts
 
 rem o4w_env.bat starts with a clean path, so add what you need
 
-set QGIS_PREFIX_PATH=%OSGEO4W_ROOT:\=/%/apps/qgis
+set QGIS_PREFIX_PATH=%OSGEO4W_ROOT%:\=/%/apps/qgis
 set GDAL_FILENAME_IS_UTF8=YES
 rem Set VSI cache to be used as buffer, see #6448
 set VSI_CACHE=TRUE
@@ -50,3 +52,10 @@ path %PATH%;%APPDATA%\Python\Python37\Scripts
 pushd %~dp0
 call "C:\Users\Matt\AppData\Local\Programs\Microsoft VS Code\bin\code.cmd"
 ```
+
+2. Download the following plugins in QGIS:
+
+* [debugvs](https://github.com/lmotta/debug_vs_plugin/wiki) -- Plugin to Enable Debug for Visual Studio. This will let you hook your PTVSD debugger into QGis and add breakpoints in your code.
+* [Plugin Reloader](https://github.com/borysiasty/plugin_reloader) -- Handy tool to reload all the code for a given plugin so you don't need to close QGIS.
+* [First Aid](https://github.com/wonder-sk/qgis-first-aid-plugin) -- Provides Python debugger and replaces the default Python error handling in QGIS. This one is optional but highly recommended. It gives error traces you might not get otherwise and makes QGIS a lot less black-box.
+* [Plugin Builder 3](http://g-sherman.github.io/Qgis-Plugin-Builder) -- Creates a QGIS plugin template for use as a starting point in plugin development. Not totally necessary but good to have if you want to build plugins.

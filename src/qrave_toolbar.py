@@ -27,7 +27,7 @@ from functools import partial
 from qgis.utils import showPluginHelp
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QDialogButtonBox
 
 from .classes.settings import Settings, CONSTANTS
 from .classes.net_sync import NetSync
@@ -103,16 +103,17 @@ class QRAVE:
 
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
+        plugin_init = self.settings.getValue('initialized')
 
         openAction = QAction(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), self.tr(u'Riverscapes Plugin (QRAVE)'), self.iface.mainWindow())
         openAction.triggered.connect(self.run)
-        openAction.setEnabled(True)
+        openAction.setEnabled(plugin_init)
         openAction.setStatusTip('do a thing')
         openAction.setWhatsThis('what\'s this')
 
         openProjectAction = QAction(QIcon(':/plugins/qrave_toolbar/OpenProject.png'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
         openProjectAction.triggered.connect(self.projectBrowserDlg)
-        openProjectAction.setEnabled(True)
+        openProjectAction.setEnabled(plugin_init)
         openProjectAction.setStatusTip('do a thing')
         openProjectAction.setWhatsThis('what\'s this')
 
@@ -140,6 +141,7 @@ class QRAVE:
             self.tr('Settings'),
             self.iface.mainWindow()
         )
+        raveOptionsAction.setEnabled(plugin_init)
         raveOptionsAction.triggered.connect(self.optionsLoad)
 
         netSyncAction = QAction(
@@ -211,23 +213,23 @@ class QRAVE:
         dialog.exec_()
 
     def netSyncLoad(self, force=False):
-        lastSync = self.settings.getValue('lastSync')
+        lastDigestSync = self.settings.getValue('lastDigestSync')
         currTime = int(time())  # timestamp in seconds
-
-        if not force and isinstance(lastSync, int) and ((currTime - lastSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
-            print('nothing to do')
-            return
-
+        plugin_init = self.settings.getValue('initialized')
         dialog = ProgressDialog()
         dialog.setWindowTitle('QRAVE Updater')
+        netsync = NetSync(dialog.progressLabel.setText, dialog.progressBar.setValue)
 
-        def closeMe():
-            print('closeme')
+        # No sync necessary in some cases
+        if plugin_init \
+                and not netsync.need_sync \
+                and not force \
+                and isinstance(lastDigestSync, int) \
+                and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
+            return
 
-        netsync = NetSync(dialog.progressLabel.setText, dialog.progressBar.setValue, closeMe)
         worker = QAsync(netsync.run)
-        worker.run()
-
+        worker.run(lambda: dialog.handle_done(force))
         dialog.exec_()
 
     def run(self):

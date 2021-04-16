@@ -18,7 +18,6 @@ class NetSync():
             pass
 
         self.settings = Settings()
-
         self.labelcb = labelcb if labelcb is not None else nullfunc
         self.progresscb = progresscb if progresscb is not None else nullfunc
         self.closecb = closecb if closecb is not None else nullfunc
@@ -28,21 +27,35 @@ class NetSync():
         self.business_logic_xml_dir = os.path.join(self.resource_dir, 'blXML')
         self.digest_path = os.path.join(self.resource_dir, 'index.json')
 
+        self.initialized = False  # self.initialize sets this
+        self.need_sync = True  # self.initialize sets this
+
+        self.initialize()
+
     def run(self):
         """Long-running task."""
         self.progresscb(0)
-        self.initialize()
+
         self.updateDigest()
         self.syncFiles()
         self.closecb()
 
     def initialize(self):
+        need_sync = False
         if not os.path.isdir(self.resource_dir):
+            need_sync = True
             os.mkdir(self.resource_dir)
         if not os.path.isdir(self.symbology_dir):
+            need_sync = True
             os.mkdir(self.symbology_dir)
         if not os.path.isdir(self.business_logic_xml_dir):
+            need_sync = True
             os.mkdir(self.business_logic_xml_dir)
+        if not os.path.isfile(self.digest_path):
+            need_sync = True
+
+        self.initialized = True
+        self.need_sync = need_sync
 
     def updateDigest(self):
         self.labelcb('Updating digest')
@@ -67,6 +80,7 @@ class NetSync():
 
         total = len(symbologies.keys()) + len(businesslogics.keys()) + 1
         progress = 0
+        downloaded = 0
 
         def update_progress():
             self.labelcb('Updating files {}/{}'.format(progress, total))
@@ -77,6 +91,7 @@ class NetSync():
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
                 QgsMessageLog.logMessage("Symobology download: {}".format(local_path), 'QRAVE', level=Qgis.Warning)
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
+                downloaded += 1
             progress += 1
             update_progress()
 
@@ -85,6 +100,7 @@ class NetSync():
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
                 QgsMessageLog.logMessage("BusinessLogic download: {}".format(local_path), 'QRAVE', level=Qgis.Warning)
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
+                downloaded += 1
             progress += 1
             update_progress()
 
@@ -94,8 +110,15 @@ class NetSync():
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
                 QgsMessageLog.logMessage("Basemaps download: {}".format(local_path), 'QRAVE', level=Qgis.Warning)
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
+                downloaded += 1
             progress += 1
             update_progress()
+
+        self.progresscb(100)
+        if downloaded == 0:
+            self.labelcb('No symbology or xml updates needed. 0 files downloaded')
+        else:
+            self.labelcb('Downloaded and updated {}/{} symbology or xml files'.format(downloaded, total))
 
 
 def md5(fname: str) -> str:

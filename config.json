@@ -1,6 +1,7 @@
 {
     "defaultSettings": {
         "basemapRegion": 0,
+        "initialized": false,
         "loadDefaultView": true,
         "regionInclude": true,
         "lastDigestSync": null,

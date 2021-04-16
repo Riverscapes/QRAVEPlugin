@@ -27,7 +27,8 @@ tags=python,riverscapes,rave
 
 homepage=http://rave.riverscapes.xyz
 category=Plugins
-icon=icon.png
+icon=Images\RaveAddIn_16px.png
+
 # experimental flag
 experimental=True
 
