@@ -21,11 +21,20 @@
  *                                                                         *
  ***************************************************************************/
 """
-
+from __future__ import annotations
+from typing import List
 import os
+
+
 from qgis.PyQt import uic
-from qgis.PyQt.QtWidgets import QDockWidget
-from qgis.PyQt.QtCore import pyqtSignal
+from qgis.core import QgsMessageLog, Qgis
+from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon
+from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu
+from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt
+
+from .classes.settings import Settings, CONSTANTS
+from .classes.basemaps import BaseMaps
+
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui', 'dock_widget.ui'))
@@ -34,6 +43,7 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
     closingPlugin = pyqtSignal()
+    dataChange = pyqtSignal()
 
     def __init__(self, parent=None):
         """Constructor."""
@@ -43,8 +53,73 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         # self.<objectname>, and you can use autoconnect slots - see
         # http://doc.qt.io/qt-5/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
+
+        # self.treeView
         self.setupUi(self)
+
+        self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.treeView.customContextMenuRequested.connect(self.open_menu)
+        self.treeView.doubleClicked.connect(self.default_tree_action)
+
+        self.settings = Settings()
+        self.basemaps = BaseMaps()
+        self.model = None
+        self.dataChange.connect(self.load)
+        self.basemaps.load()
+        self.load()
+
+    @pyqtSlot()
+    def load(self):
+        self.model = QStandardItemModel()
+        # self.model.setHorizontalHeaderLabels(['Name', 'Height', 'Weight'])
+        # self.tree.header().setDefaultSectionSize(180)
+        self.treeView.setModel(self.model)
+
+        # self._populateTree(self.tree, self.model.invisibleRootItem())
+
+        # Now load the basemaps
+        region = self.settings.getValue('basemapRegion')
+        if region is not None and len(region) > 0 and region in self.basemaps.regions.keys():
+            self.model.appendRow(self.basemaps.regions[region])
+
+        # Finally expand all levels
+        self.treeView.expandAll()
+
+    def _populateTree(self, children: List[QStandardItem], parent: QStandardItem):
+        if parent is None or children is None:
+            return
+        for child in sorted(children):
+            parent.appendRow(child)
+            if child.hasChildren():
+                self._populateTree(child.children, child)
 
     def closeEvent(self, event):
         self.closingPlugin.emit()
         event.accept()
+
+    def default_tree_action(self, index):
+        item = self.model.itemFromIndex(index)
+        name = item.text()
+        data = item.data(Qt.UserRole)
+        print("position")
+
+    def open_menu(self, position):
+
+        indexes = self.treeView.selectedIndexes()
+        if len(indexes) > 0:
+
+            level = 0
+            index = indexes[0]
+            while index.parent().isValid():
+                index = index.parent()
+                level += 1
+
+        menu = QMenu()
+        if level == 0:
+            menu.addAction(self.tr("Edit person"))
+        elif level == 1:
+            menu.addAction(self.tr("Edit object/container"))
+        elif level == 2:
+            menu.addAction(self.tr("Edit object"))
+
+        menu.exec_(self.treeView.viewport().mapToGlobal(position))

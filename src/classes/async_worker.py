@@ -8,6 +8,7 @@ import traceback
 
 
 class Worker(QObject):
+    # Hook into this signal to execute code after it's done
     finished = pyqtSignal()
     progress = pyqtSignal(int)
 
@@ -34,7 +35,7 @@ class QAsync():
         # Step 4: Move worker to the thread
         self.worker.moveToThread(self.thread)
 
-    def run(self, on_finish):
+    def run(self):
         # Step 5: Connect signals and slots
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(self.thread.quit)
@@ -44,9 +45,3 @@ class QAsync():
 
         # Step 6: Start the thread
         self.thread.start()
-        # Final resets
-        # self.longRunningBtn.setEnabled(False)
-        self.thread.finished.connect(on_finish)
-        # self.thread.finished.connect(
-        #     lambda: self.stepLabel.setText("Long-Running Step: 0")
-        # )

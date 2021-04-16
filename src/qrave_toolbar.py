@@ -11,27 +11,21 @@
         copyright            : (C) 2021 by North Arrow Research
         email                : info@northarrowresearch.com
  ***************************************************************************/
-
-/***************************************************************************
- *                                                                         *
- *   This program is free software; you can redistribute it and/or modify  *
- *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
- *   (at your option) any later version.                                   *
- *                                                                         *
- ***************************************************************************/
 """
 import os.path
 from time import time
 from functools import partial
 from qgis.utils import showPluginHelp
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl, pyqtSlot
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QDialogButtonBox
 
 from .classes.settings import Settings, CONSTANTS
 from .classes.net_sync import NetSync
 from .classes.async_worker import QAsync
+from .classes.basemaps import BaseMaps
+from .classes.project import Project
+
 
 # Initialize Qt resources from file resources.py
 # Import the code for the dialog
@@ -57,6 +51,8 @@ class QRAVE:
         """
         # Save reference to the QGIS interface
         self.iface = iface
+        self.pluginIsActive = False
+        self.dockwidget = None
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
         # initialize locale
@@ -80,13 +76,8 @@ class QRAVE:
         self.toolbar = self.iface.addToolBar(u'QRAVE')
         self.toolbar.setObjectName(u'QRAVE')
 
-        # Run a network sync operation to get the latest stuff. Don't force it. This is just a quick check
-        self.netSyncLoad()
-
-        self.pluginIsActive = False
-        self.dockwidget = None
-
     # noinspection PyMethodMayBeStatic
+
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
 
@@ -106,7 +97,7 @@ class QRAVE:
         plugin_init = self.settings.getValue('initialized')
 
         openAction = QAction(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), self.tr(u'Riverscapes Plugin (QRAVE)'), self.iface.mainWindow())
-        openAction.triggered.connect(self.run)
+        openAction.triggered.connect(self.toggle_widget)
         openAction.setEnabled(plugin_init)
         openAction.setStatusTip('do a thing')
         openAction.setWhatsThis('what\'s this')
@@ -148,7 +139,7 @@ class QRAVE:
             self.tr('Update resources'),
             self.iface.mainWindow()
         )
-        netSyncAction.triggered.connect(lambda: self.netSyncLoad(force=True))
+        netSyncAction.triggered.connect(self.netSyncAction)
 
         aboutAction = QAction(
             self.tr('About QRAVE'),
@@ -167,6 +158,13 @@ class QRAVE:
         self.toolbar.addAction(openAction)
         self.toolbar.addAction(openProjectAction)
         self.toolbar.addWidget(helpButton)
+
+        # Run a network sync operation to get the latest stuff. Don't force it.
+        #  This is just a quick check
+        self.netSyncLoad()
+
+    def netSyncAction(self):
+        self.netSyncLoad(force=True)
 
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
@@ -199,20 +197,30 @@ class QRAVE:
         Browse for a project directory
         :return:
         """
-        filename = QFileDialog.getExistingDirectory(self.dockwidget, "Open a project folder", self.settings.getValue('lastProjectDir'))
-        if filename is not None and filename != "":
-            print(filename)
-            # self.projectLoad(os.path.join(filename, program.ProjectFile), outside=True)
+        project_dir = QFileDialog.getExistingDirectory(self.dockwidget, "Open a project folder", self.settings.getValue('lastProjectDir'))
+        if project_dir is not None and project_dir != "" and os.path.isdir(project_dir):
+            project = Project(os.path.join(project_dir, 'project.rs.xml'))
+            project.load()
 
     def optionsLoad(self):
+        """
+        Open the options/settings dialog
+        """
         dialog = OptionsDialog()
         dialog.exec_()
 
     def aboutLoad(self):
+        """
+        Open the About dialog
+        """
         dialog = AboutDialog()
         dialog.exec_()
 
     def netSyncLoad(self, force=False):
+        """
+        Periodically check for new files
+        """
+
         lastDigestSync = self.settings.getValue('lastDigestSync')
         currTime = int(time())  # timestamp in seconds
         plugin_init = self.settings.getValue('initialized')
@@ -228,12 +236,26 @@ class QRAVE:
                 and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
             return
 
-        worker = QAsync(netsync.run)
-        worker.run(lambda: dialog.handle_done(force))
+        async_job = QAsync(netsync.run)
+
+        # Fire the tree change signal to repaint the basemaps
+        async_job.worker.finished.connect(lambda: dialog.handle_done(force))
+        async_job.worker.finished.connect(self.reload_tree)
+        async_job.run()
         dialog.exec_()
 
-    def run(self):
-        """Run method that performs all the real work"""
+    def reload_tree(self):
+        """
+        The dockwidget may or may not be initialized when we call reload so we
+        add a checking step in
+        """
+        basemaps = BaseMaps()
+        basemaps.load()
+        if self.dockwidget:
+            self.dockwidget.dataChange.emit()
+
+    def toggle_widget(self, forceOn=False):
+        """Toggle the widget open and closed when clicking the toolbar"""
 
         if not self.pluginIsActive:
             self.pluginIsActive = True
@@ -254,3 +276,8 @@ class QRAVE:
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
+        else:
+            if self.dockwidget.isHidden():
+                self.dockwidget.show()
+            elif forceOn is False:
+                self.dockwidget.hide()

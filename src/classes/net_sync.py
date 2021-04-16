@@ -23,8 +23,8 @@ class NetSync():
         self.closecb = closecb if closecb is not None else nullfunc
 
         self.resource_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'resources')
-        self.symbology_dir = os.path.join(self.resource_dir, 'symbology')
-        self.business_logic_xml_dir = os.path.join(self.resource_dir, 'blXML')
+        self.symbology_dir = os.path.join(self.resource_dir, CONSTANTS['businessLogicDir'])
+        self.business_logic_xml_dir = os.path.join(self.resource_dir, CONSTANTS['symbologyDir'])
         self.digest_path = os.path.join(self.resource_dir, 'index.json')
 
         self.initialized = False  # self.initialize sets this

@@ -28,7 +28,7 @@ class ProgressDialog(QDialog, DIALOG_CLASS):
         pass
 
     def handle_accept(self):
-        print('hello')
+        pass
 
     def handle_done(self, force=False):
         if force is False:

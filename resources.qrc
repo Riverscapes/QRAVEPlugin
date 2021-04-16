@@ -1,6 +1,5 @@
 <RCC>
-    <qresource prefix="/plugins/qrave_toolbar" >
-        <file>icon.png</file>
+    <qresource prefix="/plugins/qrave_toolbar">
         <file alias="BrowseFolder.png">Images/BrowseFolder.png</file>
         <file alias="Help.png">Images/Help.png</file>
         <file alias="NewProject.png">Images/NewProject.png</file>
@@ -9,7 +8,12 @@
         <file alias="RaveAddIn.png">Images/RaveAddIn.png</file>
         <file alias="RaveAddIn_16px.png">Images/RaveAddIn_16px.png</file>
         <file alias="ucProjectExplorer.png">Images/ucProjectExplorer.png</file>
+        <!-- Layer icons -->
+        <file alias="layers/Dot.png">Images/layers/Dot.png</file>
+        <file alias="layers/MultiDot.png">Images/layers/MultiDot.png</file>
+        <file alias="layers/Polygon.png">Images/layers/Polygon.png</file>
+        <file alias="layers/Polyline.png">Images/layers/Polyline.png</file>
+        <file alias="layers/Raster.png">Images/layers/Raster.png</file>
+
     </qresource>
 </RCC>
-
-

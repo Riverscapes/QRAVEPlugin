@@ -32,8 +32,17 @@
     </property>
     <item>
      <widget class="QTreeView" name="treeView">
+      <property name="editTriggers">
+       <set>QAbstractItemView::NoEditTriggers</set>
+      </property>
+      <property name="showDropIndicator" stdset="0">
+       <bool>false</bool>
+      </property>
       <property name="indentation">
        <number>15</number>
+      </property>
+      <property name="headerHidden">
+       <bool>true</bool>
       </property>
      </widget>
     </item>

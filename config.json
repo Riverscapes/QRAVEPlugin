@@ -1,13 +1,16 @@
 {
     "defaultSettings": {
-        "basemapRegion": 0,
         "initialized": false,
+        "projectPath": null,
         "loadDefaultView": true,
         "regionInclude": true,
         "lastDigestSync": null,
-        "lastResourceSync": null
+        "lastResourceSync": null,
+        "basemapRegion": "United States"
     },
     "constants": {
+        "businessLogicDir": "blXML",
+        "symbologyDir": "symbology",
         "digestSyncFreqHours": 24,
         "lastProjectDir": null,
         "webUrl": "https://rave.riverscapes.xyz",

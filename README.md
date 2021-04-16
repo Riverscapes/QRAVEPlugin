@@ -55,7 +55,6 @@ call "C:\Users\Matt\AppData\Local\Programs\Microsoft VS Code\bin\code.cmd"
 
 2. Download the following plugins in QGIS:
 
-* [debugvs](https://github.com/lmotta/debug_vs_plugin/wiki) -- Plugin to Enable Debug for Visual Studio. This will let you hook your PTVSD debugger into QGis and add breakpoints in your code.
 * [Plugin Reloader](https://github.com/borysiasty/plugin_reloader) -- Handy tool to reload all the code for a given plugin so you don't need to close QGIS.
 * [First Aid](https://github.com/wonder-sk/qgis-first-aid-plugin) -- Provides Python debugger and replaces the default Python error handling in QGIS. This one is optional but highly recommended. It gives error traces you might not get otherwise and makes QGIS a lot less black-box.
 * [Plugin Builder 3](http://g-sherman.github.io/Qgis-Plugin-Builder) -- Creates a QGIS plugin template for use as a starting point in plugin development. Not totally necessary but good to have if you want to build plugins.
