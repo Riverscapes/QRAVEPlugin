@@ -16,6 +16,8 @@ import os.path
 from time import time
 from functools import partial
 from qgis.utils import showPluginHelp
+from qgis.core import QgsMessageLog, QgsTask, QgsApplication
+
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl, pyqtSlot
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QDialogButtonBox
@@ -51,6 +53,7 @@ class QRAVE:
         """
         # Save reference to the QGIS interface
         self.iface = iface
+        self.tm = QgsApplication.taskManager()
         self.pluginIsActive = False
         self.dockwidget = None
         # initialize plugin directory
@@ -135,36 +138,29 @@ class QRAVE:
         raveOptionsAction.setEnabled(plugin_init)
         raveOptionsAction.triggered.connect(self.optionsLoad)
 
-        netSyncAction = QAction(
+        net_sync_action = QAction(
             self.tr('Update resources'),
             self.iface.mainWindow()
         )
-        netSyncAction.triggered.connect(self.netSyncAction)
+        net_sync_action.triggered.connect(lambda: self.net_sync_load(force=True))
 
-        aboutAction = QAction(
+        about_action = QAction(
             self.tr('About QRAVE'),
             self.iface.mainWindow()
         )
-        aboutAction.triggered.connect(self.aboutLoad)
+        about_action.triggered.connect(self.about_load)
 
         m.addAction(helpAction)
         m.addAction(websiteAction)
         m.addAction(raveOptionsAction)
-        m.addAction(netSyncAction)
+        m.addAction(net_sync_action)
         m.addSeparator()
-        m.addAction(aboutAction)
+        m.addAction(about_action)
         helpButton.setDefaultAction(helpAction)
 
         self.toolbar.addAction(openAction)
         self.toolbar.addAction(openProjectAction)
         self.toolbar.addWidget(helpButton)
-
-        # Run a network sync operation to get the latest stuff. Don't force it.
-        #  This is just a quick check
-        self.netSyncLoad()
-
-    def netSyncAction(self):
-        self.netSyncLoad(force=True)
 
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
@@ -209,14 +205,14 @@ class QRAVE:
         dialog = OptionsDialog()
         dialog.exec_()
 
-    def aboutLoad(self):
+    def about_load(self):
         """
         Open the About dialog
         """
         dialog = AboutDialog()
         dialog.exec_()
 
-    def netSyncLoad(self, force=False):
+    def net_sync_load(self, force=False):
         """
         Periodically check for new files
         """
@@ -224,25 +220,39 @@ class QRAVE:
         lastDigestSync = self.settings.getValue('lastDigestSync')
         currTime = int(time())  # timestamp in seconds
         plugin_init = self.settings.getValue('initialized')
-        dialog = ProgressDialog()
-        dialog.setWindowTitle('QRAVE Updater')
-        netsync = NetSync(dialog.progressLabel.setText, dialog.progressBar.setValue)
 
-        # No sync necessary in some cases
-        if plugin_init \
-                and not netsync.need_sync \
-                and not force \
-                and isinstance(lastDigestSync, int) \
-                and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
-            return
+        if force is True:
+            dialog = ProgressDialog()
+            dialog.setWindowTitle('QRAVE Updater')
+            netsync = NetSync(labelcb=dialog.progressLabel.setText, progresscb=dialog.progressBar.setValue, finishedcb=self.reload_tree)
 
-        async_job = QAsync(netsync.run)
+            # No sync necessary in some cases
+            if plugin_init \
+                    and not netsync.need_sync \
+                    and not force \
+                    and isinstance(lastDigestSync, int) \
+                    and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
+                return
 
-        # Fire the tree change signal to repaint the basemaps
-        async_job.worker.finished.connect(lambda: dialog.handle_done(force))
-        async_job.worker.finished.connect(self.reload_tree)
-        async_job.run()
-        dialog.exec_()
+            ns_task = QgsTask.fromFunction('QRAVE Sync', netsync.run,
+                                           on_finished=netsync.completed)
+            self.tm.addTask(ns_task)
+
+            dialog.exec_()
+        else:
+            netsync = NetSync(finishedcb=self.reload_tree)
+
+            # No sync necessary in some cases
+            if plugin_init \
+                    and not netsync.need_sync \
+                    and not force \
+                    and isinstance(lastDigestSync, int) \
+                    and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
+                return
+
+            ns_task = QgsTask.fromFunction('QRAVE Sync', netsync.run,
+                                           on_finished=netsync.completed)
+            self.tm.addTask(ns_task)
 
     def reload_tree(self):
         """
@@ -268,6 +278,10 @@ class QRAVE:
             if self.dockwidget is None:
                 # Create the dockwidget (after translation) and keep reference
                 self.dockwidget = QRAVEDockWidget()
+
+                # Run a network sync operation to get the latest stuff. Don't force it.
+                #  This is just a quick check
+                self.net_sync_load()
 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)

@@ -2,8 +2,7 @@ import os
 import json
 import logging
 
-from qgis.PyQt.QtCore import QSettings
-from qgis.core import QgsMessageLog, Qgis
+from qgis.core import QgsMessageLog, Qgis, QgsProject, QgsSettings
 
 with open(os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')) as cfg_file:
     cfg_json = json.load(cfg_file)
@@ -23,6 +22,9 @@ class SettingsBorg(object):
     def __init__(self):
         self.__dict__ = self._shared_state
 
+# https://docs.qgis.org/testing/en/docs/pyqgis_developer_cookbook/settings.html
+# NB: We use json here to get better simple values back. This is a bit hack-y
+
 
 class Settings(SettingsBorg):
     """
@@ -32,37 +34,34 @@ class Settings(SettingsBorg):
     def __init__(self):
         SettingsBorg.__init__(self)
         if not self._initdone:
+            self.proj = QgsProject.instance()
             QgsMessageLog.logMessage("Init Settings", 'QRAVE', level=Qgis.Info)
-            s = QSettings()
+            self.s = QgsSettings()
+            self.s.beginGroup(BASE)
 
             # Do a sanity check and reset anything that looks fishy
-            s.beginGroup(BASE)
             for key in _DEFAULTS.keys():
                 # self.setValue(key, _DEFAULTS[key])  # UNCOMMENT THIS FOR EMERGENCY RESET
-                if key not in s.childKeys():
+                if key not in self.s.childKeys():
                     self.setValue(key, _DEFAULTS[key])
 
             # Remove any settings that aren't in the defaults. This way we don't get settings building
             # Up over time
-            for key in s.childKeys():
+            for key in self.s.childKeys():
                 if key not in _DEFAULTS:
-                    s.remove(key)
-
-            s.endGroup()
+                    self.s.remove(key)
 
             # Must be the last thing we do in init
             self._initdone = True
 
     def resetAllSettings(self):
-        s = QSettings()
         for key in _DEFAULTS.keys():
             self.setValue(key, _DEFAULTS[key])
         # Remove any settings that aren't in the defaults. This way we don't get settings building
         # Up over time
-        for key in s.childKeys():
+        for key in self.s.childKeys():
             if key not in _DEFAULTS:
-                s.remove(key)
-        s.endGroup()
+                self.s.remove(key)
 
     def getValue(self, key):
         """
@@ -70,15 +69,12 @@ class Settings(SettingsBorg):
         :return:
         """
         value = None
-        s = QSettings()
-        s.beginGroup(BASE)
         try:
             default = _DEFAULTS[key] if key in _DEFAULTS else None
-            value = json.loads(s.value(key, default))['v']
+            value = json.loads(self.s.value(key, default))['v']
         except Exception as e:
             print(e)
             value = None
-        s.endGroup()
         return value
 
     def setValue(self, key, value):
@@ -88,9 +84,6 @@ class Settings(SettingsBorg):
         :param settings:
         :return:
         """
-        s = QSettings()
-        s.beginGroup(BASE)
         # Set it in the file
-        s.setValue(key, json.dumps({"v": value}))
+        self.s.setValue(key, json.dumps({"v": value}))
         QgsMessageLog.logMessage("SETTINGS SET: {}={} of type '{}'".format(key, value, str(type(value))), 'QRAVE', level=Qgis.Info)
-        s.endGroup()

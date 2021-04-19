@@ -5,26 +5,25 @@ import json
 import hashlib
 
 from time import time, sleep
-from qgis.core import QgsMessageLog, Qgis
-from qgis.PyQt.QtCore import pyqtSlot, pyqtSignal
+from qgis.core import QgsMessageLog, Qgis, QgsMessageLog, QgsTask, QgsApplication
+
 from .settings import Settings, CONSTANTS
+
+MESSAGE_CATEGORY = 'QRAVESync'
 
 
 class NetSync():
 
-    def __init__(self, labelcb=None, progresscb=None, closecb=None):
-
-        def nullfunc():
-            pass
+    def __init__(self, labelcb=None, progresscb=None, finishedcb=None):
 
         self.settings = Settings()
-        self.labelcb = labelcb if labelcb is not None else nullfunc
-        self.progresscb = progresscb if progresscb is not None else nullfunc
-        self.closecb = closecb if closecb is not None else nullfunc
+        self.labelcb = labelcb
+        self.progresscb = progresscb
+        self.finishedcb = finishedcb
 
         self.resource_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'resources')
-        self.symbology_dir = os.path.join(self.resource_dir, CONSTANTS['businessLogicDir'])
-        self.business_logic_xml_dir = os.path.join(self.resource_dir, CONSTANTS['symbologyDir'])
+        self.business_logic_xml_dir = os.path.join(self.resource_dir, CONSTANTS['businessLogicDir'])
+        self.symbology_dir = os.path.join(self.resource_dir, CONSTANTS['symbologyDir'])
         self.digest_path = os.path.join(self.resource_dir, 'index.json')
 
         self.initialized = False  # self.initialize sets this
@@ -32,13 +31,62 @@ class NetSync():
 
         self.initialize()
 
-    def run(self):
-        """Long-running task."""
-        self.progresscb(0)
+    def set_progress(self, task, val: int):
+        task.setProgress(val)
+        if self.progresscb is not None:
+            self.progresscb(val)
 
-        self.updateDigest()
-        self.syncFiles()
-        self.closecb()
+    def set_label(self, task, labelval: str):
+        QgsMessageLog.logMessage(labelval, MESSAGE_CATEGORY, Qgis.Info)
+        if self.labelcb is not None:
+            self.labelcb(labelval)
+
+    def run(self, task):
+        """
+        Raises an exception to abort the task.
+        Returns a result if success.
+        The result will be passed, together with the exception (None in
+        the case of success), to the on_finished method.
+        If there is an exception, there will be no result.
+        """
+
+        QgsMessageLog.logMessage('Started QRAVE Sync: {}'.format(task.description()),
+                                 MESSAGE_CATEGORY, Qgis.Info)
+        self.set_progress(task, 0)
+        self.updateDigest(task)
+        self.syncFiles(task)
+        if self.finishedcb is not None:
+            self.finishedcb()
+
+    def stopped(self, task):
+        QgsMessageLog.logMessage(
+            'Task "{name}" was canceled'.format(
+                name=task.description()),
+            MESSAGE_CATEGORY, Qgis.Info)
+
+    def completed(self, exception, result=None):
+        """This is called when doSomething is finished.
+        Exception is not None if doSomething raises an exception.
+        result is the return value of doSomething."""
+        if exception is None:
+            if result is None:
+                QgsMessageLog.logMessage(
+                    'Completed with no exception and no result '
+                    '(probably manually canceled by the user)',
+                    MESSAGE_CATEGORY, Qgis.Warning)
+            else:
+                QgsMessageLog.logMessage(
+                    'Task {name} completed\n'
+                    'Total: {total} ( with {iterations} '
+                    'iterations)'.format(
+                        name=result['task'],
+                        total=result['total'],
+                        iterations=result['iterations']),
+                    MESSAGE_CATEGORY, Qgis.Info)
+        else:
+            QgsMessageLog.logMessage("Exception: {}".format(exception),
+                                     MESSAGE_CATEGORY, Qgis.Critical)
+            raise exception
 
     def initialize(self):
         need_sync = False
@@ -57,15 +105,15 @@ class NetSync():
         self.initialized = True
         self.need_sync = need_sync
 
-    def updateDigest(self):
-        self.labelcb('Updating digest')
+    def updateDigest(self, task):
+        self.set_label(task, 'Updating digest')
         # Now get the JSON file
         json_url = CONSTANTS['resourcesUrl'] + 'index.json'
         result = requestDownload(json_url, self.digest_path)
         if result is True:
             self.settings.setValue('lastDigestSync', int(time()))
 
-    def syncFiles(self):
+    def syncFiles(self, task):
         digest = {}
         if not os.path.isfile(self.digest_path):
             QgsMessageLog.logMessage("Digest file could not be found", 'QRAVE', level=Qgis.Warning)
@@ -83,8 +131,8 @@ class NetSync():
         downloaded = 0
 
         def update_progress():
-            self.labelcb('Updating files {}/{}'.format(progress, total))
-            self.progresscb(int(100 * progress / total))
+            self.set_label(task, 'Updating files {}/{}'.format(progress, total))
+            self.set_progress(task, int(100 * progress / total))
 
         for remote_path, remote_md5 in symbologies.items():
             local_path = os.path.join(self.symbology_dir, os.path.basename(remote_path))
@@ -114,11 +162,11 @@ class NetSync():
             progress += 1
             update_progress()
 
-        self.progresscb(100)
+        self.set_progress(task, 100)
         if downloaded == 0:
-            self.labelcb('No symbology or xml updates needed. 0 files downloaded')
+            self.set_label(task, 'No symbology or xml updates needed. 0 files downloaded')
         else:
-            self.labelcb('Downloaded and updated {}/{} symbology or xml files'.format(downloaded, total))
+            self.set_label(task, 'Downloaded and updated {}/{} symbology or xml files'.format(downloaded, total))
 
 
 def md5(fname: str) -> str:
