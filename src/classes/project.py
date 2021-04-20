@@ -1,11 +1,11 @@
-
+from __future__ import annotations
 import os
-
+from typing import Dict
 import lxml.etree
 from .borg import Borg
 
 from qgis.core import QgsMessageLog, Qgis
-from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon
+from qgis.PyQt.QtGui import QStandardItem, QIcon, QBrush
 from qgis.PyQt.QtCore import Qt
 
 
@@ -14,6 +14,24 @@ from .settings import CONSTANTS
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 BL_XML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', CONSTANTS['businessLogicDir'])
+
+
+class QRaveMapLayer():
+
+    def __init__(self,
+                 label: str,
+                 lyr_path: str,
+                 bl_attr: Dict[str, str] = None,
+                 meta: Dict[str, str] = None,
+                 lyr_name: str = None
+                 ):
+        self.label = label
+        self.lyr_path = lyr_path
+        self.bl_attr = bl_attr
+        self.meta = meta
+        self.lyr_name = lyr_name
+
+        self.exists = os.path.isfile(lyr_path)
 
 
 class Project(Borg):
@@ -27,6 +45,9 @@ class Project(Borg):
             self.project_type = None
             self.business_logic = None
             self.qproject = None
+            self.project_dir = None
+            if os.path.isfile(self.project_xml_path):
+                self.project_dir = os.path.dirname(self.project_xml_path)
 
     def load(self):
         self._load_project()
@@ -78,10 +99,10 @@ class Project(Borg):
             return
 
         # Parse the XML
-        self.qproject = Project._recurse_tree(self.project, self.business_logic.find('Node'))
-        self.build_views()
+        self.qproject = self._recurse_tree()
+        self._build_views()
 
-    def build_views(self):
+    def _build_views(self):
         views = self.business_logic.find('Views')
 
         if views is None or 'default' not in views.attrib:
@@ -106,16 +127,15 @@ class Project(Borg):
 
         self.qproject.appendRow(curr_item)
 
-    @staticmethod
-    #####################################
-    # TODO: Reference input lookups
-    #####################################
-    def _recurse_tree(proj_root, bl_el, proj_el=None, parent: QStandardItem = None):
-        curr_item = QStandardItem()
+    def _recurse_tree(self, bl_el=None, proj_el=None, parent: QStandardItem = None):
+        if bl_el is None:
+            bl_el = self.business_logic.find('Node')
+
         is_root = proj_el is None
         bl_attr = bl_el.attrib
+
         if proj_el is None:
-            proj_el = proj_root
+            proj_el = self.project
 
         new_proj_el = proj_el
         if 'xpath' in bl_el.attrib:
@@ -127,12 +147,15 @@ class Project(Borg):
             new_proj_el = new_projs[0]
 
         # The label is either explicit or it's an xpath lookup
+        curr_label = '<unknown>'
         if 'label' in bl_el.attrib:
-            curr_item.setText(bl_el.attrib['label'])
+            curr_label = bl_el.attrib['label']
         elif 'xpathlabel' in bl_el.attrib:
             found = new_proj_el.xpath(bl_el.attrib['xpathlabel'])
-            qlabel = found[0].text if found is not None and len(found) > 0 else '<unknown>'
-            curr_item.setText(qlabel)
+            curr_label = found[0].text if found is not None and len(found) > 0 else '<unknown>'
+
+        curr_item = QStandardItem()
+        curr_item.setText(curr_label)
 
         children_container = bl_el.find('Children')
 
@@ -147,7 +170,7 @@ class Project(Borg):
             for child_node in children_container.xpath('*'):
                 # Handle any explicit <Node> children
                 if child_node.tag == 'Node':
-                    Project._recurse_tree(proj_root, child_node, new_proj_el, curr_item)
+                    self._recurse_tree(child_node, new_proj_el, curr_item)
 
                 # Repeaters are a separate case
                 elif child_node.tag == 'Repeater':
@@ -158,7 +181,7 @@ class Project(Borg):
                     repeat_node = child_node.find('Node')
                     if repeat_node is not None:
                         for repeater_el in new_proj_el.xpath(repeat_xpath):
-                            Project._recurse_tree(proj_root, repeat_node, repeater_el, qrepeater)
+                            self._recurse_tree(repeat_node, repeater_el, qrepeater)
 
         # Otherwise this is a leaf
         else:
@@ -174,12 +197,20 @@ class Project(Borg):
 
             # Couldn't find this node. Ignore it.
             meta = {meta.attrib['name']: meta.text for meta in new_proj_el.xpath('Metadata/Meta')}
-            curr_item.setData({
-                # We get this from the BL
-                **bl_el.attrib,
-                # We get this from the project
-                'meta': meta
-            }, Qt.UserRole)
+            new_proj_el.find('Path')
+
+            lyr_name = None
+            lyr_path = os.path.join(self.project_dir, new_proj_el.find('Path').text)
+            # If this is a geopackage it's special
+            if new_proj_el.getparent().tag == 'Layers':
+                lyr_name = new_proj_el.find('Path').text
+                lyr_path = os.path.join(self.project_dir, new_proj_el.getparent().getparent().find('Path').text)
+
+            map_layer = QRaveMapLayer(curr_label, lyr_path, bl_attr, meta, lyr_name)
+            curr_item.setData(map_layer, Qt.UserRole)
+
+            if not map_layer.exists:
+                curr_item.setData(QBrush(Qt.red), Qt.ForegroundRole)
 
         if parent:
             parent.appendRow(curr_item)

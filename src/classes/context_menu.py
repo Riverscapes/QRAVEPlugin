@@ -9,6 +9,10 @@ class ContextMenu(QMenu):
             "Expand All Child Nodes",
             ':/plugins/qrave_toolbar/expand.png',
         ),
+        'COLLAPSE_ALL': (
+            "Collapse All Child Nodes",
+            ':/plugins/qrave_toolbar/expand.png',
+        ),
         'ADD_ALL_TO_MAP': (
             "Add All Layers To The Map",
             ':/plugins/qrave_toolbar/AddToMap.png',
@@ -58,4 +62,4 @@ class ContextMenu(QMenu):
         action.setEnabled(enabled)
 
         if slot is not None:
-            action.triggered.connect(self.optionsLoad)
+            action.triggered.connect(slot)

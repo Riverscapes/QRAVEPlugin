@@ -290,7 +290,8 @@ class QRAVE:
             self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
         else:
-            if self.dockwidget.isHidden():
-                self.dockwidget.show()
-            elif forceOn is False:
-                self.dockwidget.hide()
+            if self.dockwidget is not None:
+                if self.dockwidget.isHidden():
+                    self.dockwidget.show()
+                elif forceOn is False:
+                    self.dockwidget.hide()

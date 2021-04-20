@@ -30,11 +30,11 @@ from qgis.PyQt import uic
 from qgis.core import Qgis
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon
 from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction
-from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt
+from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex
 
 from .classes.settings import Settings, CONSTANTS
 from .classes.basemaps import BaseMaps
-from .classes.project import Project
+from .classes.project import Project, QRaveMapLayer
 from .classes.context_menu import ContextMenu
 
 
@@ -44,32 +44,14 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 
 ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
 
-STYLE = """
-QTreeView {
-    show-decoration-selected: 1;
-}
-
-QTreeView::item {
-}
-    """
-
-
-# QTreeView::item:hover {
-#     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #e7effd, stop: 1 #cbdaf1);
-#     border: 1px solid #bfcde4;
+# STYLE = """
+# QTreeView {
+#     show-decoration-selected: 1;
 # }
 
-# QTreeView::item:selected {
-#     border: 1px solid #567dbc;
+# QTreeView::item {
 # }
-
-# QTreeView::item:selected:active{
-#     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #6ea1f1, stop: 1 #567dbc);
-# }
-
-# QTreeView::item:selected:!active {
-#     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #6b9be8, stop: 1 #577fbf);
-# }
+#     """
 
 
 class QRAVEDockWidget(QDockWidget, FORM_CLASS):
@@ -96,7 +78,7 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
         self.settings = Settings()
         self.model = QStandardItemModel()
-        self.treeView.setStyleSheet(STYLE)
+        # self.treeView.setStyleSheet(STYLE)
 
         # Initialize our classes
         self.basemaps = BaseMaps()
@@ -140,12 +122,12 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         data = item.data(Qt.UserRole)
 
         # This is the layer context menu
+        if isinstance(data, QRaveMapLayer):
+            print("Default Layer Action")
+
         if data is not None and 'type' in data:
 
-            if data['type'] in ADD_TO_MAP_TYPES:
-                print("Default Layer Action")
-
-            elif data['type'] in ['ROOT']:
+            if data['type'] in ['ROOT']:
                 print("Default Project Action")
 
             elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
@@ -164,48 +146,52 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
             return
 
         # No multiselect so there is only ever one item
+        idx = indexes[0]
         item = self.model.itemFromIndex(indexes[0])
         data = item.data(Qt.UserRole)
 
         # This is the layer context menu
-        if data is not None and 'type' in data:
+        if isinstance(data, QRaveMapLayer):
+            self.layer_context_menu(idx, item, data)
 
-            if data['type'] in ADD_TO_MAP_TYPES:
-                self.layer_context_menu()
-
-            elif data['type'] in ['ROOT']:
-                self.project_context_menu()
-
-            elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
-                self.folder_context_menu()
+        elif data is not None and 'type' in data:
+            if data['type'] in ['ROOT']:
+                self.project_context_menu(idx, item, data)
 
             elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
-                self.folder_context_menu()
+                self.folder_context_menu(idx, item, data)
+
+            elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
+                self.folder_context_menu(idx, item, data)
 
             elif data['type'] == 'VIEW':
-                self.view_context_menu()
+                self.view_context_menu(idx, item, data)
 
-            self.menu.exec_(self.treeView.viewport().mapToGlobal(position))
+        self.menu.exec_(self.treeView.viewport().mapToGlobal(position))
 
-    def layer_context_menu(self):
+    def layer_context_menu(self, idx: QModelIndex, item: QStandardItem, data: QRaveMapLayer):
         self.menu.clear()
         self.menu.addAction('ADD_TO_MAP')
         self.menu.addAction('VIEW_LAYER_META')
         self.menu.addAction('VIEW_WEB_SOURCE')
         self.menu.addAction('BROWSE_FOLDER')
 
-    def folder_context_menu(self):
+    def folder_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
         self.menu.addAction('ADD_ALL_TO_MAP')
-        self.menu.addAction('EXPAND_ALL')
+        self.menu.addSeparator()
+        self.menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
+        self.menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(item, True))
 
-    def view_context_menu(self):
+    def view_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
         self.menu.addAction('ADD_ALL_TO_MAP')
 
-    def project_context_menu(self):
+    def project_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
-        self.menu.addAction('EXPAND_ALL')
+        self.menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(None, False))
+        self.menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(None, True))
+
         self.menu.addSeparator()
         self.menu.addAction('BROWSE_PROJECT_FOLDER')
         self.menu.addAction('VIEW_PROJECT_META')
@@ -214,6 +200,24 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.menu.addAction('REFRESH_PROJECT_HIERARCHY')
         self.menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY')
 
-    def basemap_context_menu(self):
+    def basemap_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
         self.menu.addAction('ADD_TO_MAP')
+
+    def toggleSubtree(self, item: QStandardItem = None, expand=True):
+
+        def _recurse(curritem):
+            idx = self.model.indexFromItem(item)
+            if expand is not self.treeView.isExpanded(idx):
+                self.treeView.setExpanded(idx, expand)
+
+            for row in range(curritem.rowCount()):
+                _recurse(curritem.child(row))
+
+        if item is None:
+            if expand is True:
+                self.treeView.expandAll()
+            else:
+                self.treeView.collapseAll()
+        else:
+            _recurse(item)
