@@ -30,7 +30,7 @@ class BaseMaps(Borg):
 
         # Parse the XML
         for region in ET.parse(BASEMAPS_XML_PATH).getroot().findall('Region'):
-            q_region = QStandardItem('Basemaps')
+            q_region = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), 'Basemaps')
             q_region.setData({'type': 'BASEMAP_ROOT'}, Qt.UserRole),
             self.regions[region.attrib['name']] = q_region
 

@@ -79,6 +79,32 @@ class Project(Borg):
 
         # Parse the XML
         self.qproject = Project._recurse_tree(self.project, self.business_logic.find('Node'))
+        self.build_views()
+
+    def build_views(self):
+        views = self.business_logic.find('Views')
+
+        if views is None or 'default' not in views.attrib:
+            return
+
+        curr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), "Project Views")
+        curr_item.setData({'type': 'VIEW_FOLDER'}, Qt.UserRole)
+
+        for view in self.business_logic.findall('Views/View'):
+            name = view.attrib['name']
+            view_id = view.attrib['id']
+
+            if name is None or view_id is None:
+                continue
+
+            view_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/project_view.png'), name)
+            view_item.setData({
+                'type': 'VIEW',
+                'ids': [layer.attrib['id'] for layer in view.findall('Layers/Layer')]
+            }, Qt.UserRole)
+            curr_item.appendRow(view_item)
+
+        self.qproject.appendRow(curr_item)
 
     @staticmethod
     #####################################

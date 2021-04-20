@@ -154,6 +154,9 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
             elif data['type'] == 'BASEMAP':
                 print("Default Basemap Action")
 
+            elif data['type'] == 'VIEW':
+                print("Default View Action")
+
     def open_menu(self, position):
 
         indexes = self.treeView.selectedIndexes()
@@ -176,8 +179,11 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
             elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
                 self.folder_context_menu()
 
-            elif data['type'] == 'BASEMAP':
-                self.basemap_context_menu()
+            elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
+                self.folder_context_menu()
+
+            elif data['type'] == 'VIEW':
+                self.view_context_menu()
 
             self.menu.exec_(self.treeView.viewport().mapToGlobal(position))
 
@@ -192,6 +198,10 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.menu.clear()
         self.menu.addAction('ADD_ALL_TO_MAP')
         self.menu.addAction('EXPAND_ALL')
+
+    def view_context_menu(self):
+        self.menu.clear()
+        self.menu.addAction('ADD_ALL_TO_MAP')
 
     def project_context_menu(self):
         self.menu.clear()
