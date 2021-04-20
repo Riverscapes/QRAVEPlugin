@@ -2,7 +2,7 @@ import os
 import json
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox
-from qgis.core import QgsMessageLog, Qgis
+from qgis.core import Qgis
 from qgis.PyQt.QtCore import pyqtSignal
 
 from .classes.settings import Settings

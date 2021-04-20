@@ -31,10 +31,12 @@ class BaseMaps(Borg):
         # Parse the XML
         for region in ET.parse(BASEMAPS_XML_PATH).getroot().findall('Region'):
             q_region = QStandardItem('Basemaps')
+            q_region.setData({'type': 'BASEMAP_ROOT'}, Qt.UserRole),
             self.regions[region.attrib['name']] = q_region
 
             for group_layer in region.findall('GroupLayer'):
-                q_group_layer = QStandardItem(group_layer.attrib['name'])
+                q_group_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), group_layer.attrib['name'])
+                q_group_layer.setData({'type': 'BASEMAP_FOLDER'}, Qt.UserRole),
                 q_region.appendRow(q_group_layer)
 
                 for layer in group_layer.findall('Layer'):

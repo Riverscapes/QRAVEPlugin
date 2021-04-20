@@ -12,7 +12,7 @@ _DEFAULTS = cfg_json['defaultSettings']
 CONSTANTS = cfg_json['constants']
 
 # BASE is the name we want to use inside the settings keys
-BASE = "QRAVEToolbar"
+MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 
 class SettingsBorg(object):
@@ -35,9 +35,9 @@ class Settings(SettingsBorg):
         SettingsBorg.__init__(self)
         if not self._initdone:
             self.proj = QgsProject.instance()
-            QgsMessageLog.logMessage("Init Settings", 'QRAVE', level=Qgis.Info)
+            QgsMessageLog.logMessage("Init Settings", MESSAGE_CATEGORY, level=Qgis.Info)
             self.s = QgsSettings()
-            self.s.beginGroup(BASE)
+            self.s.beginGroup(CONSTANTS['settingsCategory'])
 
             # Do a sanity check and reset anything that looks fishy
             for key in _DEFAULTS.keys():
@@ -86,4 +86,4 @@ class Settings(SettingsBorg):
         """
         # Set it in the file
         self.s.setValue(key, json.dumps({"v": value}))
-        QgsMessageLog.logMessage("SETTINGS SET: {}={} of type '{}'".format(key, value, str(type(value))), 'QRAVE', level=Qgis.Info)
+        QgsMessageLog.logMessage("SETTINGS SET: {}={} of type '{}'".format(key, value, str(type(value))), MESSAGE_CATEGORY, level=Qgis.Info)

@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Resources comes from external. We may ship with them but they should not be in git
+resources
+
 # PUBLIC is where the GH pages branch gets built
 PUBLIC
 # Ruby gems installed using bundler

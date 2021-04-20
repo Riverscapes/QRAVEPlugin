@@ -36,5 +36,3 @@ class ProgressDialog(QDialog, DIALOG_CLASS):
         else:
             self.buttonBox.setStandardButtons(QDialogButtonBox.Ok)
             pass
-
-        self.settings.setValue('initialized', True)

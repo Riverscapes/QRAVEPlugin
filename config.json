@@ -9,6 +9,8 @@
         "basemapRegion": "United States"
     },
     "constants": {
+        "logCategory": "QRAVE",
+        "settingsCategory": "QRAVE",
         "businessLogicDir": "blXML",
         "symbologyDir": "symbology",
         "digestSyncFreqHours": 24,

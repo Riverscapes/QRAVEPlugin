@@ -27,17 +27,49 @@ import os
 
 
 from qgis.PyQt import uic
-from qgis.core import QgsMessageLog, Qgis
+from qgis.core import Qgis
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon
-from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu
+from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt
 
 from .classes.settings import Settings, CONSTANTS
 from .classes.basemaps import BaseMaps
+from .classes.project import Project
+from .classes.context_menu import ContextMenu
 
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui', 'dock_widget.ui'))
+
+
+ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
+
+STYLE = """
+QTreeView {
+    show-decoration-selected: 1;
+}
+
+QTreeView::item {
+}
+    """
+
+
+# QTreeView::item:hover {
+#     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #e7effd, stop: 1 #cbdaf1);
+#     border: 1px solid #bfcde4;
+# }
+
+# QTreeView::item:selected {
+#     border: 1px solid #567dbc;
+# }
+
+# QTreeView::item:selected:active{
+#     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #6ea1f1, stop: 1 #567dbc);
+# }
+
+# QTreeView::item:selected:!active {
+#     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #6b9be8, stop: 1 #577fbf);
+# }
 
 
 class QRAVEDockWidget(QDockWidget, FORM_CLASS):
@@ -56,26 +88,40 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
         # self.treeView
         self.setupUi(self)
+        self.menu = ContextMenu()
 
         self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
         self.treeView.customContextMenuRequested.connect(self.open_menu)
         self.treeView.doubleClicked.connect(self.default_tree_action)
 
         self.settings = Settings()
+        self.model = QStandardItemModel()
+        self.treeView.setStyleSheet(STYLE)
+
+        # Initialize our classes
         self.basemaps = BaseMaps()
-        self.model = None
+        project_path = self.settings.getValue('projectPath')
+        self.project = Project(os.path.join(project_path, 'project.rs.xml'))
+
         self.dataChange.connect(self.load)
-        self.basemaps.load()
         self.load()
 
     @pyqtSlot()
     def load(self):
+        # re-initialize our model
         self.model = QStandardItemModel()
         # self.model.setHorizontalHeaderLabels(['Name', 'Height', 'Weight'])
         # self.tree.header().setDefaultSectionSize(180)
+
+        # Load the tree objects
+        self.basemaps.load()
+        self.project.load()
+
         self.treeView.setModel(self.model)
 
         # self._populateTree(self.tree, self.model.invisibleRootItem())
+        if self.project.qproject is not None:
+            self.model.appendRow(self.project.qproject)
 
         # Now load the basemaps
         region = self.settings.getValue('basemapRegion')
@@ -85,41 +131,79 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         # Finally expand all levels
         self.treeView.expandAll()
 
-    def _populateTree(self, children: List[QStandardItem], parent: QStandardItem):
-        if parent is None or children is None:
-            return
-        for child in sorted(children):
-            parent.appendRow(child)
-            if child.hasChildren():
-                self._populateTree(child.children, child)
-
     def closeEvent(self, event):
         self.closingPlugin.emit()
         event.accept()
 
     def default_tree_action(self, index):
         item = self.model.itemFromIndex(index)
-        name = item.text()
         data = item.data(Qt.UserRole)
-        print("position")
+
+        # This is the layer context menu
+        if data is not None and 'type' in data:
+
+            if data['type'] in ADD_TO_MAP_TYPES:
+                print("Default Layer Action")
+
+            elif data['type'] in ['ROOT']:
+                print("Default Project Action")
+
+            elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
+                print("Default Folder Action")
+
+            elif data['type'] == 'BASEMAP':
+                print("Default Basemap Action")
 
     def open_menu(self, position):
 
         indexes = self.treeView.selectedIndexes()
-        if len(indexes) > 0:
+        if len(indexes) < 1:
+            return
 
-            level = 0
-            index = indexes[0]
-            while index.parent().isValid():
-                index = index.parent()
-                level += 1
+        # No multiselect so there is only ever one item
+        item = self.model.itemFromIndex(indexes[0])
+        data = item.data(Qt.UserRole)
 
-        menu = QMenu()
-        if level == 0:
-            menu.addAction(self.tr("Edit person"))
-        elif level == 1:
-            menu.addAction(self.tr("Edit object/container"))
-        elif level == 2:
-            menu.addAction(self.tr("Edit object"))
+        # This is the layer context menu
+        if data is not None and 'type' in data:
 
-        menu.exec_(self.treeView.viewport().mapToGlobal(position))
+            if data['type'] in ADD_TO_MAP_TYPES:
+                self.layer_context_menu()
+
+            elif data['type'] in ['ROOT']:
+                self.project_context_menu()
+
+            elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
+                self.folder_context_menu()
+
+            elif data['type'] == 'BASEMAP':
+                self.basemap_context_menu()
+
+            self.menu.exec_(self.treeView.viewport().mapToGlobal(position))
+
+    def layer_context_menu(self):
+        self.menu.clear()
+        self.menu.addAction('ADD_TO_MAP')
+        self.menu.addAction('VIEW_LAYER_META')
+        self.menu.addAction('VIEW_WEB_SOURCE')
+        self.menu.addAction('BROWSE_FOLDER')
+
+    def folder_context_menu(self):
+        self.menu.clear()
+        self.menu.addAction('ADD_ALL_TO_MAP')
+        self.menu.addAction('EXPAND_ALL')
+
+    def project_context_menu(self):
+        self.menu.clear()
+        self.menu.addAction('EXPAND_ALL')
+        self.menu.addSeparator()
+        self.menu.addAction('BROWSE_PROJECT_FOLDER')
+        self.menu.addAction('VIEW_PROJECT_META')
+        self.menu.addAction('ADD_ALL_TO_MAP')
+        self.menu.addSeparator()
+        self.menu.addAction('REFRESH_PROJECT_HIERARCHY')
+        self.menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY')
+
+    def basemap_context_menu(self):
+        self.menu.clear()
+        self.menu.addAction('ADD_TO_MAP')

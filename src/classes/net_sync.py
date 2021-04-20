@@ -9,7 +9,7 @@ from qgis.core import QgsMessageLog, Qgis, QgsMessageLog, QgsTask, QgsApplicatio
 
 from .settings import Settings, CONSTANTS
 
-MESSAGE_CATEGORY = 'QRAVESync'
+MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 
 class NetSync():
@@ -57,6 +57,7 @@ class NetSync():
         self.syncFiles(task)
         if self.finishedcb is not None:
             self.finishedcb()
+        return True
 
     def stopped(self, task):
         QgsMessageLog.logMessage(
@@ -167,6 +168,8 @@ class NetSync():
             self.set_label(task, 'No symbology or xml updates needed. 0 files downloaded')
         else:
             self.set_label(task, 'Downloaded and updated {}/{} symbology or xml files'.format(downloaded, total))
+
+        self.settings.setValue('initialized', True)
 
 
 def md5(fname: str) -> str:

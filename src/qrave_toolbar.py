@@ -16,7 +16,7 @@ import os.path
 from time import time
 from functools import partial
 from qgis.utils import showPluginHelp
-from qgis.core import QgsMessageLog, QgsTask, QgsApplication
+from qgis.core import QgsTask, QgsApplication
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl, pyqtSlot
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
@@ -135,7 +135,7 @@ class QRAVE:
             self.tr('Settings'),
             self.iface.mainWindow()
         )
-        raveOptionsAction.setEnabled(plugin_init)
+        # raveOptionsAction.setEnabled(plugin_init)
         raveOptionsAction.triggered.connect(self.optionsLoad)
 
         net_sync_action = QAction(
@@ -193,10 +193,10 @@ class QRAVE:
         Browse for a project directory
         :return:
         """
-        project_dir = QFileDialog.getExistingDirectory(self.dockwidget, "Open a project folder", self.settings.getValue('lastProjectDir'))
-        if project_dir is not None and project_dir != "" and os.path.isdir(project_dir):
-            project = Project(os.path.join(project_dir, 'project.rs.xml'))
-            project.load()
+        projectPath = QFileDialog.getExistingDirectory(self.dockwidget, "Open a project folder", self.settings.getValue('lastProjectDir'))
+        if projectPath is not None and projectPath != "" and os.path.isdir(projectPath):
+            self.settings.setValue('projectPath', projectPath)
+            self.reload_tree()
 
     def optionsLoad(self):
         """
@@ -259,8 +259,7 @@ class QRAVE:
         The dockwidget may or may not be initialized when we call reload so we
         add a checking step in
         """
-        basemaps = BaseMaps()
-        basemaps.load()
+
         if self.dockwidget:
             self.dockwidget.dataChange.emit()
 
