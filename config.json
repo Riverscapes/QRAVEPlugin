@@ -3,7 +3,7 @@
         "initialized": false,
         "projectPath": null,
         "loadDefaultView": true,
-        "regionInclude": true,
+        "basemapsInclude": true,
         "lastDigestSync": null,
         "lastResourceSync": null,
         "basemapRegion": "United States"
@@ -14,7 +14,6 @@
         "businessLogicDir": "blXML",
         "symbologyDir": "symbology",
         "digestSyncFreqHours": 24,
-        "lastProjectDir": null,
         "webUrl": "https://rave.riverscapes.xyz",
         "issueUrl": "http://rave.riverscapes.xyz/known-bugs.html",
         "resourcesUrl": "https://raw.githubusercontent.com/Riverscapes/RiverscapesXML/dev/"

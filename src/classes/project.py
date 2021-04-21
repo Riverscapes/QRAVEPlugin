@@ -38,6 +38,9 @@ class Project(Borg):
 
     def __init__(self, project_xml_path: str):
         Borg.__init__(self)
+        self.exists = False
+        self.meta = None
+        self.warehouse_meta = None
 
         if project_xml_path is not None:
             self.project_xml_path = project_xml_path
@@ -46,17 +49,22 @@ class Project(Borg):
             self.business_logic = None
             self.qproject = None
             self.project_dir = None
-            if os.path.isfile(self.project_xml_path):
+            self.exists = os.path.isfile(self.project_xml_path)
+            if self.exists:
                 self.project_dir = os.path.dirname(self.project_xml_path)
 
     def load(self):
-        self._load_project()
-        self._load_businesslogic()
-        self._build_tree()
+        if self.exists is True:
+            self._load_project()
+            self._load_businesslogic()
+            self._build_tree()
 
     def _load_project(self):
         if os.path.isfile(self.project_xml_path):
             self.project = lxml.etree.parse(self.project_xml_path).getroot()
+
+            self.meta = {meta.attrib['name']: meta.text for meta in self.project.findall('MetaData/Meta')}
+            self.warehouse_meta = {meta.attrib['name']: meta.text for meta in self.project.findall('Warehouse/Meta')}
             self.projectType = self.project.find('ProjectType').text
 
     def _load_businesslogic(self):
@@ -196,7 +204,7 @@ class Project(Borg):
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/Raster.png'))
 
             # Couldn't find this node. Ignore it.
-            meta = {meta.attrib['name']: meta.text for meta in new_proj_el.xpath('Metadata/Meta')}
+            meta = {meta.attrib['name']: meta.text for meta in new_proj_el.xpath('MetaData/Meta')}
             new_proj_el.find('Path')
 
             lyr_name = None

@@ -22,21 +22,21 @@
  ***************************************************************************/
 """
 from __future__ import annotations
-from typing import List
+from typing import List, Dict
 import os
 
 
 from qgis.PyQt import uic
 from qgis.core import Qgis
-from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon
+from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices
 from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction
-from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex
+from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl
 
 from .classes.settings import Settings, CONSTANTS
 from .classes.basemaps import BaseMaps
 from .classes.project import Project, QRaveMapLayer
 from .classes.context_menu import ContextMenu
-
+from .meta_widget import MetaType
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui', 'dock_widget.ui'))
@@ -44,20 +44,13 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 
 ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
 
-# STYLE = """
-# QTreeView {
-#     show-decoration-selected: 1;
-# }
-
-# QTreeView::item {
-# }
-#     """
-
 
 class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
     closingPlugin = pyqtSignal()
     dataChange = pyqtSignal()
+    showMeta = pyqtSignal()
+    metaChange = pyqtSignal(str, dict, bool)
 
     def __init__(self, parent=None):
         """Constructor."""
@@ -75,6 +68,7 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
         self.treeView.customContextMenuRequested.connect(self.open_menu)
         self.treeView.doubleClicked.connect(self.default_tree_action)
+        self.treeView.clicked.connect(self.item_change)
 
         self.settings = Settings()
         self.model = QStandardItemModel()
@@ -82,8 +76,8 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
         # Initialize our classes
         self.basemaps = BaseMaps()
-        project_path = self.settings.getValue('projectPath')
-        self.project = Project(os.path.join(project_path, 'project.rs.xml'))
+        self.treeView.setModel(self.model)
+        self.project = Project(self.settings.getValue('projectPath'))
 
         self.dataChange.connect(self.load)
         self.load()
@@ -91,23 +85,25 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
     @pyqtSlot()
     def load(self):
         # re-initialize our model
-        self.model = QStandardItemModel()
+        self.model.clear()
+
         # self.model.setHorizontalHeaderLabels(['Name', 'Height', 'Weight'])
         # self.tree.header().setDefaultSectionSize(180)
 
+        self.project = Project(self.settings.getValue('projectPath'))
         # Load the tree objects
-        self.basemaps.load()
         self.project.load()
-
-        self.treeView.setModel(self.model)
+        self.basemaps.load()
 
         # self._populateTree(self.tree, self.model.invisibleRootItem())
-        if self.project.qproject is not None:
+        if self.project.exists is True and self.project.qproject is not None:
             self.model.appendRow(self.project.qproject)
 
         # Now load the basemaps
         region = self.settings.getValue('basemapRegion')
-        if region is not None and len(region) > 0 and region in self.basemaps.regions.keys():
+        if self.settings.getValue('basemapsInclude') is True \
+                and region is not None and len(region) > 0 \
+                and region in self.basemaps.regions.keys():
             self.model.appendRow(self.basemaps.regions[region])
 
         # Finally expand all levels
@@ -138,6 +134,28 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
             elif data['type'] == 'VIEW':
                 print("Default View Action")
+
+    def item_change(self, postion):
+        indexes = self.treeView.selectedIndexes()
+        if len(indexes) < 1 or self.project is None or self.project.exists is False:
+            return
+
+        # No multiselect so there is only ever one item
+        idx = indexes[0]
+        item = self.model.itemFromIndex(indexes[0])
+        data = item.data(Qt.UserRole)
+        self.change_meta(data)
+
+    def change_meta(self, data, show=False):
+        if isinstance(data, QRaveMapLayer):
+            self.metaChange.emit(MetaType.LAYER, data.meta, show)
+        elif data is not None and 'type' in data and data['type'] in ['ROOT']:
+            self.metaChange.emit(MetaType.PROJECT, {
+                'project': self.project.meta,
+                'warehouse': self.project.warehouse_meta
+            }, show)
+        else:
+            self.metaChange.emit(MetaType.NONE, data, show)
 
     def open_menu(self, position):
 
@@ -172,9 +190,9 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
     def layer_context_menu(self, idx: QModelIndex, item: QStandardItem, data: QRaveMapLayer):
         self.menu.clear()
         self.menu.addAction('ADD_TO_MAP')
-        self.menu.addAction('VIEW_LAYER_META')
+        self.menu.addAction('VIEW_LAYER_META', lambda: self.change_meta(data, True))
         self.menu.addAction('VIEW_WEB_SOURCE')
-        self.menu.addAction('BROWSE_FOLDER')
+        self.menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(data.lyr_path))
 
     def folder_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
@@ -193,8 +211,8 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(None, True))
 
         self.menu.addSeparator()
-        self.menu.addAction('BROWSE_PROJECT_FOLDER')
-        self.menu.addAction('VIEW_PROJECT_META')
+        self.menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(self.project.project_xml_path))
+        self.menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(data, True))
         self.menu.addAction('ADD_ALL_TO_MAP')
         self.menu.addSeparator()
         self.menu.addAction('REFRESH_PROJECT_HIERARCHY')
@@ -203,6 +221,16 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
     def basemap_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
         self.menu.addAction('ADD_TO_MAP')
+
+    def file_system_open(self, fpath: str):
+        qurl = QUrl.fromLocalFile(fpath)
+        QDesktopServices.openUrl(qurl)
+
+    def file_system_locate(self, fpath: str):
+        final_path = os.path.dirname(fpath) if os.path.isfile(fpath) else fpath
+
+        qurl = QUrl.fromLocalFile(final_path)
+        QDesktopServices.openUrl(qurl)
 
     def toggleSubtree(self, item: QStandardItem = None, expand=True):
 

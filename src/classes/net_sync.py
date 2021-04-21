@@ -76,6 +76,7 @@ class NetSync():
                     '(probably manually canceled by the user)',
                     MESSAGE_CATEGORY, Qgis.Warning)
             else:
+                self.settings.setValue('initialized', True)
                 QgsMessageLog.logMessage(
                     'Task {name} completed\n'
                     'Total: {total} ( with {iterations} '
@@ -168,8 +169,6 @@ class NetSync():
             self.set_label(task, 'No symbology or xml updates needed. 0 files downloaded')
         else:
             self.set_label(task, 'Downloaded and updated {}/{} symbology or xml files'.format(downloaded, total))
-
-        self.settings.setValue('initialized', True)
 
 
 def md5(fname: str) -> str:

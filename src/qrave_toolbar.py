@@ -35,6 +35,7 @@ from .options_dialog import OptionsDialog
 from .progress_dialog import ProgressDialog
 from .about_dialog import AboutDialog
 from .dock_widget import QRAVEDockWidget
+from .meta_widget import QRAVEMetaWidget
 
 # initialize Qt resources from file resources.py
 from . import resources
@@ -55,7 +56,10 @@ class QRAVE:
         self.iface = iface
         self.tm = QgsApplication.taskManager()
         self.pluginIsActive = False
+
         self.dockwidget = None
+        self.metawidget = None
+
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
         # initialize locale
@@ -97,70 +101,80 @@ class QRAVE:
 
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
-        plugin_init = self.settings.getValue('initialized')
 
-        openAction = QAction(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), self.tr(u'Riverscapes Plugin (QRAVE)'), self.iface.mainWindow())
-        openAction.triggered.connect(self.toggle_widget)
-        openAction.setEnabled(plugin_init)
-        openAction.setStatusTip('do a thing')
-        openAction.setWhatsThis('what\'s this')
+        self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), self.tr(u'Riverscapes Plugin (QRAVE)'), self.iface.mainWindow())
+        self.openAction.triggered.connect(self.toggle_widget)
 
-        openProjectAction = QAction(QIcon(':/plugins/qrave_toolbar/OpenProject.png'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
-        openProjectAction.triggered.connect(self.projectBrowserDlg)
-        openProjectAction.setEnabled(plugin_init)
-        openProjectAction.setStatusTip('do a thing')
-        openProjectAction.setWhatsThis('what\'s this')
+        self.openAction.setStatusTip('do a thing')
+        self.openAction.setWhatsThis('what\'s this')
 
-        helpButton = QToolButton()
-        helpButton.setMenu(QMenu())
-        helpButton.setPopupMode(QToolButton.MenuButtonPopup)
+        self.openProjectAction = QAction(QIcon(':/plugins/qrave_toolbar/OpenProject.png'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
+        self.openProjectAction.triggered.connect(self.projectBrowserDlg)
 
-        m = helpButton.menu()
+        self.openProjectAction.setStatusTip('do a thing')
+        self.openProjectAction.setWhatsThis('what\'s this')
+
+        self.helpButton = QToolButton()
+        self.helpButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.helpButton.setMenu(QMenu())
+        self.helpButton.setPopupMode(QToolButton.MenuButtonPopup)
+
+        m = self.helpButton.menu()
 
         def openUrl():
             QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz"))
 
-        helpAction = QAction(
+        self.helpAction = QAction(
+            QIcon(':/plugins/qrave_toolbar/Help.png'),
             self.tr('Help'),
             self.iface.mainWindow()
         )
-        helpAction.triggered.connect(partial(showPluginHelp, None, filename=':/plugins/qrave_toolbar/help/build/html/index'))
-        websiteAction = QAction(
+        self.helpAction.triggered.connect(partial(showPluginHelp, None, filename=':/plugins/qrave_toolbar/help/build/html/index'))
+        self.websiteAction = QAction(
+            QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'),
             self.tr('Website'),
             self.iface.mainWindow()
         )
-        websiteAction.triggered.connect(openUrl)
+        self.websiteAction.triggered.connect(openUrl)
 
-        raveOptionsAction = QAction(
+        self.raveOptionsAction = QAction(
             self.tr('Settings'),
             self.iface.mainWindow()
         )
-        # raveOptionsAction.setEnabled(plugin_init)
-        raveOptionsAction.triggered.connect(self.optionsLoad)
+        self.raveOptionsAction.triggered.connect(self.optionsLoad)
 
-        net_sync_action = QAction(
+        self.net_sync_action = QAction(
+            QIcon(':/plugins/qrave_toolbar/refresh.png'),
             self.tr('Update resources'),
             self.iface.mainWindow()
         )
-        net_sync_action.triggered.connect(lambda: self.net_sync_load(force=True))
+        self.net_sync_action.triggered.connect(lambda: self.net_sync_load(force=True))
 
-        about_action = QAction(
+        self.about_action = QAction(
+            QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'),
             self.tr('About QRAVE'),
             self.iface.mainWindow()
         )
-        about_action.triggered.connect(self.about_load)
+        self.about_action.triggered.connect(self.about_load)
 
-        m.addAction(helpAction)
-        m.addAction(websiteAction)
-        m.addAction(raveOptionsAction)
-        m.addAction(net_sync_action)
+        m.addAction(self.helpAction)
+        m.addAction(self.websiteAction)
+        m.addAction(self.raveOptionsAction)
+        m.addAction(self.net_sync_action)
         m.addSeparator()
-        m.addAction(about_action)
-        helpButton.setDefaultAction(helpAction)
+        m.addAction(self.about_action)
+        self.helpButton.setDefaultAction(self.helpAction)
 
-        self.toolbar.addAction(openAction)
-        self.toolbar.addAction(openProjectAction)
-        self.toolbar.addWidget(helpButton)
+        self.toolbar.addAction(self.openAction)
+        self.toolbar.addAction(self.openProjectAction)
+        self.toolbar.addWidget(self.helpButton)
+
+        self.reloadGui()
+
+    def reloadGui(self):
+        plugin_init = self.settings.getValue('initialized')
+        self.openAction.setEnabled(plugin_init)
+        self.openProjectAction.setEnabled(plugin_init)
 
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
@@ -169,7 +183,6 @@ class QRAVE:
 
         # disconnects
         self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
-
         # remove this statement if dockwidget is to remain
         # for reuse if plugin is reopened
         # Commented next statement since it causes QGIS crashe
@@ -193,9 +206,12 @@ class QRAVE:
         Browse for a project directory
         :return:
         """
-        projectPath = QFileDialog.getExistingDirectory(self.dockwidget, "Open a project folder", self.settings.getValue('lastProjectDir'))
-        if projectPath is not None and projectPath != "" and os.path.isdir(projectPath):
-            self.settings.setValue('projectPath', projectPath)
+        last_project = self.settings.getValue('projectPath')
+        last_dir = os.path.dirname(last_project) if last_project is not None else None
+
+        dialog_return = QFileDialog.getOpenFileName(self.dockwidget, "Open a Riverscapes project", last_dir, self.tr("Riverscapes Project files (project.rs.xml)"))
+        if dialog_return is not None and dialog_return[0] != "" and os.path.isfile(dialog_return[0]):
+            self.settings.setValue('projectPath', dialog_return[0])
             self.reload_tree()
 
     def optionsLoad(self):
@@ -203,6 +219,8 @@ class QRAVE:
         Open the options/settings dialog
         """
         dialog = OptionsDialog()
+        if self.dockwidget:
+            dialog.dataChange.connect(self.dockwidget.load)
         dialog.exec_()
 
     def about_load(self):
@@ -262,10 +280,10 @@ class QRAVE:
 
         if self.dockwidget:
             self.dockwidget.dataChange.emit()
+        self.reloadGui()
 
     def toggle_widget(self, forceOn=False):
         """Toggle the widget open and closed when clicking the toolbar"""
-
         if not self.pluginIsActive:
             self.pluginIsActive = True
 
@@ -277,6 +295,9 @@ class QRAVE:
             if self.dockwidget is None:
                 # Create the dockwidget (after translation) and keep reference
                 self.dockwidget = QRAVEDockWidget()
+                self.metawidget = QRAVEMetaWidget()
+                # Hook metadata changes up to the metawidget
+                self.dockwidget.metaChange.connect(self.metawidget.load)
 
                 # Run a network sync operation to get the latest stuff. Don't force it.
                 #  This is just a quick check
@@ -288,10 +309,16 @@ class QRAVE:
             # show the dockwidget
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockwidget)
+            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.metawidget)
             self.dockwidget.show()
+
         else:
             if self.dockwidget is not None:
                 if self.dockwidget.isHidden():
                     self.dockwidget.show()
                 elif forceOn is False:
                     self.dockwidget.hide()
+
+        # The metawidget always starts hidden
+        if self.metawidget is not None:
+            self.metawidget.hide()

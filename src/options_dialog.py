@@ -2,8 +2,9 @@ import os
 import json
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox
-from qgis.core import Qgis
 from qgis.PyQt.QtCore import pyqtSignal
+from qgis.PyQt.QtGui import QIcon
+from qgis.core import Qgis
 
 from .classes.settings import Settings
 from .classes.basemaps import BaseMaps
@@ -16,6 +17,7 @@ DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
 class OptionsDialog(QDialog, DIALOG_CLASS):
 
     closingPlugin = pyqtSignal()
+    dataChange = pyqtSignal()
 
     def __init__(self, parent=None):
         """Constructor."""
@@ -27,9 +29,13 @@ class OptionsDialog(QDialog, DIALOG_CLASS):
         self.basemaps.load()
         self.setValues()
 
+        self.regionHelp.setText(None)
+        self.regionHelp.setIcon(QIcon(':/plugins/qrave_toolbar/Help.png'))
+        self.regionHelp.setEnabled(False)
+
     def setValues(self):
-        self.regionInclude.setChecked(bool(self.settings.getValue('regionInclude')))
-        self.loadDefaultView.setChecked(bool(self.settings.getValue('loadDefaultView')))
+        self.basemapsInclude.setChecked(self.settings.getValue('basemapsInclude'))
+        self.loadDefaultView.setChecked(self.settings.getValue('loadDefaultView'))
 
         # Set the combo box
         self.basemapRegion.clear()
@@ -41,12 +47,13 @@ class OptionsDialog(QDialog, DIALOG_CLASS):
     def commit_settings(self, btn):
         role = self.buttonBox.buttonRole(btn)
         if role == QDialogButtonBox.ApplyRole:
-            self.settings.setValue('regionInclude', self.regionInclude.isChecked())
+            self.settings.setValue('basemapsInclude', self.basemapsInclude.isChecked())
             self.settings.setValue('loadDefaultView', self.loadDefaultView.isChecked())
-            self.settings.setValue('basemapRegion', str(self.basemapRegion.currentText()))
+            self.settings.setValue('basemapRegion', self.basemapRegion.currentText())
         elif role == QDialogButtonBox.ResetRole:
             self.settings.resetAllSettings()
             self.setValues()
+        self.dataChange.emit()
 
     def openUrl(self, url):
         """
