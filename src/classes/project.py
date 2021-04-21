@@ -8,30 +8,12 @@ from qgis.core import QgsMessageLog, Qgis
 from qgis.PyQt.QtGui import QStandardItem, QIcon, QBrush
 from qgis.PyQt.QtCore import Qt
 
-
+from .qrave_map_layer import QRaveMapLayer
 from .settings import CONSTANTS
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 BL_XML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', CONSTANTS['businessLogicDir'])
-
-
-class QRaveMapLayer():
-
-    def __init__(self,
-                 label: str,
-                 lyr_path: str,
-                 bl_attr: Dict[str, str] = None,
-                 meta: Dict[str, str] = None,
-                 lyr_name: str = None
-                 ):
-        self.label = label
-        self.lyr_path = lyr_path
-        self.bl_attr = bl_attr
-        self.meta = meta
-        self.lyr_name = lyr_name
-
-        self.exists = os.path.isfile(lyr_path)
 
 
 class Project(Borg):
@@ -207,14 +189,16 @@ class Project(Borg):
             meta = {meta.attrib['name']: meta.text for meta in new_proj_el.xpath('MetaData/Meta')}
             new_proj_el.find('Path')
 
-            lyr_name = None
-            lyr_path = os.path.join(self.project_dir, new_proj_el.find('Path').text)
+            layer_name = None
+            layer_uri = os.path.join(self.project_dir, new_proj_el.find('Path').text)
             # If this is a geopackage it's special
             if new_proj_el.getparent().tag == 'Layers':
-                lyr_name = new_proj_el.find('Path').text
-                lyr_path = os.path.join(self.project_dir, new_proj_el.getparent().getparent().find('Path').text)
+                layer_name = new_proj_el.find('Path').text
+                layer_uri = os.path.join(self.project_dir, new_proj_el.getparent().getparent().find('Path').text)
 
-            map_layer = QRaveMapLayer(curr_label, lyr_path, bl_attr, meta, lyr_name)
+            layer_type = bl_attr['type'] if 'type' in bl_attr else 'unknown'
+
+            map_layer = QRaveMapLayer(curr_label, layer_type, layer_uri, bl_attr, meta, layer_name)
             curr_item.setData(map_layer, Qt.UserRole)
 
             if not map_layer.exists:
@@ -223,7 +207,7 @@ class Project(Borg):
                 curr_item_font.setItalic(True)
                 curr_item.setFont(curr_item_font)
 
-                curr_item.setToolTip('File not found: {}'.format(map_layer.lyr_path))
+                curr_item.setToolTip('File not found: {}'.format(map_layer.layer_uri))
 
         if parent:
             parent.appendRow(curr_item)

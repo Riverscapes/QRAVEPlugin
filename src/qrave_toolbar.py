@@ -24,7 +24,6 @@ from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QDialo
 
 from .classes.settings import Settings, CONSTANTS
 from .classes.net_sync import NetSync
-from .classes.async_worker import QAsync
 from .classes.basemaps import BaseMaps
 from .classes.project import Project
 

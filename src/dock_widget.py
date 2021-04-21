@@ -27,15 +27,16 @@ import os
 
 
 from qgis.PyQt import uic
-from qgis.core import Qgis
+from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices
 from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl
 
 from .classes.settings import Settings, CONSTANTS
-from .classes.basemaps import BaseMaps
-from .classes.project import Project, QRaveMapLayer
+from .classes.basemaps import BaseMaps, QRaveBaseMap, BaseMapTreeTypes
+from .classes.project import Project
 from .classes.context_menu import ContextMenu
+from .classes.qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
 from .meta_widget import MetaType
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -70,6 +71,8 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.treeView.doubleClicked.connect(self.default_tree_action)
         self.treeView.clicked.connect(self.item_change)
 
+        self.treeView.expanded.connect(self.expand_tree_item)
+
         self.settings = Settings()
         self.model = QStandardItemModel()
         # self.treeView.setStyleSheet(STYLE)
@@ -81,6 +84,12 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
         self.dataChange.connect(self.load)
         self.load()
+
+    def expand_tree_item(self, idx: QModelIndex):
+        item = self.model.itemFromIndex(idx)
+        data = item.data(Qt.UserRole)
+        if isinstance(data, QRaveBaseMap):
+            data.load_layers()
 
     @pyqtSlot()
     def load(self):
@@ -107,33 +116,52 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
             self.model.appendRow(self.basemaps.regions[region])
 
         # Finally expand all levels
-        self.treeView.expandAll()
+        self.expandChildren()
+        # self.treeView.expandAll()
 
     def closeEvent(self, event):
         self.closingPlugin.emit()
         event.accept()
 
-    def default_tree_action(self, index):
-        item = self.model.itemFromIndex(index)
+    def expandChildren(self, idx: QModelIndex = None):
+        if idx is None:
+            idx = self.treeView.rootIndex()
+
+        for idy in range(self.model.rowCount(idx)):
+            child = self.model.index(idy, 0, idx)
+            self.expandChildren(child)
+
+        item = self.model.itemFromIndex(idx)
+        data = item.data(Qt.UserRole) if item is not None else None
+        if not self.treeView.isExpanded(idx) and not isinstance(data, QRaveBaseMap):
+            self.treeView.setExpanded(idx, True)
+
+    def default_tree_action(self, idx: QModelIndex):
+        if not idx.isValid():
+            return
+        item = self.model.itemFromIndex(idx)
         data = item.data(Qt.UserRole)
 
-        # This is the layer context menu
+        # This is the default action for all add-able layers including basemaps
         if isinstance(data, QRaveMapLayer):
-            print("Default Layer Action")
+            QRaveMapLayer.add_layer_to_map(item)
+
+        if isinstance(data, QRaveBaseMap):
+            # Expand is the default option because we might need to load the layers
+            return
 
         if data is not None and 'type' in data:
 
-            if data['type'] in ['ROOT']:
-                print("Default Project Action")
+            if data['type'] in [QRaveTreeTypes.ROOT]:
+                self.change_meta(item, data, True)
 
-            elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
+            elif data['type'] in [QRaveTreeTypes.FOLDER, BaseMapTreeTypes.ROOT, BaseMapTreeTypes.SUPER_FOLDER, BaseMapTreeTypes.SUB_FOLDER]:
+                # Expanda and contract is already implemented as a default
                 print("Default Folder Action")
 
-            elif data['type'] == 'BASEMAP':
-                print("Default Basemap Action")
-
-            elif data['type'] == 'VIEW':
+            elif data['type'] == QRaveTreeTypes.VIEW:
                 print("Default View Action")
+                self.add_view_to_map(item)
 
     def item_change(self, postion):
         indexes = self.treeView.selectedIndexes()
@@ -148,13 +176,17 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
     def change_meta(self, item: QStandardItem, data, show=False):
         if isinstance(data, QRaveMapLayer):
             self.metaChange.emit(item.text(), MetaType.LAYER, data.meta, show)
+
+        elif isinstance(data, QRaveBaseMap):
+            self.metaChange.emit(item.text(), MetaType.NONE, {}, show)
+
         elif data is not None and 'type' in data:
             if data['type'] in ['ROOT']:
                 self.metaChange.emit(item.text(), MetaType.PROJECT, {
                     'project': self.project.meta,
                     'warehouse': self.project.warehouse_meta
                 }, show)
-            elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
+            elif data['type'] in [QRaveTreeTypes.FOLDER, BaseMapTreeTypes.SUPER_FOLDER, BaseMapTreeTypes.ROOT]:
                 self.metaChange.emit(item.text(), MetaType.FOLDER, data, show)
         else:
             self.metaChange.emit(item.text(), MetaType.NONE, data, show)
@@ -167,42 +199,62 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
         # No multiselect so there is only ever one item
         idx = indexes[0]
+
+        if not idx.isValid():
+            return
+
         item = self.model.itemFromIndex(indexes[0])
         data = item.data(Qt.UserRole)
 
         # This is the layer context menu
         if isinstance(data, QRaveMapLayer):
-            self.layer_context_menu(idx, item, data)
+            if data.layer_type == QRaveMapLayer.LayerTypes.WMS:
+                self.basemap_context_menu(idx, item, data)
+            else:
+                self.layer_context_menu(idx, item, data)
+
+        # A QARaveBaseMap is just a container for layers
+        elif isinstance(data, QRaveBaseMap):
+            return
 
         elif data is not None and 'type' in data:
-            if data['type'] in ['ROOT']:
+
+            if data['type'] in [QRaveTreeTypes.ROOT]:
                 self.project_context_menu(idx, item, data)
 
-            elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
+            elif data['type'] in [QRaveTreeTypes.FOLDER]:
                 self.folder_context_menu(idx, item, data)
 
-            elif data['type'] == 'VIEW':
+            elif data['type'] == QRaveTreeTypes.VIEW:
                 self.view_context_menu(idx, item, data)
 
         self.menu.exec_(self.treeView.viewport().mapToGlobal(position))
 
     def layer_context_menu(self, idx: QModelIndex, item: QStandardItem, data: QRaveMapLayer):
         self.menu.clear()
-        self.menu.addAction('ADD_TO_MAP', enabled=data.exists)
+        self.menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(item), enabled=data.exists)
         self.menu.addAction('VIEW_LAYER_META', lambda: self.change_meta(item, data, True))
-        self.menu.addAction('VIEW_WEB_SOURCE')
-        self.menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(data.lyr_path))
+        self.menu.addAction('VIEW_WEB_SOURCE', lambda: self.view_warehouse_project())
+        self.menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(data.layer_uri))
+
+    def basemap_subfolder_context_menu(self, idx: QModelIndex, item: QStandardItem, data: Dict[str, str]):
+        self.menu.clear()
+        self.menu.addAction('ADD_ALL_TO_MAP', lambda: QRaveMapLayer.add_children_to_map(item))
+
+    def basemap_context_menu(self, idx: QModelIndex, item: QStandardItem, data: Dict[str, str]):
+        self.menu.clear()
+        self.menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(item))
 
     def folder_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
-        self.menu.addAction('ADD_ALL_TO_MAP')
+        self.menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
         self.menu.addSeparator()
         self.menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
         self.menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(item, True))
 
     def view_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
-        self.menu.addAction('ADD_ALL_TO_MAP')
+        self.menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_view_to_map(item))
 
     def project_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
@@ -212,14 +264,10 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.menu.addSeparator()
         self.menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(self.project.project_xml_path))
         self.menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
-        self.menu.addAction('ADD_ALL_TO_MAP')
+        self.menu.addAction('ADD_ALL_TO_MAP', self.add_children_to_map(item))
         self.menu.addSeparator()
-        self.menu.addAction('REFRESH_PROJECT_HIERARCHY')
-        self.menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY')
-
-    def basemap_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
-        self.menu.clear()
-        self.menu.addAction('ADD_TO_MAP')
+        self.menu.addAction('REFRESH_PROJECT_HIERARCHY', self.load)
+        self.menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY', enabled=False)
 
     def file_system_open(self, fpath: str):
         qurl = QUrl.fromLocalFile(fpath)
@@ -251,3 +299,12 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
                 self.treeView.collapseAll()
         else:
             _recurse(item)
+
+    def add_view_to_map(self, item: QStandardItem):
+        print('Add view to map')
+
+    def add_children_to_map(self, item: QStandardItem):
+        print('Add children to map')
+
+    def view_warehouse_project(self):
+        print('view warehouse project')
