@@ -50,7 +50,7 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
     closingPlugin = pyqtSignal()
     dataChange = pyqtSignal()
     showMeta = pyqtSignal()
-    metaChange = pyqtSignal(str, dict, bool)
+    metaChange = pyqtSignal(str, str, dict, bool)
 
     def __init__(self, parent=None):
         """Constructor."""
@@ -141,21 +141,23 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
             return
 
         # No multiselect so there is only ever one item
-        idx = indexes[0]
         item = self.model.itemFromIndex(indexes[0])
         data = item.data(Qt.UserRole)
-        self.change_meta(data)
+        self.change_meta(item, data)
 
-    def change_meta(self, data, show=False):
+    def change_meta(self, item: QStandardItem, data, show=False):
         if isinstance(data, QRaveMapLayer):
-            self.metaChange.emit(MetaType.LAYER, data.meta, show)
-        elif data is not None and 'type' in data and data['type'] in ['ROOT']:
-            self.metaChange.emit(MetaType.PROJECT, {
-                'project': self.project.meta,
-                'warehouse': self.project.warehouse_meta
-            }, show)
+            self.metaChange.emit(item.text(), MetaType.LAYER, data.meta, show)
+        elif data is not None and 'type' in data:
+            if data['type'] in ['ROOT']:
+                self.metaChange.emit(item.text(), MetaType.PROJECT, {
+                    'project': self.project.meta,
+                    'warehouse': self.project.warehouse_meta
+                }, show)
+            elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
+                self.metaChange.emit(item.text(), MetaType.FOLDER, data, show)
         else:
-            self.metaChange.emit(MetaType.NONE, data, show)
+            self.metaChange.emit(item.text(), MetaType.NONE, data, show)
 
     def open_menu(self, position):
 
@@ -179,9 +181,6 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
             elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
                 self.folder_context_menu(idx, item, data)
 
-            elif data['type'] in ['FOLDER', 'BASEMAP_FOLDER', 'BASEMAP_ROOT']:
-                self.folder_context_menu(idx, item, data)
-
             elif data['type'] == 'VIEW':
                 self.view_context_menu(idx, item, data)
 
@@ -189,8 +188,8 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
     def layer_context_menu(self, idx: QModelIndex, item: QStandardItem, data: QRaveMapLayer):
         self.menu.clear()
-        self.menu.addAction('ADD_TO_MAP')
-        self.menu.addAction('VIEW_LAYER_META', lambda: self.change_meta(data, True))
+        self.menu.addAction('ADD_TO_MAP', enabled=data.exists)
+        self.menu.addAction('VIEW_LAYER_META', lambda: self.change_meta(item, data, True))
         self.menu.addAction('VIEW_WEB_SOURCE')
         self.menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(data.lyr_path))
 
@@ -212,7 +211,7 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
         self.menu.addSeparator()
         self.menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(self.project.project_xml_path))
-        self.menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(data, True))
+        self.menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
         self.menu.addAction('ADD_ALL_TO_MAP')
         self.menu.addSeparator()
         self.menu.addAction('REFRESH_PROJECT_HIERARCHY')
@@ -227,7 +226,10 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         QDesktopServices.openUrl(qurl)
 
     def file_system_locate(self, fpath: str):
-        final_path = os.path.dirname(fpath) if os.path.isfile(fpath) else fpath
+
+        final_path = os.path.dirname(fpath)
+        while not os.path.isdir(final_path):
+            final_path = os.path.dirname(final_path)
 
         qurl = QUrl.fromLocalFile(final_path)
         QDesktopServices.openUrl(qurl)

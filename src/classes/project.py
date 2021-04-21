@@ -219,6 +219,11 @@ class Project(Borg):
 
             if not map_layer.exists:
                 curr_item.setData(QBrush(Qt.red), Qt.ForegroundRole)
+                curr_item_font = curr_item.font()
+                curr_item_font.setItalic(True)
+                curr_item.setFont(curr_item_font)
+
+                curr_item.setToolTip('File not found: {}'.format(map_layer.lyr_path))
 
         if parent:
             parent.appendRow(curr_item)
