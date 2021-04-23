@@ -221,10 +221,10 @@ def xpathone_withref(root_el, el, xpath_str):
         if '@id=' in xpath_str:
             ref_found = el.xpath(xpath_str.replace('@id=', '@ref='))
             # If not even the ref is found then this is not valid
-            if ref_found is not None and len(ref_found) > 1:
+            if ref_found is not None and len(ref_found) > 0:
                 ref_str = ref_found[0].attrib['ref']
                 # Now we go hunting for the origin of the reference
-                origin = root_el.get_element_by_id(ref_str)
+                origin = root_el.xpath('Inputs/*[@id="{}"]'.format(ref_str))
                 # we found the origin but the reference could not be found
                 if origin is None or len(origin) < 1:
                     QgsMessageLog.logMessage(
