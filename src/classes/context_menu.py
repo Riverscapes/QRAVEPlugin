@@ -53,6 +53,10 @@ class ContextMenu(QMenu):
             'Close Project',
             ':/plugins/qrave_toolbar/close.png'
         ),
+        'WAREHOUSE_VIEW': (
+            'View in Warehouse',
+            ':/plugins/qrave_toolbar/RaveAddIn_16px.png'
+        ),
     }
 
     # def __init__(self):

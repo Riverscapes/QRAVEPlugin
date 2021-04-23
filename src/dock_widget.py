@@ -66,6 +66,8 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.setupUi(self)
         self.menu = ContextMenu()
         self.qproject = QgsProject.instance()
+        self.qproject.cleared.connect(self.close_project)
+        self.qproject.readProject.connect(self.load)
 
         self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
         self.treeView.customContextMenuRequested.connect(self.open_menu)
@@ -270,11 +272,15 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
         self.menu.exec_(self.treeView.viewport().mapToGlobal(position))
 
+    # Layer context view
     def layer_context_menu(self, idx: QModelIndex, item: QStandardItem, data: QRaveMapLayer):
         self.menu.clear()
         self.menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(item, self.project), enabled=data.exists)
         self.menu.addAction('VIEW_LAYER_META', lambda: self.change_meta(item, data, True))
-        self.menu.addAction('VIEW_WEB_SOURCE', lambda: self.view_warehouse_project())
+
+        if bool(self.get_warehouse_url(data.meta)):
+            self.menu.addAction('VIEW_WEB_SOURCE', lambda: self.layer_warehouse_view(data))
+
         self.menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(data.layer_uri))
 
     # Basemap context items
@@ -282,6 +288,7 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.menu.clear()
         self.menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(item, self.project))
 
+    # Folder-level context menu
     def folder_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
         self.menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
@@ -289,17 +296,18 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
         self.menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(item, True))
 
+    # Some folders don't have the 'ADD_ALL_TO_MAP' functionality enabled
     def folder_dumb_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
         self.menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
         self.menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(item, True))
 
     # View context items
-
     def view_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
         self.menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_view_to_map(item))
 
+    # Project-level context menu
     def project_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
         self.menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(None, False))
@@ -308,12 +316,39 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.menu.addSeparator()
         self.menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(self.project.project_xml_path))
         self.menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
+        self.menu.addAction('WAREHOUSE_VIEW', self.project_warehouse_view, enabled=bool(self.get_warehouse_url(self.project.warehouse_meta)))
         self.menu.addAction('ADD_ALL_TO_MAP', self.add_children_to_map(item))
         self.menu.addSeparator()
         self.menu.addAction('REFRESH_PROJECT_HIERARCHY', self.load)
         self.menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY', enabled=False)
         self.menu.addSeparator()
-        self.menu.addAction('CLOSE_PROJECT', enabled=bool(self.project))
+        self.menu.addAction('CLOSE_PROJECT', self.close_project, enabled=bool(self.project))
+
+    def get_warehouse_url(self, wh_meta: Dict[str, str]):
+
+        if wh_meta is not None:
+
+            if 'program' in wh_meta and 'id' in wh_meta:
+                return '/'.join([CONSTANTS['warehouseUrl'], wh_meta['program'], wh_meta['id']])
+
+            elif '_rs_wh_id' in wh_meta and '_rs_wh_program' in wh_meta:
+                return '/'.join([CONSTANTS['warehouseUrl'], wh_meta['_rs_wh_program'], wh_meta['_rs_wh_id']])
+
+        return None
+
+    def project_warehouse_view(self):
+        """Open this project in the warehouse if the warehouse meta entries exist
+        """
+        url = self.get_warehouse_url(self.project.warehouse_meta)
+        if url is not None:
+            QDesktopServices.openUrl(QUrl(url))
+
+    def layer_warehouse_view(self, data: QRaveMapLayer):
+        """Open this project in the warehouse if the warehouse meta entries exist
+        """
+        url = self.get_warehouse_url(data.meta)
+        if url is not None:
+            QDesktopServices.openUrl(QUrl(url))
 
     def file_system_open(self, fpath: str):
         """Open a file on the operating system using the default action
@@ -322,12 +357,15 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
             fpath (str): [description]
         """
         qurl = QUrl.fromLocalFile(fpath)
-        QDesktopServices.openUrl(qurl)
+        QDesktopServices.openUrl(QUrl(qurl))
 
     def close_project(self):
         """ Close the project
         """
+
+        self.qproject.removeEntry(CONSTANTS['settingsCategory'], CONSTANTS['project_filepath'])
         self.project = None
+        self.load()
 
     def file_system_locate(self, fpath: str):
         """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
@@ -376,8 +414,3 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
             item (QStandardItem): [description]
         """
         print('Add children to map')
-
-    def view_warehouse_project(self):
-        """View this project in the warehouse
-        """
-        print('view warehouse project')

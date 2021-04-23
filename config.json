@@ -14,6 +14,7 @@
         "businessLogicDir": "blXML",
         "symbologyDir": "symbology",
         "digestSyncFreqHours": 24,
+        "warehouseUrl": "https://data.riverscapes.xyz/#",
         "webUrl": "https://rave.riverscapes.xyz",
         "issueUrl": "http://rave.riverscapes.xyz/known-bugs.html",
         "resourcesUrl": "https://raw.githubusercontent.com/Riverscapes/RiverscapesXML/dev/"

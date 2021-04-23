@@ -229,14 +229,14 @@ def xpathone_withref(root_el, el, xpath_str):
                 if origin is None or len(origin) < 1:
                     QgsMessageLog.logMessage(
                         'Error finding input node with xpath={} and ref="{}"'.format(xpath_str, ref_str),
-                        MESSAGE_CATEGORY, Qgis.Critical)
+                        MESSAGE_CATEGORY, Qgis.Warning)
                     return
                 else:
                     return origin[0]
 
         QgsMessageLog.logMessage(
             'Error finding node with path="{}"'.format(xpath_str),
-            MESSAGE_CATEGORY, Qgis.Critical)
+            MESSAGE_CATEGORY, Qgis.Warning)
     else:
         # If the node is found and is not a reference this is the easy case
         return found[0]
