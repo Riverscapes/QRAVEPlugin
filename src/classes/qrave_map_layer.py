@@ -1,15 +1,28 @@
 from __future__ import annotations
 import os
 from typing import Dict, Union
-from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer
+from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsMessageLog
 from qgis.PyQt.QtCore import Qt, QModelIndex, QUrl
 from qgis.PyQt.QtGui import QStandardItem
 
+from .settings import CONSTANTS
+
+SYMBOLOGY_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'symbology')
+# BASE is the name we want to use inside the settings keys
+MESSAGE_CATEGORY = CONSTANTS['logCategory']
+
 
 class QRaveTreeTypes():
-    ROOT = 'ROOT'
-    FOLDER = 'FOLDER'
-    VIEW = 'VIEW'
+    PROJECT_ROOT = 'PROJECT_ROOT'
+    PROJECT_FOLDER = 'PROJECT_FOLDER'
+    PROJECT_REPEATER_FOLDER = 'PROJECT_REPEATER_FOLDER'
+    PROJECT_VIEW_FOLDER = 'PROJECT_VIEW_FOLDER'
+    PROJECT_VIEW = 'PROJECT_VIEW'
+    # Basemaps have a surprising number of itmes
+    BASEMAP_ROOT = 'BASEMAP_ROOT'
+    BASEMAP_SUPER_FOLDER = 'BASEMAP_SUPER_FOLDER'
+    BASEMAP_SUB_FOLDER = 'BASEMAP_SUB_FOLDER'
+    # Note: Add-able layers are all covered by QRaveMapLayer and QRaveBaseMap
 
 
 class QRaveMapLayer():
@@ -62,7 +75,7 @@ class QRaveMapLayer():
         return thisGroup
 
     @staticmethod
-    def add_layer_to_map(item: QStandardItem):
+    def add_layer_to_map(item: QStandardItem, project):
         """
         Add a layer to the map
         :param layer:
@@ -96,30 +109,55 @@ class QRaveMapLayer():
 
         # Only add the layer if it's not already in the registry
         if not QgsProject.instance().mapLayersByName(map_layer.label):
+            layer_uri = map_layer.layer_uri
             # This might be a basemap
             if map_layer.layer_type == QRaveMapLayer.LayerTypes.WMS:
-                rOutput = QgsRasterLayer(map_layer.layer_uri, map_layer.label, 'wms')
+                rOutput = QgsRasterLayer(layer_uri, map_layer.label, 'wms')
 
             elif map_layer.layer_type in [QRaveMapLayer.LayerTypes.LINE, QRaveMapLayer.LayerTypes.POLYGON, QRaveMapLayer.LayerTypes.POINT]:
-                symbology = map_layer.bl_attr['symbology'] if map_layer.bl_attr is not None and 'symbology' in map_layer.bl_attr else 'unknown'
-                filepath = map_layer.layer_uri
-                uri = filepath
                 if map_layer.layer_name is not None:
-                    uri += "|layername={}".format(map_layer.layer_name)
-                rOutput = QgsVectorLayer(uri, map_layer.label, "ogr")
+                    layer_uri += "|layername={}".format(map_layer.layer_name)
+                rOutput = QgsVectorLayer(layer_uri, map_layer.label, "ogr")
 
             elif map_layer.layer_type == QRaveMapLayer.LayerTypes.RASTER:
                 # Raster
-                rOutput = QgsRasterLayer(filepath, map_layer.label)
+                rOutput = QgsRasterLayer(layer_uri, map_layer.label)
 
-            # if not rOutput.isValid():
-            #     print("Layer failed to load!")
-            # else:
+            ##########################################
+            # Symbology
+            ##########################################
+            symbology = map_layer.bl_attr['symbology'] if map_layer.bl_attr is not None and 'symbology' in map_layer.bl_attr else None
+            chosen_qml = None
+            # If the business logic has symbology defined
+            if symbology is not None:
+                qml_fname = '{}.qml'.format(symbology)
+                os.path.abspath(os.path.join(project.project_dir, qml_fname))
+
+                # Here are the search paths for QML files in order of precedence
+                hierarchy = [
+                    os.path.abspath(os.path.join(project.project_dir, qml_fname)),
+                    # This is the default one
+                    os.path.abspath(os.path.join(SYMBOLOGY_DIR, project.project_type, qml_fname)),
+                    os.path.abspath(os.path.join(SYMBOLOGY_DIR, 'Shared', qml_fname))
+                ]
+                # Find the first match
+                for candidate in hierarchy:
+                    if os.path.isfile(candidate):
+                        chosen_qml = candidate
+                        break
+                # Report to the terminal if we couldn't find a qml file to use
+                if chosen_qml is None:
+                    QgsMessageLog.logMessage(
+                        "Could not find a valid .qml symbology file for layer {}. Search paths: [{}]".format(layer_uri, ', '.join(hierarchy)),
+                        MESSAGE_CATEGORY,
+                        level=Qgis.Warning
+                    )
+                # Apply the QML file
+                else:
+                    rOutput.loadNamedStyle(chosen_qml)
+
             QgsProject.instance().addMapLayer(rOutput, False)
             parentGroup.insertLayer(item.row(), rOutput)
-
-            # Symbolize this layer
-            #     Symbology().symbolize(rOutput, symbology)
 
         # if the layer already exists trigger a refresh
         else:

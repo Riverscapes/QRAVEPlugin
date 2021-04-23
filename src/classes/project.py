@@ -8,7 +8,7 @@ from qgis.core import QgsMessageLog, Qgis
 from qgis.PyQt.QtGui import QStandardItem, QIcon, QBrush
 from qgis.PyQt.QtCore import Qt
 
-from .qrave_map_layer import QRaveMapLayer
+from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
 from .settings import CONSTANTS
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
@@ -25,7 +25,7 @@ class Project(Borg):
         self.warehouse_meta = None
 
         if project_xml_path is not None:
-            self.project_xml_path = project_xml_path
+            self.project_xml_path = os.path.abspath(project_xml_path)
             self.project = None
             self.project_type = None
             self.business_logic = None
@@ -47,14 +47,14 @@ class Project(Borg):
 
             self.meta = {meta.attrib['name']: meta.text for meta in self.project.findall('MetaData/Meta')}
             self.warehouse_meta = {meta.attrib['name']: meta.text for meta in self.project.findall('Warehouse/Meta')}
-            self.projectType = self.project.find('ProjectType').text
+            self.project_type = self.project.find('ProjectType').text
 
     def _load_businesslogic(self):
-        if self.project is None or self.projectType is None:
+        if self.project is None or self.project_type is None:
             return
 
         self.business_logic = None
-        bl_filename = '{}.xml'.format(self.projectType)
+        bl_filename = '{}.xml'.format(self.project_type)
         local_bl_path = os.path.join(os.path.dirname(self.project_xml_path), bl_filename)
         builtin_bl_path = os.path.join(BL_XML_DIR, bl_filename)
         # 1. first check for a businesslogic file next to the project file
@@ -99,7 +99,7 @@ class Project(Borg):
             return
 
         curr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), "Project Views")
-        curr_item.setData({'type': 'VIEW_FOLDER'}, Qt.UserRole)
+        curr_item.setData({'type': QRaveTreeTypes.PROJECT_VIEW_FOLDER}, Qt.UserRole)
 
         for view in self.business_logic.findall('Views/View'):
             name = view.attrib['name']
@@ -110,7 +110,7 @@ class Project(Borg):
 
             view_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/project_view.png'), name)
             view_item.setData({
-                'type': 'VIEW',
+                'type': QRaveTreeTypes.PROJECT_VIEW,
                 'ids': [layer.attrib['id'] for layer in view.findall('Layers/Layer')]
             }, Qt.UserRole)
             curr_item.appendRow(view_item)
@@ -129,12 +129,10 @@ class Project(Borg):
 
         new_proj_el = proj_el
         if 'xpath' in bl_el.attrib:
-            new_projs = proj_el.xpath(bl_el.attrib['xpath'])
-            if new_projs is None or len(new_projs) < 1:
-
+            new_proj_el = xpathone_withref(self.project, proj_el, bl_el.attrib['xpath'])
+            if new_proj_el is None:
                 # We just ignore layers we can't find. Log them though
                 return
-            new_proj_el = new_projs[0]
 
         # The label is either explicit or it's an xpath lookup
         curr_label = '<unknown>'
@@ -153,9 +151,9 @@ class Project(Borg):
         if children_container:
             curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'))
             if is_root is True:
-                curr_item.setData({'type': 'ROOT'}, Qt.UserRole),
+                curr_item.setData({'type': QRaveTreeTypes.PROJECT_ROOT}, Qt.UserRole),
             else:
-                curr_item.setData({'type': 'FOLDER'}, Qt.UserRole),
+                curr_item.setData({'type': QRaveTreeTypes.PROJECT_FOLDER}, Qt.UserRole),
 
             for child_node in children_container.xpath('*'):
                 # Handle any explicit <Node> children
@@ -165,7 +163,7 @@ class Project(Borg):
                 # Repeaters are a separate case
                 elif child_node.tag == 'Repeater':
                     qrepeater = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), child_node.attrib['label'])
-                    qrepeater.setData({'type': 'REPEATER_FOLDER'}, Qt.UserRole),
+                    qrepeater.setData({'type': QRaveTreeTypes.PROJECT_REPEATER_FOLDER}, Qt.UserRole),
                     curr_item.appendRow(qrepeater)
                     repeat_xpath = child_node.attrib['xpath']
                     repeat_node = child_node.find('Node')
@@ -186,7 +184,7 @@ class Project(Borg):
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/Raster.png'))
 
             # Couldn't find this node. Ignore it.
-            meta = {meta.attrib['name']: meta.text for meta in new_proj_el.xpath('MetaData/Meta')}
+            meta = {meta.attrib['name']: meta.text for meta in new_proj_el.findall('MetaData/Meta')}
             new_proj_el.find('Path')
 
             layer_name = None

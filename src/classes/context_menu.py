@@ -48,7 +48,11 @@ class ContextMenu(QMenu):
         'CUSTOMIZE_PROJECT_HIERARCHY': (
             'Customize Project Hierarchy',
             ':/plugins/qrave_toolbar/tree.png'
-        )
+        ),
+        'CLOSE_PROJECT': (
+            'Close Project',
+            ':/plugins/qrave_toolbar/close.png'
+        ),
     }
 
     # def __init__(self):

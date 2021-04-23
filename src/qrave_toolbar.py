@@ -16,7 +16,7 @@ import os.path
 from time import time
 from functools import partial
 from qgis.utils import showPluginHelp
-from qgis.core import QgsTask, QgsApplication
+from qgis.core import QgsTask, QgsApplication, QgsProject
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl, pyqtSlot
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
@@ -54,6 +54,7 @@ class QRAVE:
         # Save reference to the QGIS interface
         self.iface = iface
         self.tm = QgsApplication.taskManager()
+        self.qproject = QgsProject.instance()
         self.pluginIsActive = False
 
         self.dockwidget = None
@@ -81,8 +82,6 @@ class QRAVE:
         # TODO: We are going to let the user set this up in a future iteration
         self.toolbar = self.iface.addToolBar(u'QRAVE')
         self.toolbar.setObjectName(u'QRAVE')
-
-    # noinspection PyMethodMayBeStatic
 
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
@@ -120,9 +119,6 @@ class QRAVE:
 
         m = self.helpButton.menu()
 
-        def openUrl():
-            QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz"))
-
         self.helpAction = QAction(
             QIcon(':/plugins/qrave_toolbar/Help.png'),
             self.tr('Help'),
@@ -134,13 +130,13 @@ class QRAVE:
             self.tr('Website'),
             self.iface.mainWindow()
         )
-        self.websiteAction.triggered.connect(openUrl)
+        self.websiteAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz")))
 
         self.raveOptionsAction = QAction(
             self.tr('Settings'),
             self.iface.mainWindow()
         )
-        self.raveOptionsAction.triggered.connect(self.optionsLoad)
+        self.raveOptionsAction.triggered.connect(self.options_load)
 
         self.net_sync_action = QAction(
             QIcon(':/plugins/qrave_toolbar/refresh.png'),
@@ -210,10 +206,11 @@ class QRAVE:
 
         dialog_return = QFileDialog.getOpenFileName(self.dockwidget, "Open a Riverscapes project", last_dir, self.tr("Riverscapes Project files (project.rs.xml)"))
         if dialog_return is not None and dialog_return[0] != "" and os.path.isfile(dialog_return[0]):
-            self.settings.setValue('projectPath', dialog_return[0])
-            self.reload_tree()
+            # We set the proect path in the project settings. This way it will be saved with the QgsProject file
+            self.qproject.writeEntry(CONSTANTS['settingsCategory'], CONSTANTS['project_filepath'], dialog_return[0])
+            self.reload_dockwidget()
 
-    def optionsLoad(self):
+    def options_load(self):
         """
         Open the options/settings dialog
         """
@@ -241,7 +238,7 @@ class QRAVE:
         if force is True:
             dialog = ProgressDialog()
             dialog.setWindowTitle('QRAVE Updater')
-            netsync = NetSync(labelcb=dialog.progressLabel.setText, progresscb=dialog.progressBar.setValue, finishedcb=self.reload_tree)
+            netsync = NetSync(labelcb=dialog.progressLabel.setText, progresscb=dialog.progressBar.setValue, finishedcb=self.reload_dockwidget)
 
             # No sync necessary in some cases
             if plugin_init \
@@ -257,7 +254,7 @@ class QRAVE:
 
             dialog.exec_()
         else:
-            netsync = NetSync(finishedcb=self.reload_tree)
+            netsync = NetSync(finishedcb=self.reload_dockwidget)
 
             # No sync necessary in some cases
             if plugin_init \
@@ -271,14 +268,18 @@ class QRAVE:
                                            on_finished=netsync.completed)
             self.tm.addTask(ns_task)
 
-    def reload_tree(self):
+    def reload_dockwidget(self):
         """
         The dockwidget may or may not be initialized when we call reload so we
         add a checking step in
-        """
 
+        This doesn't do any real reloading. We're just triggering the dockwidget emit signal
+        and then it does all the heavy lifting
+        """
         if self.dockwidget:
             self.dockwidget.dataChange.emit()
+        else:
+            self.toggle_widget(forceOn=True)
         self.reloadGui()
 
     def toggle_widget(self, forceOn=False):

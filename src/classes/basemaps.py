@@ -10,20 +10,13 @@ from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsTask, QgsApplication, QgsMessageLog, Qgis
 
-from .qrave_map_layer import QRaveMapLayer
+from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
 from .settings import CONSTANTS
 from .util import md5, requestFetch
 
 BASEMAPS_XML_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'BaseMaps.xml')
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
-
-
-class BaseMapTreeTypes():
-    ROOT = 'ROOT'
-    SUPER_FOLDER = 'SUPER_FOLDER'
-    SUB_FOLDER = 'SUB_FOLDER'
-    LAYER = 'LAYER'
 
 
 class QRaveBaseMap():
@@ -75,7 +68,7 @@ class QRaveBaseMap():
         # This is a branch
         if len(sublayers) > 0:
             q_group_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), root_el.find('Title').text)
-            q_group_layer.setData({'type': BaseMapTreeTypes.SUB_FOLDER}, Qt.UserRole),
+            q_group_layer.setData({'type': QRaveTreeTypes.BASEMAP_SUB_FOLDER}, Qt.UserRole),
             parent.appendRow(q_group_layer)
             for sublyr in sublayers:
                 self.parse_layer(sublyr, q_group_layer)
@@ -138,12 +131,12 @@ class BaseMaps(Borg):
         # Parse the XML
         for region in lxml.etree.parse(BASEMAPS_XML_PATH).getroot().findall('Region'):
             q_region = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), 'Basemaps')
-            q_region.setData({'type': BaseMapTreeTypes.ROOT}, Qt.UserRole),
+            q_region.setData({'type': QRaveTreeTypes.BASEMAP_ROOT}, Qt.UserRole),
             self.regions[region.attrib['name']] = q_region
 
             for group_layer in region.findall('GroupLayer'):
                 q_group_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), group_layer.attrib['name'])
-                q_group_layer.setData({'type': BaseMapTreeTypes.SUPER_FOLDER}, Qt.UserRole),
+                q_group_layer.setData({'type': QRaveTreeTypes.BASEMAP_SUPER_FOLDER}, Qt.UserRole),
                 q_region.appendRow(q_group_layer)
 
                 for layer in group_layer.findall('Layer'):
