@@ -14,8 +14,6 @@ DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
 
 class ProgressDialog(QDialog, DIALOG_CLASS):
 
-    closingPlugin = pyqtSignal()
-
     def __init__(self, parent=None):
         """Constructor."""
         QDialog.__init__(self, parent)
@@ -30,9 +28,9 @@ class ProgressDialog(QDialog, DIALOG_CLASS):
     def handle_accept(self):
         pass
 
-    def handle_done(self, force=False):
-        if force is False:
-            self.accept()
-        else:
-            self.buttonBox.setStandardButtons(QDialogButtonBox.Ok)
-            pass
+    def set_progress_value(self, val: int):
+        self.progressBar.setValue(val)
+        # TODO: Not sure why but this is crashing QGis.
+        # if val == 100:
+        #     print('done')
+        #     self.buttonBox.setStandardButtons(QDialogButtonBox.Ok)

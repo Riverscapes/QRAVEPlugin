@@ -64,25 +64,16 @@ class QRaveBaseMap():
             raise exception
 
     def parse_layer(self, root_el, parent: QStandardItem):
-        sublayers = root_el.findall('Layer')
-        # This is a branch
-        if len(sublayers) > 0:
-            q_group_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), root_el.find('Title').text)
-            q_group_layer.setData({'type': QRaveTreeTypes.BASEMAP_SUB_FOLDER}, Qt.UserRole),
-            parent.appendRow(q_group_layer)
-            for sublyr in sublayers:
-                self.parse_layer(sublyr, q_group_layer)
 
-        # This is a leaf
-        else:
+        try:
             title = root_el.find('Title').text
             name = root_el.find('Name').text
             srs = root_el.find('SRS').text.split(' ')[0]
             lyr_format = root_el.find('Style/LegendURL/Format').text
             abstract = root_el.find('Abstract').text
-
             urlWithParams = "crs={}&format={}&layers={}&styles&url={}".format(srs, lyr_format, name, self.layer_url)
             lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/layers/Raster.png'), title)
+
             extra_meta = {
                 "srs": srs,
                 "name": name,
@@ -91,7 +82,16 @@ class QRaveBaseMap():
             lyr_item.setData(
                 QRaveMapLayer(title, QRaveMapLayer.LayerTypes.WMS, urlWithParams, extra_meta), Qt.UserRole)
             lyr_item.setToolTip(wrap_by_word(abstract, 20))
-            parent.appendRow(lyr_item)
+
+        except AttributeError as e:
+            # Something went wrong. This layer is not renderable.
+            lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), root_el.find('Title').text)
+            lyr_item.setData({'type': QRaveTreeTypes.BASEMAP_SUB_FOLDER}, Qt.UserRole),
+
+        parent.appendRow(lyr_item)
+
+        for sublyr in root_el.findall('Layer'):
+            self.parse_layer(sublyr, lyr_item)
 
     def load_layers(self, force=False):
         if self.loaded is True and force is False:

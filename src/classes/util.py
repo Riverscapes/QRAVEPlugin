@@ -48,7 +48,7 @@ def requestDownload(remote_url: str, local_path: str, expected_md5=None):
 
         # Do an MD5 check if we need to
         if os.path.isfile(local_path) and expected_md5 is not None and expected_md5 != md5(local_path):
-            os.remove()
+            os.remove(local_path)
             QgsMessageLog.logMessage("MD5 did not match expected for file: {}".format(remote_url), 'QRAVE', level=Qgis.Warning)
             return False
 

@@ -5,7 +5,7 @@ import json
 
 
 from time import time, sleep
-from qgis.core import QgsMessageLog, Qgis, QgsMessageLog, QgsTask, QgsApplication
+from qgis.core import QgsMessageLog, Qgis, QgsMessageLog, QgsApplication
 
 from .settings import Settings, CONSTANTS
 from .util import md5, requestDownload
@@ -78,14 +78,7 @@ class NetSync():
                     MESSAGE_CATEGORY, Qgis.Warning)
             else:
                 self.settings.setValue('initialized', True)
-                QgsMessageLog.logMessage(
-                    'Task {name} completed\n'
-                    'Total: {total} ( with {iterations} '
-                    'iterations)'.format(
-                        name=result['task'],
-                        total=result['total'],
-                        iterations=result['iterations']),
-                    MESSAGE_CATEGORY, Qgis.Info)
+                QgsMessageLog.logMessage('QRave network sync succeeded', MESSAGE_CATEGORY, Qgis.Info)
         else:
             QgsMessageLog.logMessage("Exception: {}".format(exception),
                                      MESSAGE_CATEGORY, Qgis.Critical)

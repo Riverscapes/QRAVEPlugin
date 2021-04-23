@@ -161,5 +161,4 @@ class QRaveMapLayer():
 
         # if the layer already exists trigger a refresh
         else:
-            print("REFRESH")
             QgsProject.instance().mapLayersByName(map_layer.label)[0].triggerRepaint()

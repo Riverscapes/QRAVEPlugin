@@ -101,6 +101,8 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         qrave_project_path, type_conversion_ok = self.qproject.readEntry(CONSTANTS['settingsCategory'],
                                                                          CONSTANTS['project_filepath'])
 
+        old_project = self.project.project_xml_path if self.project else None
+
         if type_conversion_ok is True and os.path.isfile(qrave_project_path):
             self.project = Project(qrave_project_path)
             self.project.load()
@@ -109,6 +111,14 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
 
         if self.project is not None and self.project.exists is True and self.project.qproject is not None:
             self.model.appendRow(self.project.qproject)
+
+        # If this is a fresh load and the setting is set we load the default view
+        if self.project and old_project != self.project.project_xml_path:
+            load_default_setting = self.settings.getValue('loadDefaultView')
+            if load_default_setting is True \
+                    and self.project.default_view is not None \
+                    and self.project.default_view in self.project.views:
+                self.add_children_to_map(self.project.qproject, self.project.views[self.project.default_view])
 
         # Now load the basemaps
         region = self.settings.getValue('basemapRegion')
@@ -149,11 +159,11 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         if isinstance(data, QRaveMapLayer):
             QRaveMapLayer.add_layer_to_map(item, self.project)
 
-        if isinstance(data, QRaveBaseMap):
+        elif isinstance(data, QRaveBaseMap):
             # Expand is the default option because we might need to load the layers
             return
 
-        if data is not None and 'type' in data:
+        elif data is not None and 'type' in data:
 
             if data['type'] in [QRaveTreeTypes.PROJECT_ROOT]:
                 self.change_meta(item, data, True)
@@ -167,11 +177,12 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
                 QRaveTreeTypes.BASEMAP_SUPER_FOLDER,
                 QRaveTreeTypes.BASEMAP_SUB_FOLDER
             ]:
-                print("Default Folder Action")
+                # print("Default Folder Action")
+                pass
 
             elif data['type'] == QRaveTreeTypes.PROJECT_VIEW:
                 print("Default View Action")
-                self.add_view_to_map(item)
+                self.add_view_to_map(item, data)
 
     def item_change(self, postion):
         """Triggered when the user selects a new item in the tree
@@ -305,7 +316,7 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
     # View context items
     def view_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
         self.menu.clear()
-        self.menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_view_to_map(item))
+        self.menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_view_to_map(item, data))
 
     # Project-level context menu
     def project_context_menu(self, idx: QModelIndex, item: QStandardItem, data):
@@ -317,7 +328,7 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         self.menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(self.project.project_xml_path))
         self.menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
         self.menu.addAction('WAREHOUSE_VIEW', self.project_warehouse_view, enabled=bool(self.get_warehouse_url(self.project.warehouse_meta)))
-        self.menu.addAction('ADD_ALL_TO_MAP', self.add_children_to_map(item))
+        self.menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
         self.menu.addSeparator()
         self.menu.addAction('REFRESH_PROJECT_HIERARCHY', self.load)
         self.menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY', enabled=False)
@@ -399,18 +410,50 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
         else:
             _recurse(item)
 
-    def add_view_to_map(self, item: QStandardItem):
+    def add_view_to_map(self, item: QStandardItem, data: dict):
         """Add a view and all its layers to the map
 
         Args:
             item (QStandardItem): [description]
         """
+        self.add_children_to_map(self.project.qproject, data['ids'])
         print('Add view to map')
 
-    def add_children_to_map(self, item: QStandardItem):
+    def add_children_to_map(self, item: QStandardItem, bl_ids: List[str] = None):
         """Recursively add all children to the map
 
         Args:
             item (QStandardItem): [description]
         """
-        print('Add children to map')
+        for child in self._get_children(item):
+            # Is this something we can add to the map?
+            data = child.data(Qt.UserRole)
+            if isinstance(data, QRaveMapLayer):
+                loadme = False
+                # If this layer matches the businesslogic id filter
+                if bl_ids is not None and len(bl_ids) > 0:
+                    if 'id' in data.bl_attr and data.bl_attr['id'] in bl_ids:
+                        loadme = True
+                else:
+                    loadme = True
+
+                if loadme is True:
+                    data.add_layer_to_map(child, self.project)
+
+    def _get_children(self, root_item: QStandardItem = None):
+        """Recursion is going to kill us here so do an iterative solution instead
+           https://stackoverflow.com/questions/41949370/collect-all-items-in-qtreeview-recursively
+
+        Yields:
+            [type]: [description]
+        """
+        root_item = root_item if root_item is not None else self.project.qproject
+        stack = [root_item]
+        while stack:
+            parent = stack.pop(0)
+            for row in range(parent.rowCount()):
+                for column in range(parent.columnCount()):
+                    child = parent.child(row, column)
+                    yield child
+                    if child.hasChildren():
+                        stack.append(child)

@@ -59,6 +59,7 @@ class QRAVE:
 
         self.dockwidget = None
         self.metawidget = None
+        self.progress_dialog = None
 
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
@@ -209,6 +210,8 @@ class QRAVE:
             # We set the proect path in the project settings. This way it will be saved with the QgsProject file
             self.qproject.writeEntry(CONSTANTS['settingsCategory'], CONSTANTS['project_filepath'], dialog_return[0])
             self.reload_dockwidget()
+            if self.dockwidget is None or self.dockwidget.isHidden() is True:
+                self.toggle_widget(forceOn=True)
 
     def options_load(self):
         """
@@ -234,11 +237,15 @@ class QRAVE:
         lastDigestSync = self.settings.getValue('lastDigestSync')
         currTime = int(time())  # timestamp in seconds
         plugin_init = self.settings.getValue('initialized')
-
+        self.progress_dialog = None
         if force is True:
-            dialog = ProgressDialog()
-            dialog.setWindowTitle('QRAVE Updater')
-            netsync = NetSync(labelcb=dialog.progressLabel.setText, progresscb=dialog.progressBar.setValue, finishedcb=self.reload_dockwidget)
+            self.progress_dialog = ProgressDialog()
+            self.progress_dialog.setWindowTitle('QRAVE Updater')
+            netsync = NetSync(
+                labelcb=self.progress_dialog.progressLabel.setText,
+                progresscb=self.progress_dialog.set_progress_value,
+                finishedcb=self.reload_dockwidget
+            )
 
             # No sync necessary in some cases
             if plugin_init \
@@ -248,11 +255,6 @@ class QRAVE:
                     and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
                 return
 
-            ns_task = QgsTask.fromFunction('QRAVE Sync', netsync.run,
-                                           on_finished=netsync.completed)
-            self.tm.addTask(ns_task)
-
-            dialog.exec_()
         else:
             netsync = NetSync(finishedcb=self.reload_dockwidget)
 
@@ -264,9 +266,11 @@ class QRAVE:
                     and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
                 return
 
-            ns_task = QgsTask.fromFunction('QRAVE Sync', netsync.run,
-                                           on_finished=netsync.completed)
-            self.tm.addTask(ns_task)
+        ns_task = QgsTask.fromFunction('QRAVE Sync', netsync.run,
+                                       on_finished=netsync.completed)
+        self.tm.addTask(ns_task)
+        if self.progress_dialog is not None:
+            self.progress_dialog.exec_()
 
     def reload_dockwidget(self):
         """
@@ -278,8 +282,6 @@ class QRAVE:
         """
         if self.dockwidget:
             self.dockwidget.dataChange.emit()
-        else:
-            self.toggle_widget(forceOn=True)
         self.reloadGui()
 
     def toggle_widget(self, forceOn=False):

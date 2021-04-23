@@ -23,6 +23,8 @@ class Project(Borg):
         self.exists = False
         self.meta = None
         self.warehouse_meta = None
+        self.default_view = None
+        self.views = {}
 
         if project_xml_path is not None:
             self.project_xml_path = os.path.abspath(project_xml_path)
@@ -97,6 +99,8 @@ class Project(Borg):
 
         if views is None or 'default' not in views.attrib:
             return
+        self.default_view = views.attrib['default']
+        self.views = {}
 
         curr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), "Project Views")
         curr_item.setData({'type': QRaveTreeTypes.PROJECT_VIEW_FOLDER}, Qt.UserRole)
@@ -109,9 +113,11 @@ class Project(Borg):
                 continue
 
             view_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/project_view.png'), name)
+            view_layer_ids = [layer.attrib['id'] for layer in view.findall('Layers/Layer')]
+            self.views[view_id] = view_layer_ids
             view_item.setData({
                 'type': QRaveTreeTypes.PROJECT_VIEW,
-                'ids': [layer.attrib['id'] for layer in view.findall('Layers/Layer')]
+                'ids': view_layer_ids
             }, Qt.UserRole)
             curr_item.appendRow(view_item)
 
