@@ -210,7 +210,8 @@ class QRAVEDockWidget(QDockWidget, FORM_CLASS):
             show (bool, optional): [description]. Defaults to False.
         """
         if isinstance(data, QRaveMapLayer):
-            self.metaChange.emit(item.text(), MetaType.LAYER, data.meta, show)
+            meta = data.meta if data.meta is not None else {}
+            self.metaChange.emit(item.text(), MetaType.LAYER, meta, show)
 
         elif isinstance(data, QRaveBaseMap):
             self.metaChange.emit(item.text(), MetaType.NONE, {}, show)
