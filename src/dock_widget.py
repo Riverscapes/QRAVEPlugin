@@ -39,14 +39,14 @@ from .classes.context_menu import ContextMenu
 from .classes.qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
 from .meta_widget import MetaType
 
-FORM_CLASS, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'ui', 'dock_widget.ui'))
-
+# FORM_CLASS, _ = uic.loadUiType(os.path.join(
+#     os.path.dirname(__file__), 'ui', 'dock_widget.ui'))
+from .ui.dock_widget import Ui_QRAVEDockWidgetBase
 
 ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
 
 
-class QRAVEDockWidget(QDockWidget, FORM_CLASS):
+class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
     closingPlugin = pyqtSignal()
     dataChange = pyqtSignal()

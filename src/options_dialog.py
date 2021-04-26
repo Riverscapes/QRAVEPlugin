@@ -10,11 +10,12 @@ from .classes.settings import Settings
 from .classes.basemaps import BaseMaps
 
 
-DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'ui', 'options_dialog.ui'))
+# DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
+#     os.path.dirname(__file__), 'ui', 'options_dialog.ui'))
+from .ui.options_dialog import Ui_Dialog
 
 
-class OptionsDialog(QDialog, DIALOG_CLASS):
+class OptionsDialog(QDialog, Ui_Dialog):
 
     closingPlugin = pyqtSignal()
     dataChange = pyqtSignal()

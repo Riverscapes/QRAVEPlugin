@@ -8,11 +8,12 @@ from qgis.PyQt.QtCore import pyqtSignal
 
 from .classes.settings import Settings
 
-DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'ui', 'progress_dialog.ui'))
+# DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
+#     os.path.dirname(__file__), 'ui', 'progress_dialog.ui'))
+from .ui.progress_dialog import Ui_Dialog
 
 
-class ProgressDialog(QDialog, DIALOG_CLASS):
+class ProgressDialog(QDialog, Ui_Dialog):
 
     def __init__(self, parent=None):
         """Constructor."""
