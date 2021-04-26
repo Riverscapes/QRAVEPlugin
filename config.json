@@ -16,7 +16,7 @@
         "digestSyncFreqHours": 24,
         "warehouseUrl": "https://data.riverscapes.xyz/#",
         "webUrl": "https://rave.riverscapes.xyz",
-        "issueUrl": "http://rave.riverscapes.xyz/known-bugs.html",
-        "resourcesUrl": "https://raw.githubusercontent.com/Riverscapes/RiverscapesXML/dev/"
+        "issueUrl": "https://github.com/Riverscapes/QRAVEPlugin/issues",
+        "resourcesUrl": "https://xml.riverscapes.xyz/"
     }
 }

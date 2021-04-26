@@ -71,3 +71,5 @@ from qgis.core import Qgis
 iface.messageBar().pushMessage("Error", "I'm sorry Dave, I'm afraid I can't do that", level=Qgis.Critical)
 # https://docs.qgis.org/testing/en/docs/pyqgis_developer_cookbook/communicating.html
 ```
+
+clone this repo to `qrave_toolbar_dev` so that `qrave_toolbar` is what gets used for deployment

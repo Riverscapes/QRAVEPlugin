@@ -38,5 +38,6 @@ def classFactory(iface):  # pylint: disable=invalid-name
     # Yeah, this is annoying but QGIS needs it so....
     # pylint: disable=import-error
     from .src.qrave_toolbar import QRAVE
+    from .__version__ import __version__
 
     return QRAVE(iface)

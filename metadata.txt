@@ -3,7 +3,7 @@
 # This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=Riverscapes Plugin (QRAVE)
+name=Riverscapes Plugin (QRAVE) DEV_COPY
 qgisMinimumVersion=3.0
 description=Explore symbolized Riverscapes projects
 version=0.1
@@ -27,7 +27,7 @@ tags=python,riverscapes,rave
 
 homepage=http://rave.riverscapes.xyz
 category=Plugins
-icon=Images\RaveAddIn_16px.png
+icon=icon.png
 
 # experimental flag
 experimental=True
