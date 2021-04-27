@@ -5,6 +5,7 @@ import json
 
 from time import time, sleep
 from qgis.core import QgsMessageLog, Qgis, QgsMessageLog, QgsTask, QgsApplication
+from .settings import Settings
 
 
 def md5(fname: str) -> str:
@@ -26,15 +27,15 @@ def requestFetch(remote_url: str, expected_md5=None):
         return resp.content
 
     except requests.exceptions.Timeout:
-        QgsMessageLog.logMessage("Fetching digest timed out: {}".format(remote_url), 'QRAVE', level=Qgis.Warning)
+        QgsMessageLog.logMessage("Fetching digest timed out: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
         return False
         # Maybe set up for a retry, or continue in a retry loop
     except requests.exceptions.TooManyRedirects:
         # Tell the user their URL was bad and try a different one
-        QgsMessageLog.logMessage("Fetching digest failed with too many redirects: {}".format(remote_url), 'QRAVE', level=Qgis.Warning)
+        QgsMessageLog.logMessage("Fetching digest failed with too many redirects: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
         return False
     except requests.exceptions.RequestException as e:
-        QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), 'QRAVE', level=Qgis.Warning)
+        QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
         # catastrophic error. bail.
         raise SystemExit(e)
     return True
@@ -43,7 +44,7 @@ def requestFetch(remote_url: str, expected_md5=None):
 def requestDownload(remote_url: str, local_path: str, expected_md5=None):
     # Get a file and put it somewhere local
     try:
-        resp = requests.get(url=remote_url, timeout=15)
+        resp = requests.get(url=remote_url, timeout=15, headers={'Cache-Control': 'no-cache'})
         open(local_path, 'wb').write(resp.content)
 
         # Do an MD5 check if we need to
@@ -53,15 +54,15 @@ def requestDownload(remote_url: str, local_path: str, expected_md5=None):
             return False
 
     except requests.exceptions.Timeout:
-        QgsMessageLog.logMessage("Fetching digest timed out: {}".format(remote_url), 'QRAVE', level=Qgis.Warning)
+        QgsMessageLog.logMessage("Fetching file timed out: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
         return False
         # Maybe set up for a retry, or continue in a retry loop
     except requests.exceptions.TooManyRedirects:
         # Tell the user their URL was bad and try a different one
-        QgsMessageLog.logMessage("Fetching digest failed with too many redirects: {}".format(remote_url), 'QRAVE', level=Qgis.Warning)
+        QgsMessageLog.logMessage("Fetching file failed with too many redirects: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
         return False
     except requests.exceptions.RequestException as e:
-        QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), 'QRAVE', level=Qgis.Warning)
+        QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
         # catastrophic error. bail.
         raise SystemExit(e)
     return True

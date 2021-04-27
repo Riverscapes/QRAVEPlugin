@@ -8,15 +8,16 @@ from .borg import Borg
 
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon
 from qgis.PyQt.QtCore import Qt
-from qgis.core import QgsTask, QgsApplication, QgsMessageLog, Qgis
+from qgis.core import QgsTask, QgsApplication, Qgis
 
 from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
-from .settings import CONSTANTS
+from .settings import CONSTANTS, Settings
 from .util import md5, requestFetch
 
 BASEMAPS_XML_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'BaseMaps.xml')
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
+REQUEST_ARGS = '?service=wms&request=GetCapabilities&version=1.0.0'
 
 
 class QRaveBaseMap():
@@ -25,6 +26,7 @@ class QRaveBaseMap():
         self.parent = parent
         self.meta = meta
         self.loaded = False
+        self.settings = Settings()
         self.layer_url = layer_url.replace('?', '')
 
         self.tm = QgsApplication.taskManager()
@@ -45,10 +47,7 @@ class QRaveBaseMap():
         result is the return value of doSomething."""
         if exception is None:
             if result is None:
-                QgsMessageLog.logMessage(
-                    'Completed with no exception and no result '
-                    '(probably manually canceled by the user)',
-                    MESSAGE_CATEGORY, Qgis.Warning)
+                self.settings.log('Completed with no exception and no result ', Qgis.Warning)
             else:
                 try:
                     self.parent.removeRows(0, self.parent.rowCount())
@@ -56,11 +55,11 @@ class QRaveBaseMap():
                         self.parse_layer(lyr, self.parent)
 
                 except Exception as e:
-                    QgsMessageLog.logMessage(str(e), MESSAGE_CATEGORY, Qgis.Warning)
+                    self.settings.log(str(e), Qgis.Critical)
 
         else:
-            QgsMessageLog.logMessage("Exception: {}".format(exception),
-                                     MESSAGE_CATEGORY, Qgis.Critical)
+            self.settings.log("Exception: {}".format(exception),
+                              Qgis.Critical)
             raise exception
 
     def parse_layer(self, root_el, parent: QStandardItem):
@@ -70,7 +69,10 @@ class QRaveBaseMap():
             name = root_el.find('Name').text
             srs = root_el.find('SRS').text.split(' ')[0]
             lyr_format = root_el.find('Style/LegendURL/Format').text
-            abstract = root_el.find('Abstract').text
+
+            abstract_fnd = root_el.find('Abstract')
+            abstract = abstract_fnd.text if abstract_fnd is not None else "No abstract provided"
+
             urlWithParams = "crs={}&format={}&layers={}&styles&url={}".format(srs, lyr_format, name, self.layer_url)
             lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/layers/Raster.png'), title)
 
@@ -84,7 +86,12 @@ class QRaveBaseMap():
             lyr_item.setToolTip(wrap_by_word(abstract, 20))
 
         except AttributeError as e:
+            sourceline = root_el.sourceline if root_el is not None else None
             # Something went wrong. This layer is not renderable.
+            self.settings.log(
+                'Error parsing basemap layer Exception: {}, Line: {}, Url: {}'.format(e, sourceline, self.layer_url + REQUEST_ARGS),
+                Qgis.Warning
+            )
             lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), root_el.find('Title').text)
             lyr_item.setData({'type': QRaveTreeTypes.BASEMAP_SUB_FOLDER}, Qt.UserRole),
 
@@ -98,11 +105,10 @@ class QRaveBaseMap():
             return
 
         def _layer_fetch(task):
-            QgsMessageLog.logMessage('Fetching WMS Capabilities: {}'.format(task.description()),
-                                     MESSAGE_CATEGORY, Qgis.Info)
-            result = requestFetch(self.layer_url + '?service=wms&request=GetCapabilities&version=1.0.0')
+            result = requestFetch(self.layer_url + REQUEST_ARGS)
             return lxml.etree.fromstring(result)
 
+        self.settings.log('Fetching WMS Capabilities: {}'.format(self.layer_url), Qgis.Info)
         ns_task = QgsTask.fromFunction('Loading WMS Data', _layer_fetch, on_finished=self._load_layers_done)
         self.tm.addTask(ns_task)
 
@@ -129,26 +135,30 @@ class BaseMaps(Borg):
             return
 
         # Parse the XML
-        for region in lxml.etree.parse(BASEMAPS_XML_PATH).getroot().findall('Region'):
-            q_region = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), 'Basemaps')
-            q_region.setData({'type': QRaveTreeTypes.BASEMAP_ROOT}, Qt.UserRole),
-            self.regions[region.attrib['name']] = q_region
+        try:
+            for region in lxml.etree.parse(BASEMAPS_XML_PATH).getroot().findall('Region'):
+                q_region = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), 'Basemaps')
+                q_region.setData({'type': QRaveTreeTypes.BASEMAP_ROOT}, Qt.UserRole),
+                self.regions[region.attrib['name']] = q_region
 
-            for group_layer in region.findall('GroupLayer'):
-                q_group_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), group_layer.attrib['name'])
-                q_group_layer.setData({'type': QRaveTreeTypes.BASEMAP_SUPER_FOLDER}, Qt.UserRole),
-                q_region.appendRow(q_group_layer)
+                for group_layer in region.findall('GroupLayer'):
+                    q_group_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), group_layer.attrib['name'])
+                    q_group_layer.setData({'type': QRaveTreeTypes.BASEMAP_SUPER_FOLDER}, Qt.UserRole),
+                    q_region.appendRow(q_group_layer)
 
-                for layer in group_layer.findall('Layer'):
-                    layer_label = layer.attrib['name']
-                    layer_url = layer.attrib['url']
-                    q_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), layer_label)
+                    for layer in group_layer.findall('Layer'):
+                        layer_label = layer.attrib['name']
+                        layer_url = layer.attrib['url']
+                        q_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), layer_label)
 
-                    meta = {meta.attrib['name']: meta.text for meta in layer.findall('Metadata/Meta')}
-                    # We set the data to be Basemaps to help us load this stuff later
-                    q_layer.setData(QRaveBaseMap(q_layer, layer_url, meta), Qt.UserRole)
+                        meta = {meta.attrib['name']: meta.text for meta in layer.findall('Metadata/Meta')}
+                        # We set the data to be Basemaps to help us load this stuff later
+                        q_layer.setData(QRaveBaseMap(q_layer, layer_url, meta), Qt.UserRole)
 
-                    q_group_layer.appendRow(q_layer)
+                        q_group_layer.appendRow(q_layer)
+        except Exception as e:
+            self.settings.msg_bar("Error loading basemaps", "Exception: {}".format(e),
+                                  Qgis.Critical)
 
 
 def wrap_by_word(s, n):

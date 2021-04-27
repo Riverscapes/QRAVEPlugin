@@ -258,7 +258,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # A QARaveBaseMap is just a container for layers
         elif isinstance(data, QRaveBaseMap):
-            self.basemap_service_context_menu(idx, item, data)
+            self.folder_dumb_context_menu(idx, item, data)
 
         elif data is not None and 'type' in data:
 

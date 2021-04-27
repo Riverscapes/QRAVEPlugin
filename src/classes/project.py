@@ -3,13 +3,14 @@ import os
 from typing import Dict
 import lxml.etree
 from .borg import Borg
+import traceback
 
-from qgis.core import QgsMessageLog, Qgis
+from qgis.core import Qgis
 from qgis.PyQt.QtGui import QStandardItem, QIcon, QBrush
 from qgis.PyQt.QtCore import Qt
 
 from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
-from .settings import CONSTANTS
+from .settings import CONSTANTS, Settings
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
@@ -25,11 +26,12 @@ class Project(Borg):
         self.warehouse_meta = None
         self.default_view = None
         self.views = {}
-
+        self.settings = Settings()
         if project_xml_path is not None:
             self.project_xml_path = os.path.abspath(project_xml_path)
             self.project = None
             self.project_type = None
+            self.business_logic_path = None
             self.business_logic = None
             self.qproject = None
             self.project_dir = None
@@ -39,9 +41,15 @@ class Project(Borg):
 
     def load(self):
         if self.exists is True:
-            self._load_project()
-            self._load_businesslogic()
-            self._build_tree()
+            try:
+                self._load_project()
+                self._load_businesslogic()
+                self._build_tree()
+                self.settings.msg_bar('Project Loaded', self.project_xml_path, Qgis.Success)
+            except Exception as e:
+                self.settings.msg_bar("Error loading project", "Project: {}\n Exception: {}".format(self.project_xml_path, e),
+                                      Qgis.Critical)
+                self.settings.log("Trace: {}".format(traceback.format_exc()), Qgis.Critical)
 
     def _load_project(self):
         if os.path.isfile(self.project_xml_path):
@@ -56,23 +64,30 @@ class Project(Borg):
             return
 
         self.business_logic = None
+
+        # Case-sensitive filename we expect
         bl_filename = '{}.xml'.format(self.project_type)
-        local_bl_path = os.path.join(os.path.dirname(self.project_xml_path), bl_filename)
-        builtin_bl_path = os.path.join(BL_XML_DIR, bl_filename)
-        # 1. first check for a businesslogic file next to the project file
-        if os.path.isfile(local_bl_path):
-            self.business_logic = lxml.etree.parse(local_bl_path).getroot()
 
-        # 2. Second, check the businesslogic we've got from the web
-        elif os.path.isfile(builtin_bl_path):
-            self.business_logic = lxml.etree.parse(builtin_bl_path).getroot()
+        hierarchy = [
+            # 1. first check for a businesslogic file next to the project file
+            os.path.join(os.path.dirname(self.project_xml_path), bl_filename),
+            # 2. Second, check the businesslogic we've got from the web
+            os.path.join(BL_XML_DIR, bl_filename),
+            # 3. Fall back to the default xml file
+            os.path.join(BL_XML_DIR, 'default.xml')
+        ]
 
-        # 3. Fall back to the default xml file
-        elif os.path.isfile(os.path.join(BL_XML_DIR, 'default.xml')):
-            self.business_logic = lxml.etree.parse(local_bl_path).getroot()
+        # Find the first match
+        chosen_qml = next(iter([candidate for candidate in hierarchy if os.path.isfile(candidate)]))
 
-        # Or do nothing
-        return
+        if chosen_qml is not None:
+            self.business_logic_path = chosen_qml
+            try:
+                self.business_logic = lxml.etree.parse(chosen_qml).getroot()
+            except TypeError as e:
+                raise Exception('Error parsing file: {}, {}'.format(chosen_qml, e))
+        else:
+            raise Exception('Could not find a valid file. Valid paths are: [ {} ]'.format(','.join(hierarchy)))
 
     def _build_tree(self, force=False):
         """
@@ -80,7 +95,7 @@ class Project(Borg):
         """
 
         if self.business_logic is None or force is True:
-            self.load_businesslogic()
+            self._load_businesslogic()
 
         if self.project is None or force is True:
             self.load_project()
@@ -95,10 +110,14 @@ class Project(Borg):
         self._build_views()
 
     def _build_views(self):
-        views = self.business_logic.find('Views')
-
-        if views is None or 'default' not in views.attrib:
+        if self.business_logic is None:
             return
+
+        views = self.business_logic.find('Views')
+        if views is None or 'default' not in views.attrib:
+            self.settings.log('Default view could not be located', Qgis.Warning)
+            return
+
         self.default_view = views.attrib['default']
         self.views = {}
 
@@ -124,6 +143,8 @@ class Project(Borg):
         self.qproject.appendRow(curr_item)
 
     def _recurse_tree(self, bl_el=None, proj_el=None, parent: QStandardItem = None):
+        if self.business_logic is None:
+            return
         if bl_el is None:
             bl_el = self.business_logic.find('Node')
 
@@ -221,7 +242,7 @@ class Project(Borg):
 
 def xpathone_withref(root_el, el, xpath_str):
     found = el.xpath(xpath_str)
-
+    settings = Settings()
     # If the node is not found we need to check if it's a reference
     if found is None or len(found) < 1:
         if '@id=' in xpath_str:
@@ -233,16 +254,17 @@ def xpathone_withref(root_el, el, xpath_str):
                 origin = root_el.xpath('Inputs/*[@id="{}"]'.format(ref_str))
                 # we found the origin but the reference could not be found
                 if origin is None or len(origin) < 1:
-                    QgsMessageLog.logMessage(
+                    settings.msg_bar(
+                        'Missing Node',
                         'Error finding input node with xpath={} and ref="{}"'.format(xpath_str, ref_str),
-                        MESSAGE_CATEGORY, Qgis.Warning)
+                        Qgis.Warning)
                     return
                 else:
                     return origin[0]
 
-        QgsMessageLog.logMessage(
-            'Error finding node with path="{}"'.format(xpath_str),
-            MESSAGE_CATEGORY, Qgis.Warning)
+        settings.log(
+            'Error finding project xml node with path="{}"'.format(xpath_str),
+            Qgis.Warning)
     else:
         # If the node is found and is not a reference this is the easy case
         return found[0]

@@ -2,25 +2,28 @@ import traceback
 
 import os
 import json
-
-
+import pdb
 from time import time, sleep
-from qgis.core import QgsMessageLog, Qgis, QgsMessageLog, QgsApplication
+from qgis.core import QgsTask, QgsMessageLog, Qgis
 
-from .settings import Settings, CONSTANTS
 from .util import md5, requestDownload
+from .settings import Settings, CONSTANTS
 
+# BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 
-class NetSync():
+class NetSync(QgsTask):
 
-    def __init__(self, labelcb=None, progresscb=None, finishedcb=None):
+    def __init__(self, description):
+        super().__init__(description, QgsTask.CanCancel)
+        self.total = 0
+        self.iterations = 0
+        self.exception = None
 
-        self.settings = Settings()
-        self.labelcb = labelcb
-        self.progresscb = progresscb
-        self.finishedcb = finishedcb
+        self.total = 0
+        self.progress = 0
+        self.downloaded = 0
 
         self.resource_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'resources')
         self.business_logic_xml_dir = os.path.join(self.resource_dir, CONSTANTS['businessLogicDir'])
@@ -30,19 +33,11 @@ class NetSync():
         self.initialized = False  # self.initialize sets this
         self.need_sync = True  # self.initialize sets this
 
-        self.initialize()
+        self._initialize()
 
-    def set_progress(self, task, val: int):
-        task.setProgress(val)
-        if self.progresscb is not None:
-            self.progresscb(val)
+    # EVERYTHING BELOW HERE IS ASYNC
 
-    def set_label(self, task, labelval: str):
-        QgsMessageLog.logMessage(labelval, MESSAGE_CATEGORY, Qgis.Info)
-        if self.labelcb is not None:
-            self.labelcb(labelval)
-
-    def run(self, task):
+    def run(self):
         """
         Raises an exception to abort the task.
         Returns a result if success.
@@ -51,40 +46,45 @@ class NetSync():
         If there is an exception, there will be no result.
         """
 
-        QgsMessageLog.logMessage('Started QRAVE Sync: {}'.format(task.description()),
-                                 MESSAGE_CATEGORY, Qgis.Info)
-        self.set_progress(task, 0)
-        self.updateDigest(task)
-        self.syncFiles(task)
-        if self.finishedcb is not None:
-            self.finishedcb()
+        # DEBUGGING
+        # sleep(10)  # FOR DEBUG ONLY
+        # sleep(10)  # FOR DEBUG ONLY
+        self._updateDigest()
+        # sleep(10)  # FOR DEBUG ONLY
+        self._syncFiles()
+        # sleep(10)  # FOR DEBUG ONLY
         return True
 
-    def stopped(self, task):
+    def cancel(self):
         QgsMessageLog.logMessage(
-            'Task "{name}" was canceled'.format(
-                name=task.description()),
+            'Net Sync "{name}" was canceled'.format(
+                name=self.description()),
             MESSAGE_CATEGORY, Qgis.Info)
+        super().cancel()
 
-    def completed(self, exception, result=None):
+    def finished(self, result=None):
         """This is called when doSomething is finished.
         Exception is not None if doSomething raises an exception.
         result is the return value of doSomething."""
-        if exception is None:
+        settings = Settings()
+        if self.exception is None:
             if result is None:
-                QgsMessageLog.logMessage(
+                settings.log(
                     'Completed with no exception and no result '
                     '(probably manually canceled by the user)',
-                    MESSAGE_CATEGORY, Qgis.Warning)
+                    Qgis.Warning)
             else:
-                self.settings.setValue('initialized', True)
-                QgsMessageLog.logMessage('QRave network sync succeeded', MESSAGE_CATEGORY, Qgis.Info)
-        else:
-            QgsMessageLog.logMessage("Exception: {}".format(exception),
-                                     MESSAGE_CATEGORY, Qgis.Critical)
-            raise exception
+                settings.setValue('initialized', True)
+                settings.msg_bar('QRAVE Sync Syccess', '{} files checked, {} updated'.format(self.total, self.downloaded), Qgis.Success)
+                if result is True:
+                    settings.setValue('lastDigestSync', int(time()))
 
-    def initialize(self):
+        else:
+            settings.msg_bar("Error syncing network resources", "Exception: {}".format(self.exception),
+                             Qgis.Critical)
+            # raise Exception(self.exception)
+
+    def _initialize(self):
         need_sync = False
         if not os.path.isdir(self.resource_dir):
             need_sync = True
@@ -101,19 +101,16 @@ class NetSync():
         self.initialized = True
         self.need_sync = need_sync
 
-    def updateDigest(self, task):
-        self.set_label(task, 'Updating digest')
+    def _updateDigest(self):
         # Now get the JSON file
         json_url = CONSTANTS['resourcesUrl'] + 'index.json'
-        result = requestDownload(json_url, self.digest_path)
-        if result is True:
-            self.settings.setValue('lastDigestSync', int(time()))
+        QgsMessageLog.logMessage("Requesting digest from: {}".format(json_url), MESSAGE_CATEGORY, level=Qgis.Info)
+        requestDownload(json_url, self.digest_path)
 
-    def syncFiles(self, task):
+    def _syncFiles(self):
         digest = {}
         if not os.path.isfile(self.digest_path):
-            QgsMessageLog.logMessage("Digest file could not be found", 'QRAVE', level=Qgis.Warning)
-            return
+            raise Exception("Digest file could not be found at: {}".format(self.digest_path))
 
         with open(self.digest_path) as fl:
             digest = json.load(fl)
@@ -122,44 +119,40 @@ class NetSync():
         businesslogics = {x: v for x, v in digest.items() if x.startswith('RaveBusinessLogic') and x.endswith('.xml')}
         basemaps = {x: v for x, v in digest.items() if x.startswith('BaseMaps.xml')}
 
-        total = len(symbologies.keys()) + len(businesslogics.keys()) + 1
-        progress = 0
-        downloaded = 0
-
-        def update_progress():
-            self.set_label(task, 'Updating files {}/{}'.format(progress, total))
-            self.set_progress(task, int(100 * progress / total))
+        self.total = len(symbologies.keys()) + len(businesslogics.keys()) + 1
+        self.progress = 0
+        self.downloaded = 0
 
         for remote_path, remote_md5 in symbologies.items():
             local_path = os.path.join(self.symbology_dir, os.path.basename(remote_path))
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
-                QgsMessageLog.logMessage("Symobology download: {}".format(local_path), 'QRAVE', level=Qgis.Warning)
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
-                downloaded += 1
-            progress += 1
-            update_progress()
+                QgsMessageLog.logMessage("Symobology downloaded: {}".format(local_path), MESSAGE_CATEGORY, level=Qgis.Info)
+                self.downloaded += 1
+            self.progress += 1
+            self.setProgress(self.progress)
 
         for remote_path, remote_md5 in businesslogics.items():
             local_path = os.path.join(self.business_logic_xml_dir, os.path.basename(remote_path))
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
-                QgsMessageLog.logMessage("BusinessLogic download: {}".format(local_path), 'QRAVE', level=Qgis.Warning)
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
-                downloaded += 1
-            progress += 1
-            update_progress()
+                QgsMessageLog.logMessage("BusinessLogic downloaded: {}".format(local_path), MESSAGE_CATEGORY, level=Qgis.Info)
+                self.downloaded += 1
+            self.progress += 1
+            self.setProgress(self.progress)
 
         # Basemaps is a special case
         for remote_path, remote_md5 in basemaps.items():
             local_path = os.path.join(self.resource_dir, os.path.basename(remote_path))
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
-                QgsMessageLog.logMessage("Basemaps download: {}".format(local_path), 'QRAVE', level=Qgis.Warning)
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
-                downloaded += 1
-            progress += 1
-            update_progress()
+                QgsMessageLog.logMessage("Basemaps downloaded: {}".format(local_path), 'QRAVE', level=Qgis.Info)
+                self.downloaded += 1
+            self.progress += 1
+            self.setProgress(self.progress)
 
-        self.set_progress(task, 100)
-        if downloaded == 0:
-            self.set_label(task, 'No symbology or xml updates needed. 0 files downloaded')
-        else:
-            self.set_label(task, 'Downloaded and updated {}/{} symbology or xml files'.format(downloaded, total))
+        self.setProgress(100)
+        # if downloaded == 0:
+        #     self.set_label('No symbology or xml updates needed. 0 files downloaded')
+        # else:
+        #     self.set_label('Downloaded and updated {}/{} symbology or xml files'.format(downloaded, total))

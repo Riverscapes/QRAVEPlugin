@@ -55,11 +55,3 @@ class OptionsDialog(QDialog, Ui_Dialog):
             self.settings.resetAllSettings()
             self.setValues()
         self.dataChange.emit()
-
-    def openUrl(self, url):
-        """
-        Open the folder in finder or windows explorer
-        :param url:
-        :return:
-        """
-        pass

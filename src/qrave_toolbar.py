@@ -31,7 +31,6 @@ from .classes.project import Project
 # Initialize Qt resources from file resources.py
 # Import the code for the dialog
 from .options_dialog import OptionsDialog
-from .progress_dialog import ProgressDialog
 from .about_dialog import AboutDialog
 from .dock_widget import QRAVEDockWidget
 from .meta_widget import QRAVEMetaWidget
@@ -59,7 +58,6 @@ class QRAVE:
 
         self.dockwidget = None
         self.metawidget = None
-        self.progress_dialog = None
 
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
@@ -69,7 +67,7 @@ class QRAVE:
             self.plugin_dir,
             'i18n',
             'QRAVE_{}.qm'.format(locale))
-        self.settings = Settings()
+        self.settings = Settings(iface=self.iface)
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -104,14 +102,14 @@ class QRAVE:
         self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), self.tr(u'Riverscapes Plugin (QRAVE)'), self.iface.mainWindow())
         self.openAction.triggered.connect(self.toggle_widget)
 
-        self.openAction.setStatusTip('do a thing')
-        self.openAction.setWhatsThis('what\'s this')
+        self.openAction.setStatusTip('Toggle the project viewer')
+        self.openAction.setWhatsThis('Toggle the project viewer')
 
         self.openProjectAction = QAction(QIcon(':/plugins/qrave_toolbar/OpenProject.png'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
         self.openProjectAction.triggered.connect(self.projectBrowserDlg)
 
-        self.openProjectAction.setStatusTip('do a thing')
-        self.openProjectAction.setWhatsThis('what\'s this')
+        self.openProjectAction.setStatusTip('Open QRAVE project')
+        self.openProjectAction.setWhatsThis('Open QRAVE project')
 
         self.helpButton = QToolButton()
         self.helpButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
@@ -164,6 +162,10 @@ class QRAVE:
         self.toolbar.addAction(self.openAction)
         self.toolbar.addAction(self.openProjectAction)
         self.toolbar.addWidget(self.helpButton)
+
+        initialized = self.settings.getValue('initialized')
+        if not initialized:
+            self.net_sync_load(force=True)
 
         self.reloadGui()
 
@@ -237,40 +239,22 @@ class QRAVE:
         lastDigestSync = self.settings.getValue('lastDigestSync')
         currTime = int(time())  # timestamp in seconds
         plugin_init = self.settings.getValue('initialized')
-        self.progress_dialog = None
-        if force is True:
-            self.progress_dialog = ProgressDialog()
-            self.progress_dialog.setWindowTitle('QRAVE Updater')
-            netsync = NetSync(
-                labelcb=self.progress_dialog.progressLabel.setText,
-                progresscb=self.progress_dialog.set_progress_value,
-                finishedcb=self.reload_dockwidget
-            )
 
-            # No sync necessary in some cases
-            if plugin_init \
-                    and not netsync.need_sync \
-                    and not force \
-                    and isinstance(lastDigestSync, int) \
-                    and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
-                return
+        netsync = NetSync('Sync QRAVE resource files')
 
-        else:
-            netsync = NetSync(finishedcb=self.reload_dockwidget)
+        # No sync necessary in some cases:
+        # 1. if the plugin is not already initialized OR
+        # 2. if netsync says it needs a sync (looking for index.json)
+        # 3. if the force flag is set
+        # 4. if the last was more than `digestSyncFreqHours` hours ago
+        if plugin_init \
+                and not netsync.need_sync \
+                and not force \
+                and isinstance(lastDigestSync, int) \
+                and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
+            return
 
-            # No sync necessary in some cases
-            if plugin_init \
-                    and not netsync.need_sync \
-                    and not force \
-                    and isinstance(lastDigestSync, int) \
-                    and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
-                return
-
-        ns_task = QgsTask.fromFunction('QRAVE Sync', netsync.run,
-                                       on_finished=netsync.completed)
-        self.tm.addTask(ns_task)
-        if self.progress_dialog is not None:
-            self.progress_dialog.exec_()
+        self.tm.addTask(netsync)
 
     def reload_dockwidget(self):
         """

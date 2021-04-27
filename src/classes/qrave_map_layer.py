@@ -1,11 +1,11 @@
 from __future__ import annotations
 import os
 from typing import Dict, Union
-from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsMessageLog
+from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer
 from qgis.PyQt.QtCore import Qt, QModelIndex, QUrl
 from qgis.PyQt.QtGui import QStandardItem
 
-from .settings import CONSTANTS
+from .settings import CONSTANTS, Settings
 
 SYMBOLOGY_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'symbology')
 # BASE is the name we want to use inside the settings keys
@@ -84,6 +84,7 @@ class QRaveMapLayer():
 
         # No multiselect so there is only ever one item
         map_layer = item.data(Qt.UserRole)
+        settings = Settings()
 
         # Loop over all the parent group layers for this raster
         # ensuring they are in the tree in correct, nested order
@@ -127,7 +128,6 @@ class QRaveMapLayer():
             # Symbology
             ##########################################
             symbology = map_layer.bl_attr['symbology'] if map_layer.bl_attr is not None and 'symbology' in map_layer.bl_attr else None
-            chosen_qml = None
             # If the business logic has symbology defined
             if symbology is not None:
                 qml_fname = '{}.qml'.format(symbology)
@@ -141,20 +141,21 @@ class QRaveMapLayer():
                     os.path.abspath(os.path.join(SYMBOLOGY_DIR, 'Shared', qml_fname))
                 ]
                 # Find the first match
-                for candidate in hierarchy:
-                    if os.path.isfile(candidate):
-                        chosen_qml = candidate
-                        break
-                # Report to the terminal if we couldn't find a qml file to use
-                if chosen_qml is None:
-                    QgsMessageLog.logMessage(
-                        "Could not find a valid .qml symbology file for layer {}. Search paths: [{}]".format(layer_uri, ', '.join(hierarchy)),
-                        MESSAGE_CATEGORY,
-                        level=Qgis.Warning
-                    )
-                # Apply the QML file
-                else:
-                    rOutput.loadNamedStyle(chosen_qml)
+                try:
+                    chosen_qml = next(iter([candidate for candidate in hierarchy if os.path.isfile(candidate)]))
+                    # Report to the terminal if we couldn't find a qml file to use
+                    if chosen_qml is None:
+                        settings.msg_bar(
+                            "Missing Symbology",
+                            "Could not find a valid .qml symbology file for layer {}. Search paths: [{}]".format(layer_uri, ', '.join(hierarchy)),
+                            level=Qgis.Warning
+                        )
+                    # Apply the QML file
+                    else:
+                        rOutput.loadNamedStyle(chosen_qml)
+
+                except StopIteration:
+                    settings.log('Could not find valid symbology for layer at any of the following search paths: [ {} ]'.format(', '.join(hierarchy)), Qgis.Warning)
 
             QgsProject.instance().addMapLayer(rOutput, False)
             parentGroup.insertLayer(item.row(), rOutput)

@@ -31,11 +31,14 @@ class Settings(SettingsBorg):
     Read up on the Borg pattern if you don't already know it. Super useful
     """
 
-    def __init__(self):
+    def __init__(self, iface=None):
         SettingsBorg.__init__(self)
+
+        # The iface is important as a pointer so we can get to the messagebar
+        if iface is not None and 'iface' not in self.__dict__:
+            self.iface = iface
         if not self._initdone:
             self.proj = QgsProject.instance()
-            QgsMessageLog.logMessage("Init Settings", MESSAGE_CATEGORY, level=Qgis.Info)
             self.s = QgsSettings()
             self.s.beginGroup(CONSTANTS['settingsCategory'])
 
@@ -53,6 +56,16 @@ class Settings(SettingsBorg):
 
             # Must be the last thing we do in init
             self._initdone = True
+
+    def log(self, msg: str, level: Qgis.MessageLevel = Qgis.Info):
+        QgsMessageLog.logMessage(msg, MESSAGE_CATEGORY, level=level)
+
+    def msg_bar(self, title: str, msg: str, level: Qgis.MessageLevel = Qgis.Info, duration: int = 5):
+        if self.iface is not None:
+            self.iface.messageBar().pushMessage(title, msg, level=level, duration=duration)
+        # Fall back to regular logging
+        else:
+            QgsMessageLog.logMessage("{}: {}".format(title, msg), MESSAGE_CATEGORY, level=level)
 
     def resetAllSettings(self):
         for key in _DEFAULTS.keys():
@@ -86,4 +99,4 @@ class Settings(SettingsBorg):
         """
         # Set it in the file
         self.s.setValue(key, json.dumps({"v": value}))
-        QgsMessageLog.logMessage("SETTINGS SET: {}={} of type '{}'".format(key, value, str(type(value))), MESSAGE_CATEGORY, level=Qgis.Info)
+        self.log("SETTINGS SET: {}={} of type '{}'".format(key, value, str(type(value))), level=Qgis.Info)
