@@ -15,6 +15,8 @@
 import os.path
 from time import time
 from functools import partial
+import requests
+
 from qgis.utils import showPluginHelp
 from qgis.core import QgsTask, QgsApplication, QgsProject
 
@@ -58,6 +60,9 @@ class QRAVE:
 
         self.dockwidget = None
         self.metawidget = None
+
+        # Populated on load from a URL
+        self.acknowledgements = None
 
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
@@ -308,3 +313,15 @@ class QRAVE:
         # The metawidget always starts hidden
         if self.metawidget is not None:
             self.metawidget.hide()
+
+
+    def about_load(self):
+        """
+        Open the About dialog
+        """
+        dialog = AboutDialog()
+        if self.acknowledgements is None:
+            self.acknowledgements = requests.get('http://rave.riverscapes.xyz/dotnetack.html').text
+
+        self.acknowledgements.setText(self.acknowledgements)
+        dialog.exec_()
