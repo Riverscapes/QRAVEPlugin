@@ -117,6 +117,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
             if project is not None and project.exists is True and project.qproject is not None:
                 self.model.appendRow(project.qproject)
+                self.expandChildren(self.model.indexFromItem(project.qproject))
                 self.loaded_projects.append(project)
 
         # Load the tree objects
@@ -164,7 +165,6 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             self.reload_tree()
 
             new_project = self._get_project(xml_path)
-            self.expandChildren(self.model.indexFromItem(new_project.qproject))
 
             # If this is a fresh load and the setting is set we load the default view
             load_default_setting = self.settings.getValue('loadDefaultView')
@@ -180,23 +180,33 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.closingPlugin.emit()
         event.accept()
 
-    def expandChildren(self, idx: QModelIndex = None):
+    def expandChildren(self, idx: QModelIndex = None, force=False):
         """Expand all the children of a QTreeView node. Do it recursively
         TODO: Recursion might not be the best for large trees here.
 
         Args:
             idx (QModelIndex, optional): [description]. Defaults to None.
+            force: ignore the "collapsed" business logic attribute
         """
         if idx is None:
             idx = self.treeView.rootIndex()
 
         for idy in range(self.model.rowCount(idx)):
             child = self.model.index(idy, 0, idx)
-            self.expandChildren(child)
+            self.expandChildren(child, force)
 
         item = self.model.itemFromIndex(idx)
-        data = item.data(Qt.UserRole) if item is not None else None
-        if not self.treeView.isExpanded(idx) and not isinstance(data, QRaveBaseMap):
+        item_data = item.data(Qt.UserRole) if item is not None else None
+
+        # Collapsed is an attribute set in the business logic
+        collapsed = False
+        if not force and isinstance(item_data.data, dict) and 'collapsed' in item_data.data:
+            if item_data.data['collapsed'] == 'true':
+                collapsed = True
+
+        if not self.treeView.isExpanded(idx) \
+                and not collapsed \
+                and not isinstance(item_data.data, QRaveBaseMap):
             self.treeView.setExpanded(idx, True)
 
     def default_tree_action(self, idx: QModelIndex):

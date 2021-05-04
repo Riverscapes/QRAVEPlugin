@@ -57,6 +57,7 @@ class QRaveMapLayer():
         self.layer_uri = layer_uri
         self.bl_attr = bl_attr
         self.meta = meta
+        self.transparency = 0
         self.layer_name = layer_name
 
         if layer_type not in QRaveMapLayer.LayerTypes.__dict__.values():
@@ -141,6 +142,13 @@ class QRaveMapLayer():
             ##########################################
             # Symbology
             ##########################################
+            transparency = 0
+            try:
+                if 'transparency' in map_layer.bl_attr:
+                    transparency = int(map_layer.bl_attr['transparency'])
+            except Exception as e:
+                settings.log('Error deriving transparency from layer: {}'.format(e))
+
             symbology = map_layer.bl_attr['symbology'] if map_layer.bl_attr is not None and 'symbology' in map_layer.bl_attr else None
             # If the business logic has symbology defined
             if symbology is not None:

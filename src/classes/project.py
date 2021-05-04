@@ -170,9 +170,9 @@ class Project:
         if children_container:
             curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'))
             if is_root is True:
-                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self), Qt.UserRole),
+                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self, data=dict(children_container.attrib)), Qt.UserRole),
             else:
-                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self), Qt.UserRole),
+                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data=dict(children_container.attrib)), Qt.UserRole),
 
             for child_node in children_container.xpath('*'):
                 # Handle any explicit <Node> children
@@ -182,7 +182,7 @@ class Project:
                 # Repeaters are a separate case
                 elif child_node.tag == 'Repeater':
                     qrepeater = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), child_node.attrib['label'])
-                    qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self), Qt.UserRole),
+                    qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self, data=children_container.attrib), Qt.UserRole),
                     curr_item.appendRow(qrepeater)
                     repeat_xpath = child_node.attrib['xpath']
                     repeat_node = child_node.find('Node')
