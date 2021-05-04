@@ -123,6 +123,13 @@ class QRaveMapLayer():
         # Loop over all the parent group layers for this raster
         # ensuring they are in the tree in correct, nested order
 
+        transparency = 0
+        try:
+            if 'transparency' in map_layer.bl_attr:
+                transparency = int(map_layer.bl_attr['transparency'])
+        except Exception as e:
+            settings.log('Error deriving transparency from layer: {}'.format(e))
+
         # Only add the layer if it's not already in the registry
         if not QgsProject.instance().mapLayersByName(map_layer.label):
             layer_uri = map_layer.layer_uri
@@ -138,16 +145,12 @@ class QRaveMapLayer():
             elif map_layer.layer_type == QRaveMapLayer.LayerTypes.RASTER:
                 # Raster
                 rOutput = QgsRasterLayer(layer_uri, map_layer.label)
+                if transparency > 0:
+                    rOutput.setOpacity((100 - transparency) / 100)
 
             ##########################################
             # Symbology
             ##########################################
-            transparency = 0
-            try:
-                if 'transparency' in map_layer.bl_attr:
-                    transparency = int(map_layer.bl_attr['transparency'])
-            except Exception as e:
-                settings.log('Error deriving transparency from layer: {}'.format(e))
 
             symbology = map_layer.bl_attr['symbology'] if map_layer.bl_attr is not None and 'symbology' in map_layer.bl_attr else None
             # If the business logic has symbology defined
