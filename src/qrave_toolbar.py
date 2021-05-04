@@ -261,7 +261,8 @@ class QRAVE:
             return
 
         # Trigger the dockwidget to repaint after the netsync
-        self.netsync.taskCompleted.connect(self.dockwidget.reload)
+        if self.dockwidget is not None:
+            self.netsync.taskCompleted.connect(self.dockwidget.reload)
         self.tm.addTask(self.netsync)
 
     def projectBrowserDlg(self):

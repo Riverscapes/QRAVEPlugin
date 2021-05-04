@@ -4,7 +4,6 @@ from typing import Dict, Union
 from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer
 from qgis.PyQt.QtCore import Qt, QModelIndex, QUrl
 from qgis.PyQt.QtGui import QStandardItem
-
 from .settings import CONSTANTS, Settings
 
 SYMBOLOGY_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'symbology')
@@ -31,7 +30,7 @@ class ProjectTreeData:
     for context menus when we right click
     """
 
-    def __init__(self, node_type, project, data=None):
+    def __init__(self, node_type, project=None, data=None):
         self.type = node_type
         self.project = project
         self.data = data
@@ -87,7 +86,7 @@ class QRaveMapLayer():
         return thisGroup
 
     @staticmethod
-    def add_layer_to_map(item: QStandardItem, project):
+    def add_layer_to_map(item: QStandardItem):
         """
         Add a layer to the map
         :param layer:
@@ -95,7 +94,10 @@ class QRaveMapLayer():
         """
 
         # No multiselect so there is only ever one item
-        map_layer = item.data(Qt.UserRole)
+        pt_data: ProjectTreeData = item.data(Qt.UserRole)
+        project = pt_data.project
+        map_layer: QRaveMapLayer = pt_data.data
+
         settings = Settings()
 
         # Loop over all the parent group layers for this raster

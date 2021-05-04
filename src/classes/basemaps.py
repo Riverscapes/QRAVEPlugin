@@ -164,8 +164,9 @@ class BaseMaps(Borg):
 
                         q_group_layer.appendRow(q_layer)
         except Exception as e:
-            self.settings.msg_bar("Error loading basemaps", "Exception: {}".format(e),
-                                  Qgis.Critical)
+            settings = Settings()
+            settings.msg_bar("Error loading basemaps", "Exception: {}".format(e),
+                             Qgis.Critical)
 
 
 def wrap_by_word(s, n):
