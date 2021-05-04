@@ -18,11 +18,23 @@ class QRaveTreeTypes():
     PROJECT_REPEATER_FOLDER = 'PROJECT_REPEATER_FOLDER'
     PROJECT_VIEW_FOLDER = 'PROJECT_VIEW_FOLDER'
     PROJECT_VIEW = 'PROJECT_VIEW'
+    LEAF = 'LEAF'  # any kind of end node: maplayers and other open-able files
     # Basemaps have a surprising number of itmes
     BASEMAP_ROOT = 'BASEMAP_ROOT'
     BASEMAP_SUPER_FOLDER = 'BASEMAP_SUPER_FOLDER'
     BASEMAP_SUB_FOLDER = 'BASEMAP_SUB_FOLDER'
     # Note: Add-able layers are all covered by QRaveMapLayer and QRaveBaseMap
+
+
+class ProjectTreeData:
+    """This is just a helper class to make sure we have everyhting we need
+    for context menus when we right click
+    """
+
+    def __init__(self, node_type, project, data=None):
+        self.type = node_type
+        self.project = project
+        self.data = data
 
 
 class QRaveMapLayer():

@@ -2,14 +2,13 @@ from __future__ import annotations
 import os
 from typing import Dict
 import lxml.etree
-from .borg import Borg
 import traceback
 
 from qgis.core import Qgis
 from qgis.PyQt.QtGui import QStandardItem, QIcon, QBrush
 from qgis.PyQt.QtCore import Qt
 
-from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
+from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
 from .settings import CONSTANTS, Settings
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
@@ -17,27 +16,26 @@ MESSAGE_CATEGORY = CONSTANTS['logCategory']
 BL_XML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', CONSTANTS['businessLogicDir'])
 
 
-class Project(Borg):
+class Project:
 
     def __init__(self, project_xml_path: str):
-        Borg.__init__(self)
         self.exists = False
         self.meta = None
         self.warehouse_meta = None
         self.default_view = None
         self.views = {}
         self.settings = Settings()
-        if project_xml_path is not None:
-            self.project_xml_path = os.path.abspath(project_xml_path)
-            self.project = None
-            self.project_type = None
-            self.business_logic_path = None
-            self.business_logic = None
-            self.qproject = None
-            self.project_dir = None
-            self.exists = os.path.isfile(self.project_xml_path)
-            if self.exists:
-                self.project_dir = os.path.dirname(self.project_xml_path)
+
+        self.project_xml_path = os.path.abspath(project_xml_path)
+        self.project = None
+        self.project_type = None
+        self.business_logic_path = None
+        self.business_logic = None
+        self.qproject = None
+        self.project_dir = None
+        self.exists = os.path.isfile(self.project_xml_path)
+        if self.exists:
+            self.project_dir = os.path.dirname(self.project_xml_path)
 
     def load(self):
         if self.exists is True:
@@ -94,12 +92,6 @@ class Project(Borg):
         Parse the XML and return any basemaps you find
         """
 
-        if self.business_logic is None or force is True:
-            self._load_businesslogic()
-
-        if self.project is None or force is True:
-            self.load_project()
-
         # Maybe the basemaps file isn't synced yet
         if self.project_xml_path is None or not os.path.isfile(self.project_xml_path):
             self.qproject = None
@@ -122,7 +114,7 @@ class Project(Borg):
         self.views = {}
 
         curr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), "Project Views")
-        curr_item.setData({'type': QRaveTreeTypes.PROJECT_VIEW_FOLDER}, Qt.UserRole)
+        curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW_FOLDER, project=self), Qt.UserRole)
 
         for view in self.business_logic.findall('Views/View'):
             name = view.attrib['name']
@@ -134,10 +126,10 @@ class Project(Borg):
             view_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/project_view.png'), name)
             view_layer_ids = [layer.attrib['id'] for layer in view.findall('Layers/Layer')]
             self.views[view_id] = view_layer_ids
-            view_item.setData({
-                'type': QRaveTreeTypes.PROJECT_VIEW,
-                'ids': view_layer_ids
-            }, Qt.UserRole)
+            view_item.setData(
+                ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW, project=self, data=view_layer_ids),
+                Qt.UserRole
+            )
             curr_item.appendRow(view_item)
 
         self.qproject.appendRow(curr_item)
@@ -178,9 +170,9 @@ class Project(Borg):
         if children_container:
             curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'))
             if is_root is True:
-                curr_item.setData({'type': QRaveTreeTypes.PROJECT_ROOT}, Qt.UserRole),
+                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self), Qt.UserRole),
             else:
-                curr_item.setData({'type': QRaveTreeTypes.PROJECT_FOLDER}, Qt.UserRole),
+                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self), Qt.UserRole),
 
             for child_node in children_container.xpath('*'):
                 # Handle any explicit <Node> children
@@ -190,7 +182,7 @@ class Project(Borg):
                 # Repeaters are a separate case
                 elif child_node.tag == 'Repeater':
                     qrepeater = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), child_node.attrib['label'])
-                    qrepeater.setData({'type': QRaveTreeTypes.PROJECT_REPEATER_FOLDER}, Qt.UserRole),
+                    qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self), Qt.UserRole),
                     curr_item.appendRow(qrepeater)
                     repeat_xpath = child_node.attrib['xpath']
                     repeat_node = child_node.find('Node')
@@ -224,7 +216,7 @@ class Project(Borg):
             layer_type = bl_attr['type'] if 'type' in bl_attr else 'unknown'
 
             map_layer = QRaveMapLayer(curr_label, layer_type, layer_uri, bl_attr, meta, layer_name)
-            curr_item.setData(map_layer, Qt.UserRole)
+            curr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), Qt.UserRole)
 
             if not map_layer.exists:
                 curr_item.setData(QBrush(Qt.red), Qt.ForegroundRole)

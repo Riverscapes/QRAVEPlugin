@@ -10,7 +10,7 @@ from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsTask, QgsApplication, Qgis
 
-from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
+from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
 from .settings import CONSTANTS, Settings
 from .util import md5, requestFetch
 
@@ -66,7 +66,9 @@ class QRaveBaseMap():
 
         try:
             title = root_el.find('Title').text
-            name = root_el.find('Name').text
+            name_fnd = root_el.find('Name')
+            name = name_fnd.text if name_fnd is not None else title
+
             srs = root_el.find('SRS').text.split(' ')[0]
             lyr_format = root_el.find('Style/LegendURL/Format').text
 
@@ -82,7 +84,12 @@ class QRaveBaseMap():
                 "lyr_format": lyr_format
             }
             lyr_item.setData(
-                QRaveMapLayer(title, QRaveMapLayer.LayerTypes.WMS, urlWithParams, extra_meta), Qt.UserRole)
+                ProjectTreeData(
+                    QRaveTreeTypes.LEAF,
+                    None,
+                    QRaveMapLayer(title, QRaveMapLayer.LayerTypes.WMS, urlWithParams, extra_meta)
+                ),
+                Qt.UserRole)
             lyr_item.setToolTip(wrap_by_word(abstract, 20))
 
         except AttributeError as e:
@@ -93,7 +100,7 @@ class QRaveBaseMap():
                 Qgis.Warning
             )
             lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), root_el.find('Title').text)
-            lyr_item.setData({'type': QRaveTreeTypes.BASEMAP_SUB_FOLDER}, Qt.UserRole),
+            lyr_item.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_SUB_FOLDER), Qt.UserRole),
 
         parent.appendRow(lyr_item)
 
@@ -138,12 +145,12 @@ class BaseMaps(Borg):
         try:
             for region in lxml.etree.parse(BASEMAPS_XML_PATH).getroot().findall('Region'):
                 q_region = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), 'Basemaps')
-                q_region.setData({'type': QRaveTreeTypes.BASEMAP_ROOT}, Qt.UserRole),
+                q_region.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_ROOT), Qt.UserRole),
                 self.regions[region.attrib['name']] = q_region
 
                 for group_layer in region.findall('GroupLayer'):
                     q_group_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), group_layer.attrib['name'])
-                    q_group_layer.setData({'type': QRaveTreeTypes.BASEMAP_SUPER_FOLDER}, Qt.UserRole),
+                    q_group_layer.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_SUPER_FOLDER), Qt.UserRole),
                     q_region.appendRow(q_group_layer)
 
                     for layer in group_layer.findall('Layer'):
@@ -153,7 +160,7 @@ class BaseMaps(Borg):
 
                         meta = {meta.attrib['name']: meta.text for meta in layer.findall('Metadata/Meta')}
                         # We set the data to be Basemaps to help us load this stuff later
-                        q_layer.setData(QRaveBaseMap(q_layer, layer_url, meta), Qt.UserRole)
+                        q_layer.setData(ProjectTreeData(QRaveTreeTypes.LEAF, None, QRaveBaseMap(q_layer, layer_url, meta)), Qt.UserRole)
 
                         q_group_layer.appendRow(q_layer)
         except Exception as e:

@@ -2,8 +2,8 @@ import os
 import json
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox
-from qgis.PyQt.QtCore import pyqtSignal
-from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import pyqtSignal, QUrl
+from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.core import Qgis
 
 from .classes.settings import Settings
@@ -13,6 +13,8 @@ from .classes.basemaps import BaseMaps
 # DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
 #     os.path.dirname(__file__), 'ui', 'options_dialog.ui'))
 from .ui.options_dialog import Ui_Dialog
+
+RESOURCES_DIR = os.path.join(os.path.dirname(__file__), '..', 'resources')
 
 
 class OptionsDialog(QDialog, Ui_Dialog):
@@ -34,6 +36,18 @@ class OptionsDialog(QDialog, Ui_Dialog):
         self.regionHelp.setIcon(QIcon(':/plugins/qrave_toolbar/Help.png'))
         self.regionHelp.setEnabled(False)
 
+        self.openResourcesFolder.clicked.connect(self.locateResources)
+
+    def locateResources(self):
+        """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
+        It should open the folder of the item in question
+
+        Args:
+            fpath (str): [description]
+        """
+        qurl = QUrl.fromLocalFile(RESOURCES_DIR)
+        QDesktopServices.openUrl(qurl)
+
     def setValues(self):
         self.basemapsInclude.setChecked(self.settings.getValue('basemapsInclude'))
         self.loadDefaultView.setChecked(self.settings.getValue('loadDefaultView'))
@@ -47,11 +61,15 @@ class OptionsDialog(QDialog, Ui_Dialog):
 
     def commit_settings(self, btn):
         role = self.buttonBox.buttonRole(btn)
+
         if role == QDialogButtonBox.ApplyRole:
             self.settings.setValue('basemapsInclude', self.basemapsInclude.isChecked())
             self.settings.setValue('loadDefaultView', self.loadDefaultView.isChecked())
             self.settings.setValue('basemapRegion', self.basemapRegion.currentText())
+
         elif role == QDialogButtonBox.ResetRole:
             self.settings.resetAllSettings()
             self.setValues()
+
+        # Emit a datachange so we can trigger other parts of this plugin
         self.dataChange.emit()
