@@ -5,6 +5,7 @@ import shutil
 import re
 import zipfile
 
+
 PLUGIN_NAME = "qrave_toolbar"
 UI_DIR = "src/ui"
 
@@ -52,14 +53,16 @@ def copy_plugin():
     return deployfolder
 
 
-def move_meta(deployfolder):
+def move_meta(deployfolder, version):
     # Metadata must be handled separately
     src = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'metadata.txt'))
     dst = os.path.abspath(os.path.join(deployfolder, 'metadata.txt'))
 
     with open(src, 'r', encoding="utf8") as f, open(dst, 'w+', encoding="utf8") as wf:
         text = f.read()
-        wf.write(text.replace(' DEV_COPY', ''))
+        text = text.replace(' DEV_COPY', '')
+        text = text.replace('version=0.0.0dev', 'version={}'.format(version))
+        wf.write(text)
 
 
 def zip_plugin(deployfolder: str):
@@ -96,7 +99,7 @@ if __name__ == '__main__':
 
     deployfolder = copy_plugin()
 
-    move_meta(deployfolder)
+    move_meta(deployfolder, version)
     zip_plugin(deployfolder)
 
-    # deploy_plugin()
+    deploy_plugin()

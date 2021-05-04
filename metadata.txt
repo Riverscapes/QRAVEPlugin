@@ -6,7 +6,7 @@
 name=Riverscapes Plugin (QRAVE) DEV_COPY
 qgisMinimumVersion=3.0
 description=Explore symbolized Riverscapes projects
-version=0.1
+version=0.0.0dev
 author=North Arrow Research
 email=info@northarrowresearch.com
 
