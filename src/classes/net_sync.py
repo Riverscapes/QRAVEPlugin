@@ -123,8 +123,13 @@ class NetSync(QgsTask):
         self.progress = 0
         self.downloaded = 0
 
+        # Symbologies have directory structure
         for remote_path, remote_md5 in symbologies.items():
-            local_path = os.path.join(self.symbology_dir, os.path.basename(remote_path))
+            local_path = os.path.abspath(os.path.join(self.symbology_dir, *remote_path.replace('Symbology/qgis/', '').split('/')))
+
+            # There might be subdirs to make here
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
                 QgsMessageLog.logMessage("Symobology downloaded: {}".format(local_path), MESSAGE_CATEGORY, level=Qgis.Info)
