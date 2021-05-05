@@ -43,6 +43,7 @@ class QRaveMapLayer():
         LINE = 'line'
         POINT = 'point'
         RASTER = 'raster'
+        FILE = 'file'
         WMS = 'WMS'
 
     def __init__(self,
@@ -54,14 +55,19 @@ class QRaveMapLayer():
                  layer_name: str = None
                  ):
         self.label = label
-        self.layer_uri = layer_uri
+        self.layer_uri = None
+
+        if isinstance(layer_uri, str) and len(layer_uri) > 0:
+            self.layer_uri = os.path.abspath(layer_uri)
+
         self.bl_attr = bl_attr
         self.meta = meta
         self.transparency = 0
         self.layer_name = layer_name
 
         if layer_type not in QRaveMapLayer.LayerTypes.__dict__.values():
-            raise Exception('Layer type "{}" is not valid'.format(layer_type))
+            settings = Settings()
+            settings.log('Layer type "{}" is not valid'.format(layer_type), Qgis.Critical)
         self.layer_type = layer_type
 
         self.exists = self.layer_type == QRaveMapLayer.LayerTypes.WMS or os.path.isfile(layer_uri)

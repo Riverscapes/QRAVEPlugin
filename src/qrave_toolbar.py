@@ -40,6 +40,9 @@ from .meta_widget import QRAVEMetaWidget
 from . import resources
 
 
+RESOURCES_DIR = os.path.join(os.path.dirname(__file__), '..', 'resources')
+
+
 class QRAVE:
     """QGIS Plugin Implementation."""
 
@@ -148,6 +151,13 @@ class QRAVE:
         )
         self.net_sync_action.triggered.connect(lambda: self.net_sync_load(force=True))
 
+        self.find_resources_action = QAction(
+            QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'),
+            self.tr('Find Resources folder'),
+            self.iface.mainWindow()
+        )
+        self.find_resources_action.triggered.connect(self.locateResources)
+
         self.about_action = QAction(
             QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'),
             self.tr('About QRAVE'),
@@ -160,6 +170,7 @@ class QRAVE:
         m.addAction(self.raveOptionsAction)
         m.addAction(self.net_sync_action)
         m.addSeparator()
+        m.addAction(self.find_resources_action)
         m.addAction(self.about_action)
         self.helpButton.setDefaultAction(self.helpAction)
 
@@ -279,6 +290,16 @@ class QRAVE:
             if self.dockwidget is None or self.dockwidget.isHidden() is True:
                 self.toggle_widget(forceOn=True)
             self.dockwidget.add_project(dialog_return[0])
+
+    def locateResources(self):
+        """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
+        It should open the folder of the item in question
+
+        Args:
+            fpath (str): [description]
+        """
+        qurl = QUrl.fromLocalFile(RESOURCES_DIR)
+        QDesktopServices.openUrl(qurl)
 
     def options_load(self):
         """

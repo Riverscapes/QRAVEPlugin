@@ -6,7 +6,7 @@ from typing import Dict
 import lxml.etree
 from .borg import Borg
 
-from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon
+from qgis.PyQt.QtGui import QStandardItem, QIcon
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsTask, QgsApplication, Qgis
 
@@ -126,10 +126,6 @@ class BaseMaps(Borg):
         Borg.__init__(self)
         if 'regions' not in self.__dict__:
             self.regions = {}
-
-    def load_capabilities(self):
-        # https://hydro.nationalmap.gov/arcgis/services/wbd/MapServer/WmsServer?service=wms&request=GetCapabilities&version=1.0.0
-        print('load_capabilities')
 
     def load(self):
         """

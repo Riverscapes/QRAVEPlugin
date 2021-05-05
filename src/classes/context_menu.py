@@ -25,6 +25,10 @@ class ContextMenu(QMenu):
             'Browse Project Folder',
             ':/plugins/qrave_toolbar/BrowseFolder.png'
         ),
+        'OPEN_FILE': (
+            'Open File',
+            ':/plugins/qrave_toolbar/RaveAddIn_16px.png'
+        ),
         'BROWSE_FOLDER': (
             'Browse Folder',
             ':/plugins/qrave_toolbar/BrowseFolder.png'

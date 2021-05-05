@@ -36,18 +36,6 @@ class OptionsDialog(QDialog, Ui_Dialog):
         self.regionHelp.setIcon(QIcon(':/plugins/qrave_toolbar/Help.png'))
         self.regionHelp.setEnabled(False)
 
-        self.openResourcesFolder.clicked.connect(self.locateResources)
-
-    def locateResources(self):
-        """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
-        It should open the folder of the item in question
-
-        Args:
-            fpath (str): [description]
-        """
-        qurl = QUrl.fromLocalFile(RESOURCES_DIR)
-        QDesktopServices.openUrl(qurl)
-
     def setValues(self):
         self.basemapsInclude.setChecked(self.settings.getValue('basemapsInclude'))
         self.loadDefaultView.setChecked(self.settings.getValue('loadDefaultView'))

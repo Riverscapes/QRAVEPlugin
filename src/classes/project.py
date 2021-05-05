@@ -201,6 +201,8 @@ class Project:
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/MultiDot.png'))
             elif bl_type == 'raster':
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/Raster.png'))
+            else:
+                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'))
 
             # Couldn't find this node. Ignore it.
             meta = {meta.attrib['name']: meta.text for meta in new_proj_el.findall('MetaData/Meta')}
@@ -225,6 +227,8 @@ class Project:
                 curr_item.setFont(curr_item_font)
 
                 curr_item.setToolTip('File not found: {}'.format(map_layer.layer_uri))
+            elif map_layer.layer_uri:
+                curr_item.setToolTip(map_layer.layer_uri)
 
         if parent:
             parent.appendRow(curr_item)
