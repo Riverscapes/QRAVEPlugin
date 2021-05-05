@@ -14,8 +14,6 @@ from .classes.basemaps import BaseMaps
 #     os.path.dirname(__file__), 'ui', 'options_dialog.ui'))
 from .ui.options_dialog import Ui_Dialog
 
-RESOURCES_DIR = os.path.join(os.path.dirname(__file__), '..', 'resources')
-
 
 class OptionsDialog(QDialog, Ui_Dialog):
 

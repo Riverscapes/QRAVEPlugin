@@ -347,7 +347,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             qrave_projects = []
 
         # Filter out the project we want to close and reload the tree
-        qrave_projects = [x for x in qrave_projects if x != project.project_xml_path]\
+        qrave_projects = [x.project_xml_path for x in self.loaded_projects if x != project]
 
         # Write the settings back to the project
         self.qproject.writeEntry(CONSTANTS['settingsCategory'], CONSTANTS['qrave_projects'], json.dumps(qrave_projects))

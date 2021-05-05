@@ -125,20 +125,29 @@ class QRAVE:
 
         m = self.helpButton.menu()
 
+        # TODO: get the local help working
+        # self.helpAction = QAction(
+        #     QIcon(':/plugins/qrave_toolbar/Help.png'),
+        #     self.tr('Help'),
+        #     self.iface.mainWindow()
+        # )
+        # self.helpAction.triggered.connect(partial(showPluginHelp, None, filename=':/plugins/qrave_toolbar/help/build/html/index'))
+        # self.websiteAction = QAction(
+        #     QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'),
+        #     self.tr('Website'),
+        #     self.iface.mainWindow()
+        # )
+        # self.websiteAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz")))
+
         self.helpAction = QAction(
             QIcon(':/plugins/qrave_toolbar/Help.png'),
             self.tr('Help'),
             self.iface.mainWindow()
         )
-        self.helpAction.triggered.connect(partial(showPluginHelp, None, filename=':/plugins/qrave_toolbar/help/build/html/index'))
-        self.websiteAction = QAction(
-            QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'),
-            self.tr('Website'),
-            self.iface.mainWindow()
-        )
-        self.websiteAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz")))
+        self.helpAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz")))
 
         self.raveOptionsAction = QAction(
+            QIcon(':/plugins/qrave_toolbar/Options.png'),
             self.tr('Settings'),
             self.iface.mainWindow()
         )
@@ -166,7 +175,7 @@ class QRAVE:
         self.about_action.triggered.connect(self.about_load)
 
         m.addAction(self.helpAction)
-        m.addAction(self.websiteAction)
+        # m.addAction(self.websiteAction)
         m.addAction(self.raveOptionsAction)
         m.addAction(self.net_sync_action)
         m.addSeparator()
