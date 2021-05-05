@@ -58,6 +58,8 @@ class QRAVE:
         self.iface = iface
         self.tm = QgsApplication.taskManager()
         self.qproject = QgsProject.instance()
+        self.qproject.readProject.connect(self.onProjectLoad)
+
         self.pluginIsActive = False
 
         self.dockwidget = None
@@ -190,6 +192,17 @@ class QRAVE:
         # This does a lazy netsync (i.e. it will run it if it feels like it)
         self.net_sync_load()
 
+    def onProjectLoad(self, doc):
+        # If the project has the plugin enabled then restore it.
+        qrave_enabled, type_conversion_ok = self.qproject.readEntry(
+            CONSTANTS['settingsCategory'],
+            'enabled'
+        )
+        if type_conversion_ok and qrave_enabled == '1':
+            self.toggle_widget(forceOn=True)
+            if self.dockwidget is not None:
+                self.dockwidget.reload_tree()
+
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
 
@@ -199,7 +212,7 @@ class QRAVE:
         # for reuse if plugin is reopened
         # Commented next statement since it causes QGIS crashe
         # when closing the docked window:
-        # self.dockwidget = None
+        self.dockwidget = None
 
         self.pluginIsActive = False
 
@@ -255,6 +268,11 @@ class QRAVE:
         # The metawidget always starts hidden
         if self.metawidget is not None:
             self.metawidget.hide()
+
+        if self.dockwidget is not None and not self.dockwidget.isHidden():
+            self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'enabled', True)
+        else:
+            self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'enabled')
 
     def net_sync_load(self, force=False):
         """

@@ -56,18 +56,11 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     def __init__(self, parent=None):
         """Constructor."""
         super(QRAVEDockWidget, self).__init__(parent)
-        # Set up the user interface from Designer.
-        # After setupUI you can access any designer object by doing
-        # self.<objectname>, and you can use autoconnect slots - see
-        # http://doc.qt.io/qt-5/designer-using-a-ui-file.html
-        # widgets-and-dialogs-with-auto-connect
 
-        # self.treeView
         self.setupUi(self)
         self.menu = ContextMenu()
         self.qproject = QgsProject.instance()
         self.qproject.cleared.connect(self.close_all)
-        self.qproject.readProject.connect(self.reload_tree)
 
         self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
         self.treeView.customContextMenuRequested.connect(self.open_menu)
@@ -131,8 +124,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
     def get_project_settings(self):
         try:
-            qrave_projects_raw, type_conversion_ok = self.qproject.readEntry(CONSTANTS['settingsCategory'],
-                                                                             CONSTANTS['qrave_projects'])
+            qrave_projects_raw, type_conversion_ok = self.qproject.readEntry(
+                CONSTANTS['settingsCategory'],
+                'qrave_projects'
+            )
             qrave_projects = json.loads(qrave_projects_raw)
 
             if not type_conversion_ok or qrave_projects is None or not isinstance(qrave_projects, list):
@@ -149,7 +144,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         return filtered
 
     def set_project_settings(self, projects: List[str]):
-        self.qproject.writeEntry(CONSTANTS['settingsCategory'], CONSTANTS['qrave_projects'], json.dumps(projects))
+        self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'qrave_projects', json.dumps(projects))
 
     @pyqtSlot()
     def add_project(self, xml_path: str):
@@ -175,6 +170,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         """ When the user clicks the "X" in the dockwidget titlebar
         """
         self.hide()
+        self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'enabled')
         self.closingPlugin.emit()
         event.accept()
 
@@ -223,7 +219,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # This is the default action for all add-able layers including basemaps
         if isinstance(item_data.data, QRaveMapLayer):
-            QRaveMapLayer.add_layer_to_map(item)
+            if item_data.data.layer_type == QRaveMapLayer.LayerTypes.FILE:
+                self.file_system_open(item_data.data.layer_uri)
+            else:
+                QRaveMapLayer.add_layer_to_map(item)
 
         elif isinstance(item_data.data, QRaveBaseMap):
             # Expand is the default option because we might need to load the layers
@@ -330,15 +329,17 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             QDesktopServices.openUrl(QUrl(url))
 
     def close_all(self):
-        for p in self.loaded_projects:
-            self.close_project(p)
+        for p in range(len(self.loaded_projects)):
+            self.close_project(self.loaded_projects[0])
 
     def close_project(self, project: Project):
         """ Close the project
         """
         try:
-            qrave_projects_raw, type_conversion_ok = self.qproject.readEntry(CONSTANTS['settingsCategory'],
-                                                                             CONSTANTS['qrave_projects'])
+            qrave_projects_raw, type_conversion_ok = self.qproject.readEntry(
+                CONSTANTS['settingsCategory'],
+                'qrave_projects'
+            )
             qrave_projects = json.loads(qrave_projects_raw)
             if not type_conversion_ok or qrave_projects is None:
                 qrave_projects = []
@@ -350,7 +351,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         qrave_projects = [x.project_xml_path for x in self.loaded_projects if x != project]
 
         # Write the settings back to the project
-        self.qproject.writeEntry(CONSTANTS['settingsCategory'], CONSTANTS['qrave_projects'], json.dumps(qrave_projects))
+        self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'qrave_projects', json.dumps(qrave_projects))
+        self.loaded_projects = qrave_projects
         self.reload_tree()
 
     def file_system_open(self, fpath: str):
