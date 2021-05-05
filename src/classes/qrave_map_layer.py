@@ -55,9 +55,9 @@ class QRaveMapLayer():
                  layer_name: str = None
                  ):
         self.label = label
-        self.layer_uri = None
+        self.layer_uri = layer_uri
 
-        if isinstance(layer_uri, str) and len(layer_uri) > 0:
+        if isinstance(layer_uri, str) and len(layer_uri) > 0 and layer_type != QRaveMapLayer.LayerTypes.WMS:
             self.layer_uri = os.path.abspath(layer_uri)
 
         self.bl_attr = bl_attr

@@ -84,9 +84,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
     def expand_tree_item(self, idx: QModelIndex):
         item = self.model.itemFromIndex(idx)
-        data = item.data(Qt.UserRole)
-        if isinstance(data, QRaveBaseMap):
-            data.load_layers()
+        item_data = item.data(Qt.UserRole)
+        if item_data and item_data.data and isinstance(item_data.data, QRaveBaseMap):
+            item_data.data.load_layers()
 
     def _get_project(self, xml_path):
         try:
