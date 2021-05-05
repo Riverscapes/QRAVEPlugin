@@ -28,5 +28,6 @@ class AboutDialog(QDialog, Ui_Dialog):
         self.logo.setPixmap(pixmap)
         self.website.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['webUrl']))
         self.issues.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['issueUrl']))
+        self.changelog.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['changelogUrl']))
 
         self.version.setText("Version: {}".format(__version__))
