@@ -120,7 +120,14 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
         elif meta_type == MetaType.NONE:
             self.treeView.setHeaderHidden(True)
             self.treeView.setEnabled(False)
+            self.model.setColumnCount(1)
             self.setWindowTitle('Riverscapes MetaData: {}'.format(label))
+            no_item = QStandardItem('This item cannot have metadata')
+            no_item.setTextAlignment(Qt.AlignCenter)
+            no_f = no_item.font()
+            no_f.setItalic(True)
+            no_item.setFont(no_f)
+            root_item.appendRow(no_item)
             return
 
         # self.tree.header().setDefaultSectionSize(180)

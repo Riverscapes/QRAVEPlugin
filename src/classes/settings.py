@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import html
 
 from qgis.core import QgsMessageLog, Qgis, QgsProject, QgsSettings
 
@@ -99,4 +100,4 @@ class Settings(SettingsBorg):
         """
         # Set it in the file
         self.s.setValue(key, json.dumps({"v": value}))
-        self.log("SETTINGS SET: {}={} of type '{}'".format(key, value, str(type(value))), level=Qgis.Info)
+        self.log("SETTINGS SET: {}={} of type '{}'".format(key, value, html.escape(str(type(value)))), level=Qgis.Info)

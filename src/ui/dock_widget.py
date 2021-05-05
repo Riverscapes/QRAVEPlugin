@@ -8,7 +8,6 @@
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
-
 class Ui_QRAVEDockWidgetBase(object):
     def setupUi(self, QRAVEDockWidgetBase):
         QRAVEDockWidgetBase.setObjectName("QRAVEDockWidgetBase")
@@ -36,3 +35,4 @@ class Ui_QRAVEDockWidgetBase(object):
     def retranslateUi(self, QRAVEDockWidgetBase):
         _translate = QtCore.QCoreApplication.translate
         QRAVEDockWidgetBase.setWindowTitle(_translate("QRAVEDockWidgetBase", "Riverscapes Toolbar (QRAVE)"))
+

@@ -5,12 +5,12 @@
         "basemapsInclude": true,
         "lastDigestSync": null,
         "lastResourceSync": null,
+        "lastBrowsePath": null,
         "basemapRegion": "United States"
     },
     "constants": {
         "logCategory": "QRAVE",
         "settingsCategory": "QRAVE",
-        "project_filepath": "qrave_project_path",
         "businessLogicDir": "blXML",
         "symbologyDir": "symbology",
         "digestSyncFreqHours": 24,

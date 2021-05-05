@@ -2,8 +2,8 @@ import os
 import json
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox
-from qgis.PyQt.QtCore import pyqtSignal
-from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import pyqtSignal, QUrl
+from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.core import Qgis
 
 from .classes.settings import Settings
@@ -47,11 +47,15 @@ class OptionsDialog(QDialog, Ui_Dialog):
 
     def commit_settings(self, btn):
         role = self.buttonBox.buttonRole(btn)
+
         if role == QDialogButtonBox.ApplyRole:
             self.settings.setValue('basemapsInclude', self.basemapsInclude.isChecked())
             self.settings.setValue('loadDefaultView', self.loadDefaultView.isChecked())
             self.settings.setValue('basemapRegion', self.basemapRegion.currentText())
+
         elif role == QDialogButtonBox.ResetRole:
             self.settings.resetAllSettings()
             self.setValues()
+
+        # Emit a datachange so we can trigger other parts of this plugin
         self.dataChange.emit()

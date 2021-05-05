@@ -1,6 +1,6 @@
 from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction
-from qgis.PyQt.QtCore import pyqtSlot
-from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import pyqtSlot, QModelIndex
+from qgis.PyQt.QtGui import QIcon, QStandardItem
 
 
 class ContextMenu(QMenu):
@@ -24,6 +24,10 @@ class ContextMenu(QMenu):
         'BROWSE_PROJECT_FOLDER': (
             'Browse Project Folder',
             ':/plugins/qrave_toolbar/BrowseFolder.png'
+        ),
+        'OPEN_FILE': (
+            'Open File',
+            ':/plugins/qrave_toolbar/RaveAddIn_16px.png'
         ),
         'BROWSE_FOLDER': (
             'Browse Folder',
@@ -60,6 +64,7 @@ class ContextMenu(QMenu):
     }
 
     # def __init__(self):
+    #     self.menu = ContextMenu()
     #     super().__init__(self)
 
     def addAction(self, lookup: str, slot: pyqtSlot = None, enabled=True):

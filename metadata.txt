@@ -6,7 +6,7 @@
 name=Riverscapes Plugin (QRAVE) DEV_COPY
 qgisMinimumVersion=3.0
 description=Explore symbolized Riverscapes projects
-version=0.1
+version=0.0.0dev
 author=North Arrow Research
 email=info@northarrowresearch.com
 
@@ -20,7 +20,7 @@ repository=https://github.com/Riverscapes/QRAVEPlugin
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-# changelog=
+changelog=https://github.com/Riverscapes/QRAVEPlugin/blob/master/CHANGELOG.md
 
 # Tags are comma separated with spaces allowed
 tags=python,riverscapes,rave

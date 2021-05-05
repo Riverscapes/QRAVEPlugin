@@ -23,6 +23,7 @@ class AboutDialog(QDialog, Ui_Dialog):
         """Constructor."""
         QDialog.__init__(self, parent)
         self.setupUi(self)
+
         pixmap = QPixmap(':/plugins/qrave_toolbar/RaveAddIn.png').scaled(128, 128)
         self.logo.setPixmap(pixmap)
         self.website.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['webUrl']))

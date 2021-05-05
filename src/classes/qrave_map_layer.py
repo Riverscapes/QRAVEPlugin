@@ -4,7 +4,6 @@ from typing import Dict, Union
 from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer
 from qgis.PyQt.QtCore import Qt, QModelIndex, QUrl
 from qgis.PyQt.QtGui import QStandardItem
-
 from .settings import CONSTANTS, Settings
 
 SYMBOLOGY_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'symbology')
@@ -18,11 +17,23 @@ class QRaveTreeTypes():
     PROJECT_REPEATER_FOLDER = 'PROJECT_REPEATER_FOLDER'
     PROJECT_VIEW_FOLDER = 'PROJECT_VIEW_FOLDER'
     PROJECT_VIEW = 'PROJECT_VIEW'
+    LEAF = 'LEAF'  # any kind of end node: maplayers and other open-able files
     # Basemaps have a surprising number of itmes
     BASEMAP_ROOT = 'BASEMAP_ROOT'
     BASEMAP_SUPER_FOLDER = 'BASEMAP_SUPER_FOLDER'
     BASEMAP_SUB_FOLDER = 'BASEMAP_SUB_FOLDER'
     # Note: Add-able layers are all covered by QRaveMapLayer and QRaveBaseMap
+
+
+class ProjectTreeData:
+    """This is just a helper class to make sure we have everyhting we need
+    for context menus when we right click
+    """
+
+    def __init__(self, node_type, project=None, data=None):
+        self.type = node_type
+        self.project = project
+        self.data = data
 
 
 class QRaveMapLayer():
@@ -32,6 +43,7 @@ class QRaveMapLayer():
         LINE = 'line'
         POINT = 'point'
         RASTER = 'raster'
+        FILE = 'file'
         WMS = 'WMS'
 
     def __init__(self,
@@ -44,12 +56,18 @@ class QRaveMapLayer():
                  ):
         self.label = label
         self.layer_uri = layer_uri
+
+        if isinstance(layer_uri, str) and len(layer_uri) > 0 and layer_type != QRaveMapLayer.LayerTypes.WMS:
+            self.layer_uri = os.path.abspath(layer_uri)
+
         self.bl_attr = bl_attr
         self.meta = meta
+        self.transparency = 0
         self.layer_name = layer_name
 
         if layer_type not in QRaveMapLayer.LayerTypes.__dict__.values():
-            raise Exception('Layer type "{}" is not valid'.format(layer_type))
+            settings = Settings()
+            settings.log('Layer type "{}" is not valid'.format(layer_type), Qgis.Critical)
         self.layer_type = layer_type
 
         self.exists = self.layer_type == QRaveMapLayer.LayerTypes.WMS or os.path.isfile(layer_uri)
@@ -75,7 +93,7 @@ class QRaveMapLayer():
         return thisGroup
 
     @staticmethod
-    def add_layer_to_map(item: QStandardItem, project):
+    def add_layer_to_map(item: QStandardItem):
         """
         Add a layer to the map
         :param layer:
@@ -83,7 +101,10 @@ class QRaveMapLayer():
         """
 
         # No multiselect so there is only ever one item
-        map_layer = item.data(Qt.UserRole)
+        pt_data: ProjectTreeData = item.data(Qt.UserRole)
+        project = pt_data.project
+        map_layer: QRaveMapLayer = pt_data.data
+
         settings = Settings()
 
         # Loop over all the parent group layers for this raster
@@ -108,6 +129,13 @@ class QRaveMapLayer():
         # Loop over all the parent group layers for this raster
         # ensuring they are in the tree in correct, nested order
 
+        transparency = 0
+        try:
+            if 'transparency' in map_layer.bl_attr:
+                transparency = int(map_layer.bl_attr['transparency'])
+        except Exception as e:
+            settings.log('Error deriving transparency from layer: {}'.format(e))
+
         # Only add the layer if it's not already in the registry
         if not QgsProject.instance().mapLayersByName(map_layer.label):
             layer_uri = map_layer.layer_uri
@@ -123,10 +151,13 @@ class QRaveMapLayer():
             elif map_layer.layer_type == QRaveMapLayer.LayerTypes.RASTER:
                 # Raster
                 rOutput = QgsRasterLayer(layer_uri, map_layer.label)
+                if transparency > 0:
+                    rOutput.setOpacity((100 - transparency) / 100)
 
             ##########################################
             # Symbology
             ##########################################
+
             symbology = map_layer.bl_attr['symbology'] if map_layer.bl_attr is not None and 'symbology' in map_layer.bl_attr else None
             # If the business logic has symbology defined
             if symbology is not None:

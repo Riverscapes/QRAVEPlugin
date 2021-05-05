@@ -15,6 +15,8 @@
 import os.path
 from time import time
 from functools import partial
+import requests
+
 from qgis.utils import showPluginHelp
 from qgis.core import QgsTask, QgsApplication, QgsProject
 
@@ -25,7 +27,6 @@ from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QDialo
 from .classes.settings import Settings, CONSTANTS
 from .classes.net_sync import NetSync
 from .classes.basemaps import BaseMaps
-from .classes.project import Project
 
 
 # Initialize Qt resources from file resources.py
@@ -37,6 +38,9 @@ from .meta_widget import QRAVEMetaWidget
 
 # initialize Qt resources from file resources.py
 from . import resources
+
+
+RESOURCES_DIR = os.path.join(os.path.dirname(__file__), '..', 'resources')
 
 
 class QRAVE:
@@ -54,10 +58,14 @@ class QRAVE:
         self.iface = iface
         self.tm = QgsApplication.taskManager()
         self.qproject = QgsProject.instance()
+
         self.pluginIsActive = False
 
         self.dockwidget = None
         self.metawidget = None
+
+        # Populated on load from a URL
+        self.acknowledgements = None
 
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
@@ -98,6 +106,7 @@ class QRAVE:
 
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
+        self.qproject.readProject.connect(self.onProjectLoad)
 
         self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), self.tr(u'Riverscapes Plugin (QRAVE)'), self.iface.mainWindow())
         self.openAction.triggered.connect(self.toggle_widget)
@@ -118,20 +127,29 @@ class QRAVE:
 
         m = self.helpButton.menu()
 
+        # TODO: get the local help working
+        # self.helpAction = QAction(
+        #     QIcon(':/plugins/qrave_toolbar/Help.png'),
+        #     self.tr('Help'),
+        #     self.iface.mainWindow()
+        # )
+        # self.helpAction.triggered.connect(partial(showPluginHelp, None, filename=':/plugins/qrave_toolbar/help/build/html/index'))
+        # self.websiteAction = QAction(
+        #     QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'),
+        #     self.tr('Website'),
+        #     self.iface.mainWindow()
+        # )
+        # self.websiteAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz")))
+
         self.helpAction = QAction(
             QIcon(':/plugins/qrave_toolbar/Help.png'),
             self.tr('Help'),
             self.iface.mainWindow()
         )
-        self.helpAction.triggered.connect(partial(showPluginHelp, None, filename=':/plugins/qrave_toolbar/help/build/html/index'))
-        self.websiteAction = QAction(
-            QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'),
-            self.tr('Website'),
-            self.iface.mainWindow()
-        )
-        self.websiteAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz")))
+        self.helpAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz")))
 
         self.raveOptionsAction = QAction(
+            QIcon(':/plugins/qrave_toolbar/Options.png'),
             self.tr('Settings'),
             self.iface.mainWindow()
         )
@@ -144,6 +162,13 @@ class QRAVE:
         )
         self.net_sync_action.triggered.connect(lambda: self.net_sync_load(force=True))
 
+        self.find_resources_action = QAction(
+            QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'),
+            self.tr('Find Resources folder'),
+            self.iface.mainWindow()
+        )
+        self.find_resources_action.triggered.connect(self.locateResources)
+
         self.about_action = QAction(
             QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'),
             self.tr('About QRAVE'),
@@ -152,10 +177,11 @@ class QRAVE:
         self.about_action.triggered.connect(self.about_load)
 
         m.addAction(self.helpAction)
-        m.addAction(self.websiteAction)
+        # m.addAction(self.websiteAction)
         m.addAction(self.raveOptionsAction)
         m.addAction(self.net_sync_action)
         m.addSeparator()
+        m.addAction(self.find_resources_action)
         m.addAction(self.about_action)
         self.helpButton.setDefaultAction(self.helpAction)
 
@@ -163,34 +189,43 @@ class QRAVE:
         self.toolbar.addAction(self.openProjectAction)
         self.toolbar.addWidget(self.helpButton)
 
-        initialized = self.settings.getValue('initialized')
-        if not initialized:
-            self.net_sync_load(force=True)
+        # This does a lazy netsync (i.e. it will run it if it feels like it)
+        self.net_sync_load()
 
-        self.reloadGui()
-
-    def reloadGui(self):
-        plugin_init = self.settings.getValue('initialized')
-        self.openAction.setEnabled(plugin_init)
-        self.openProjectAction.setEnabled(plugin_init)
+    def onProjectLoad(self, doc):
+        # If the project has the plugin enabled then restore it.
+        qrave_enabled, type_conversion_ok = self.qproject.readEntry(
+            CONSTANTS['settingsCategory'],
+            'enabled'
+        )
+        if type_conversion_ok and qrave_enabled == '1':
+            self.toggle_widget(forceOn=True)
+            if self.dockwidget is not None:
+                self.dockwidget.reload_tree()
 
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
-
-        # print "** CLOSING QRAVE DockWidget"
+        if self.metawidget is not None:
+            self.metawidget.hide()
+        if self.dockwidget is not None:
+            self.dockwidget.hide()
 
         # disconnects
         self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
+        self.qproject.readProject.disconnect(self.onProjectLoad)
         # remove this statement if dockwidget is to remain
         # for reuse if plugin is reopened
-        # Commented next statement since it causes QGIS crashe
-        # when closing the docked window:
-        # self.dockwidget = None
+        self.dockwidget = None
 
         self.pluginIsActive = False
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
+        if self.metawidget is not None:
+            self.metawidget.hide()
+        if self.dockwidget is not None:
+            self.dockwidget.hide()
+
         for action in self.actions:
             self.iface.removePluginMenu(
                 self.tr(u'&Riverscapes Plugin (QRAVE)'),
@@ -199,81 +234,10 @@ class QRAVE:
         # remove the toolbar
         del self.toolbar
 
-    def projectBrowserDlg(self):
-        """
-        Browse for a project directory
-        :return:
-        """
-        last_project = self.settings.getValue('projectPath')
-        last_dir = os.path.dirname(last_project) if last_project is not None else None
-
-        dialog_return = QFileDialog.getOpenFileName(self.dockwidget, "Open a Riverscapes project", last_dir, self.tr("Riverscapes Project files (project.rs.xml)"))
-        if dialog_return is not None and dialog_return[0] != "" and os.path.isfile(dialog_return[0]):
-            # We set the proect path in the project settings. This way it will be saved with the QgsProject file
-            self.qproject.writeEntry(CONSTANTS['settingsCategory'], CONSTANTS['project_filepath'], dialog_return[0])
-            self.reload_dockwidget()
-            if self.dockwidget is None or self.dockwidget.isHidden() is True:
-                self.toggle_widget(forceOn=True)
-
-    def options_load(self):
-        """
-        Open the options/settings dialog
-        """
-        dialog = OptionsDialog()
-        if self.dockwidget:
-            dialog.dataChange.connect(self.dockwidget.load)
-        dialog.exec_()
-
-    def about_load(self):
-        """
-        Open the About dialog
-        """
-        dialog = AboutDialog()
-        dialog.exec_()
-
-    def net_sync_load(self, force=False):
-        """
-        Periodically check for new files
-        """
-
-        lastDigestSync = self.settings.getValue('lastDigestSync')
-        currTime = int(time())  # timestamp in seconds
-        plugin_init = self.settings.getValue('initialized')
-
-        netsync = NetSync('Sync QRAVE resource files')
-
-        # No sync necessary in some cases:
-        # 1. if the plugin is not already initialized OR
-        # 2. if netsync says it needs a sync (looking for index.json)
-        # 3. if the force flag is set
-        # 4. if the last was more than `digestSyncFreqHours` hours ago
-        if plugin_init \
-                and not netsync.need_sync \
-                and not force \
-                and isinstance(lastDigestSync, int) \
-                and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
-            return
-
-        self.tm.addTask(netsync)
-
-    def reload_dockwidget(self):
-        """
-        The dockwidget may or may not be initialized when we call reload so we
-        add a checking step in
-
-        This doesn't do any real reloading. We're just triggering the dockwidget emit signal
-        and then it does all the heavy lifting
-        """
-        if self.dockwidget:
-            self.dockwidget.dataChange.emit()
-        self.reloadGui()
-
     def toggle_widget(self, forceOn=False):
         """Toggle the widget open and closed when clicking the toolbar"""
         if not self.pluginIsActive:
             self.pluginIsActive = True
-
-            # print "** STARTING QRAVE"
 
             # dockwidget may not exist if:
             #    first run of plugin
@@ -293,7 +257,6 @@ class QRAVE:
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
 
             # show the dockwidget
-            # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockwidget)
             self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.metawidget)
             self.dockwidget.show()
@@ -308,3 +271,87 @@ class QRAVE:
         # The metawidget always starts hidden
         if self.metawidget is not None:
             self.metawidget.hide()
+
+        if self.dockwidget is not None and not self.dockwidget.isHidden():
+            self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'enabled', True)
+        else:
+            self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'enabled')
+
+    def net_sync_load(self, force=False):
+        """
+        Periodically check for new files
+        """
+
+        lastDigestSync = self.settings.getValue('lastDigestSync')
+        currTime = int(time())  # timestamp in seconds
+        plugin_init = self.settings.getValue('initialized')
+
+        self.netsync = NetSync('Sync QRAVE resource files')
+
+        # No sync necessary in some cases:
+        # 1. if the plugin is not already initialized OR
+        # 2. if netsync says it needs a sync (looking for index.json)
+        # 3. if the force flag is set
+        # 4. if the last was more than `digestSyncFreqHours` hours ago
+        if plugin_init \
+                and not self.netsync.need_sync \
+                and not force \
+                and isinstance(lastDigestSync, int) \
+                and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
+            self.netsync = None
+            return
+
+        # Trigger the dockwidget to repaint after the netsync
+        if self.dockwidget is not None:
+            self.netsync.taskCompleted.connect(self.dockwidget.reload_tree)
+
+        # FOR DEBUGGING ONLY. NEVER IN PRODUCTION
+        # self.netsync.run()
+
+        # COMMENT THIS OUT AND USE THE LINE ABOVE FOR SYNCHRONOUS DEBUGGING
+        self.tm.addTask(self.netsync)
+
+    def projectBrowserDlg(self):
+        """
+        Browse for a project directory
+        :return:
+        """
+        last_browse_path = self.settings.getValue('lastBrowsePath')
+        last_dir = os.path.dirname(last_browse_path) if last_browse_path is not None else None
+
+        dialog_return = QFileDialog.getOpenFileName(self.dockwidget, "Open a Riverscapes project", last_dir, self.tr("Riverscapes Project files (project.rs.xml)"))
+        if dialog_return is not None and dialog_return[0] != "" and os.path.isfile(dialog_return[0]):
+            # We set the proect path in the project settings. This way it will be saved with the QgsProject file
+            if self.dockwidget is None or self.dockwidget.isHidden() is True:
+                self.toggle_widget(forceOn=True)
+            self.dockwidget.add_project(dialog_return[0])
+
+    def locateResources(self):
+        """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
+        It should open the folder of the item in question
+
+        Args:
+            fpath (str): [description]
+        """
+        qurl = QUrl.fromLocalFile(RESOURCES_DIR)
+        QDesktopServices.openUrl(qurl)
+
+    def options_load(self):
+        """
+        Open the options/settings dialog
+        """
+        dialog = OptionsDialog()
+        if self.dockwidget:
+            dialog.dataChange.connect(self.dockwidget.dataChange)
+        dialog.exec_()
+
+    def about_load(self):
+        """
+        Open the About dialog
+        """
+        dialog = AboutDialog()
+        if self.acknowledgements is None:
+            self.acknowledgements = requests.get('http://rave.riverscapes.xyz/dotnetack.html').text
+
+        self.acknowledgements.setText(self.acknowledgements)
+        dialog.exec_()
