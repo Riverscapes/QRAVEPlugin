@@ -58,7 +58,6 @@ class QRAVE:
         self.iface = iface
         self.tm = QgsApplication.taskManager()
         self.qproject = QgsProject.instance()
-        self.qproject.readProject.connect(self.onProjectLoad)
 
         self.pluginIsActive = False
 
@@ -107,6 +106,7 @@ class QRAVE:
 
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
+        self.qproject.readProject.connect(self.onProjectLoad)
 
         self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), self.tr(u'Riverscapes Plugin (QRAVE)'), self.iface.mainWindow())
         self.openAction.triggered.connect(self.toggle_widget)
@@ -205,13 +205,16 @@ class QRAVE:
 
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
+        if self.metawidget is not None:
+            self.metawidget.hide()
+        if self.dockwidget is not None:
+            self.dockwidget.hide()
 
         # disconnects
         self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
+        self.qproject.readProject.disconnect(self.onProjectLoad)
         # remove this statement if dockwidget is to remain
         # for reuse if plugin is reopened
-        # Commented next statement since it causes QGIS crashe
-        # when closing the docked window:
         self.dockwidget = None
 
         self.pluginIsActive = False
@@ -301,6 +304,11 @@ class QRAVE:
         # Trigger the dockwidget to repaint after the netsync
         if self.dockwidget is not None:
             self.netsync.taskCompleted.connect(self.dockwidget.reload_tree)
+
+        # FOR DEBUGGING ONLY. NEVER IN PRODUCTION
+        # self.netsync.run()
+
+        # COMMENT THIS OUT AND USE THE LINE ABOVE FOR SYNCHRONOUS DEBUGGING
         self.tm.addTask(self.netsync)
 
     def projectBrowserDlg(self):

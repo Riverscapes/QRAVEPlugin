@@ -3,6 +3,7 @@ import traceback
 import os
 import json
 import pdb
+from glob import glob
 from time import time, sleep
 from qgis.core import QgsTask, QgsMessageLog, Qgis
 
@@ -25,10 +26,10 @@ class NetSync(QgsTask):
         self.progress = 0
         self.downloaded = 0
 
-        self.resource_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'resources')
-        self.business_logic_xml_dir = os.path.join(self.resource_dir, CONSTANTS['businessLogicDir'])
-        self.symbology_dir = os.path.join(self.resource_dir, CONSTANTS['symbologyDir'])
-        self.digest_path = os.path.join(self.resource_dir, 'index.json')
+        self.resource_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'resources'))
+        self.business_logic_xml_dir = os.path.abspath(os.path.join(self.resource_dir, CONSTANTS['businessLogicDir']))
+        self.symbology_dir = os.path.abspath(os.path.join(self.resource_dir, CONSTANTS['symbologyDir']))
+        self.digest_path = os.path.abspath(os.path.join(self.resource_dir, 'index.json'))
 
         self.initialized = False  # self.initialize sets this
         self.need_sync = True  # self.initialize sets this
@@ -123,6 +124,8 @@ class NetSync(QgsTask):
         self.progress = 0
         self.downloaded = 0
 
+        all_local_files = [os.path.abspath(x) for x in glob(os.path.join(self.resource_dir, '**', '*.?ml'), recursive=True)]
+
         # Symbologies have directory structure
         for remote_path, remote_md5 in symbologies.items():
             local_path = os.path.abspath(os.path.join(self.symbology_dir, *remote_path.replace('Symbology/qgis/', '').split('/')))
@@ -133,7 +136,9 @@ class NetSync(QgsTask):
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
                 QgsMessageLog.logMessage("Symobology downloaded: {}".format(local_path), MESSAGE_CATEGORY, level=Qgis.Info)
+
                 self.downloaded += 1
+            all_local_files = [x for x in all_local_files if x != local_path]
             self.progress += 1
             self.setProgress(self.progress)
 
@@ -142,7 +147,9 @@ class NetSync(QgsTask):
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
                 QgsMessageLog.logMessage("BusinessLogic downloaded: {}".format(local_path), MESSAGE_CATEGORY, level=Qgis.Info)
+
                 self.downloaded += 1
+            all_local_files = [x for x in all_local_files if x != local_path]
             self.progress += 1
             self.setProgress(self.progress)
 
@@ -152,12 +159,22 @@ class NetSync(QgsTask):
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
                 QgsMessageLog.logMessage("Basemaps downloaded: {}".format(local_path), 'QRAVE', level=Qgis.Info)
+
                 self.downloaded += 1
+            all_local_files = [x for x in all_local_files if x != local_path]
             self.progress += 1
             self.setProgress(self.progress)
 
+        # Now we clean up any files that aren't supposed to be there
+        for dfile in all_local_files:
+            try:
+                # Do a quick (probably redundant check) to make sure this file is in our current folder
+                rel_check = os.path.relpath(dfile, os.path.join(os.path.dirname(__file__), '..', '..', 'resources'))
+                if len(os.path.split(rel_check)) < 3:
+                    os.remove(dfile)
+                    QgsMessageLog.logMessage("Extraneous file removed: {}".format(dfile), 'QRAVE', level=Qgis.Warning)
+                else:
+                    QgsMessageLog.logMessage("Can't remove file because it's in the wrong place: {}".format(dfile), 'QRAVE', level=Qgis.Critical)
+            except Exception as e:
+                QgsMessageLog.logMessage("Error deleting file: {}".format(dfile), 'QRAVE', level=Qgis.Critical)
         self.setProgress(100)
-        # if downloaded == 0:
-        #     self.set_label('No symbology or xml updates needed. 0 files downloaded')
-        # else:
-        #     self.set_label('Downloaded and updated {}/{} symbology or xml files'.format(downloaded, total))

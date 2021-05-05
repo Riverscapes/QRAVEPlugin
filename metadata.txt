@@ -20,7 +20,7 @@ repository=https://github.com/Riverscapes/QRAVEPlugin
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-# changelog=
+changelog=https://github.com/Riverscapes/QRAVEPlugin/blob/master/CHANGELOG.md
 
 # Tags are comma separated with spaces allowed
 tags=python,riverscapes,rave
