@@ -73,3 +73,13 @@ iface.messageBar().pushMessage("Error", "I'm sorry Dave, I'm afraid I can't do t
 ```
 
 clone this repo to `qrave_toolbar_dev` so that `qrave_toolbar` is what gets used for deployment
+
+
+
+## On OSX
+
+You need this user setting to be on (it's in the user settings preferences)
+
+```
+"terminal.integrated.allowWorkspaceConfiguration": true
+```

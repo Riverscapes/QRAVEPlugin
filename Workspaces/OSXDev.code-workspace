@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		// FROM: https://gist.github.com/NicolaiMogensen/acfd8723720c4761aefef3cdfc2aa55a
+		// I like changing colors for my projects. QGIS projects are usually green. 
+		"workbench.colorCustomizations": {
+			"titleBar.activeBackground": "#006823",
+			// "editor.background": "#1c2c2a"
+		},
+		"terminal.integrated.env.osx": {
+			"FROOPY": "DO",
+			"PYTHONPATH": "/Applications/QGIS.app/Contents/Resources/python/site-packages",
+			"PATH": "${env:PATH}:/Applications/QGIS.app/Contents/MacOS/bin"
+		},
+    "python.pythonPath": ".venv/bin/python3.8",
+	},
+	"launch": {
+		"configurations": [],
+		"compounds": []
+	}
+}

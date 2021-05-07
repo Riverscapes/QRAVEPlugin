@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Ignore our virtual environment
+.venv
+
 # Resources comes from external. We may ship with them but they should not be in git
 resources
 
