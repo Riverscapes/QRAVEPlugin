@@ -17,6 +17,7 @@
         "warehouseUrl": "https://data.riverscapes.xyz/#",
         "webUrl": "https://rave.riverscapes.xyz",
         "issueUrl": "https://github.com/Riverscapes/QRAVEPlugin/issues",
+        "changelogUrl": "https://github.com/Riverscapes/QRAVEPlugin/releases",
         "resourcesUrl": "https://xml.riverscapes.xyz/"
     }
 }

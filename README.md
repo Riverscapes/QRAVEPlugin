@@ -73,3 +73,21 @@ iface.messageBar().pushMessage("Error", "I'm sorry Dave, I'm afraid I can't do t
 ```
 
 clone this repo to `qrave_toolbar_dev` so that `qrave_toolbar` is what gets used for deployment
+
+
+
+## On OSX
+
+You need this user setting to be on (it's in the user settings preferences)
+
+```
+"terminal.integrated.allowWorkspaceConfiguration": true
+```
+
+
+## Development resources
+
+* [PyQGIS Developer Cookbook](https://docs.qgis.org/3.16/en/docs/pyqgis_developer_cookbook/index.html) - This should be the go-to for all your basic plugin development needs
+* [QGIS API Documentation](https://qgis.org/api/) - Here you'll find Qgis-specific information for the API, endpoints, signals, slots etc.
+* [Qt for Python¶](https://doc.qt.io/qtforpython-5/) - Qt is a C++ library so you need to specify the Python docs. This is where you find help with things like QtGui and QtWidgets
+

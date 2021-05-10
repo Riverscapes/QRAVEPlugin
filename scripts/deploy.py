@@ -65,11 +65,12 @@ def move_meta(deployfolder, version):
         wf.write(text)
 
 
-def zip_plugin(deployfolder: str):
+def zip_plugin(deployfolder: str, version: str):
     # ziph is zipfile handle
     root_dir = os.path.dirname(deployfolder)
-    zipfile_name = os.path.join(root_dir, PLUGIN_NAME)
-    shutil.make_archive(zipfile_name, 'zip', root_dir=root_dir, base_dir=PLUGIN_NAME)
+    zipfile_name = '{}-{}'.format(PLUGIN_NAME, version.replace('.', '_'))
+    zipfile_path = os.path.join(root_dir, zipfile_name)
+    shutil.make_archive(zipfile_path, 'zip', root_dir=root_dir, base_dir=PLUGIN_NAME)
 
 
 def deploy_plugin():
@@ -100,6 +101,6 @@ if __name__ == '__main__':
     deployfolder = copy_plugin()
 
     move_meta(deployfolder, version)
-    zip_plugin(deployfolder)
+    zip_plugin(deployfolder, version)
 
     deploy_plugin()

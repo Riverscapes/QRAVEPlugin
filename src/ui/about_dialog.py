@@ -2,9 +2,10 @@
 
 # Form implementation generated from reading ui file './src/ui/about_dialog.ui'
 #
-# Created by: PyQt5 UI code generator 5.11.3
+# Created by: PyQt5 UI code generator 5.14.1
 #
 # WARNING! All changes made in this file will be lost!
+
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
@@ -12,7 +13,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.resize(455, 434)
+        Dialog.resize(524, 434)
         self.verticalLayout_3 = QtWidgets.QVBoxLayout(Dialog)
         self.verticalLayout_3.setObjectName("verticalLayout_3")
         self.horizontalLayout = QtWidgets.QHBoxLayout()
@@ -41,37 +42,11 @@ class Ui_Dialog(object):
         self.version.setObjectName("version")
         self.verticalLayout_2.addWidget(self.version)
         self.groupBox_2 = QtWidgets.QGroupBox(Dialog)
+        self.groupBox_2.setFlat(False)
+        self.groupBox_2.setCheckable(False)
         self.groupBox_2.setObjectName("groupBox_2")
         self.gridLayout = QtWidgets.QGridLayout(self.groupBox_2)
         self.gridLayout.setObjectName("gridLayout")
-        self.issuesLabel = QtWidgets.QLabel(self.groupBox_2)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.issuesLabel.sizePolicy().hasHeightForWidth())
-        self.issuesLabel.setSizePolicy(sizePolicy)
-        self.issuesLabel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTrailing | QtCore.Qt.AlignVCenter)
-        self.issuesLabel.setObjectName("issuesLabel")
-        self.gridLayout.addWidget(self.issuesLabel, 0, 0, 1, 1)
-        self.websiteLabel = QtWidgets.QLabel(self.groupBox_2)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.websiteLabel.sizePolicy().hasHeightForWidth())
-        self.websiteLabel.setSizePolicy(sizePolicy)
-        self.websiteLabel.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTrailing | QtCore.Qt.AlignVCenter)
-        self.websiteLabel.setObjectName("websiteLabel")
-        self.gridLayout.addWidget(self.websiteLabel, 1, 0, 1, 1)
-        self.issues = QtWidgets.QLabel(self.groupBox_2)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.issues.sizePolicy().hasHeightForWidth())
-        self.issues.setSizePolicy(sizePolicy)
-        self.issues.setTextFormat(QtCore.Qt.RichText)
-        self.issues.setOpenExternalLinks(True)
-        self.issues.setObjectName("issues")
-        self.gridLayout.addWidget(self.issues, 1, 1, 1, 1)
         self.website = QtWidgets.QLabel(self.groupBox_2)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(0)
@@ -82,6 +57,44 @@ class Ui_Dialog(object):
         self.website.setOpenExternalLinks(True)
         self.website.setObjectName("website")
         self.gridLayout.addWidget(self.website, 0, 1, 1, 1)
+        self.issues = QtWidgets.QLabel(self.groupBox_2)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.issues.sizePolicy().hasHeightForWidth())
+        self.issues.setSizePolicy(sizePolicy)
+        self.issues.setTextFormat(QtCore.Qt.RichText)
+        self.issues.setOpenExternalLinks(True)
+        self.issues.setObjectName("issues")
+        self.gridLayout.addWidget(self.issues, 1, 1, 1, 1)
+        self.websiteLabel = QtWidgets.QLabel(self.groupBox_2)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.websiteLabel.sizePolicy().hasHeightForWidth())
+        self.websiteLabel.setSizePolicy(sizePolicy)
+        self.websiteLabel.setAlignment(QtCore.Qt.AlignRight|QtCore.Qt.AlignTrailing|QtCore.Qt.AlignVCenter)
+        self.websiteLabel.setObjectName("websiteLabel")
+        self.gridLayout.addWidget(self.websiteLabel, 1, 0, 1, 1)
+        self.issuesLabel = QtWidgets.QLabel(self.groupBox_2)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.issuesLabel.sizePolicy().hasHeightForWidth())
+        self.issuesLabel.setSizePolicy(sizePolicy)
+        self.issuesLabel.setAlignment(QtCore.Qt.AlignRight|QtCore.Qt.AlignTrailing|QtCore.Qt.AlignVCenter)
+        self.issuesLabel.setObjectName("issuesLabel")
+        self.gridLayout.addWidget(self.issuesLabel, 0, 0, 1, 1)
+        self.changelog = QtWidgets.QLabel(self.groupBox_2)
+        self.changelog.setOpenExternalLinks(True)
+        self.changelog.setObjectName("changelog")
+        self.gridLayout.addWidget(self.changelog, 2, 1, 1, 1)
+        self.changelogLabel = QtWidgets.QLabel(self.groupBox_2)
+        self.changelogLabel.setAlignment(QtCore.Qt.AlignRight|QtCore.Qt.AlignTrailing|QtCore.Qt.AlignVCenter)
+        self.changelogLabel.setObjectName("changelogLabel")
+        self.gridLayout.addWidget(self.changelogLabel, 2, 0, 1, 1)
+        self.gridLayout.setColumnStretch(0, 1)
+        self.gridLayout.setColumnStretch(1, 4)
         self.verticalLayout_2.addWidget(self.groupBox_2)
         self.horizontalLayout.addLayout(self.verticalLayout_2)
         self.verticalLayout_3.addLayout(self.horizontalLayout)
@@ -113,13 +126,15 @@ class Ui_Dialog(object):
         self.label_2.setText(_translate("Dialog", "River Analysis and Viewer Explorer for QGIS (QRAVE)"))
         self.version.setText(_translate("Dialog", "Version:"))
         self.groupBox_2.setTitle(_translate("Dialog", "Support"))
-        self.issuesLabel.setText(_translate("Dialog", "Web site"))
-        self.websiteLabel.setText(_translate("Dialog", "Issues"))
-        self.issues.setText(_translate("Dialog", "..."))
         self.website.setText(_translate("Dialog", "..."))
+        self.issues.setText(_translate("Dialog", "..."))
+        self.websiteLabel.setText(_translate("Dialog", "Issues"))
+        self.issuesLabel.setText(_translate("Dialog", "Web site"))
+        self.changelog.setText(_translate("Dialog", "..."))
+        self.changelogLabel.setText(_translate("Dialog", "Changelog"))
         self.groupBox.setTitle(_translate("Dialog", "Acknowledgements"))
         self.acknowledgements.setHtml(_translate("Dialog", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
-                                                 "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
-                                                 "p, li { white-space: pre-wrap; }\n"
-                                                 "</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:8pt; font-weight:400; font-style:normal;\">\n"
-                                                 "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">TODO: Acknowledgements for software About Form.</p></body></html>"))
+"<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
+"p, li { white-space: pre-wrap; }\n"
+"</style></head><body style=\" font-family:\'MS Shell Dlg 2\'; font-size:8pt; font-weight:400; font-style:normal;\">\n"
+"<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">Acknowledgements Text</p></body></html>"))

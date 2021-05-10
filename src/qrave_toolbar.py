@@ -353,5 +353,5 @@ class QRAVE:
         if self.acknowledgements is None:
             self.acknowledgements = requests.get('http://rave.riverscapes.xyz/dotnetack.html').text
 
-        self.acknowledgements.setText(self.acknowledgements)
+        dialog.acknowledgements.setText(self.acknowledgements)
         dialog.exec_()

@@ -128,10 +128,14 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 CONSTANTS['settingsCategory'],
                 'qrave_projects'
             )
-            qrave_projects = json.loads(qrave_projects_raw)
 
-            if not type_conversion_ok or qrave_projects is None or not isinstance(qrave_projects, list):
+            if type_conversion_ok is False:
                 qrave_projects = []
+            else:
+                qrave_projects = json.loads(qrave_projects_raw)
+
+                if qrave_projects is None or not isinstance(qrave_projects, list):
+                    qrave_projects = []
 
         except Exception as e:
             self.settings.log('Error loading project settings: {}'.format(e), Qgis.Warning)
