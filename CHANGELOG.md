@@ -1,3 +1,10 @@
+## 0.3.0 ***(May 10, 2021)***
+
+* [Fixed the about screen regression issue](https://github.com/Riverscapes/QRAVEPlugin/issues/11)
+* Optimization of unnecessarily large graphics to reduce overall plugin size. (7Mb --> 542Kb)
+* Fixed several small OSX-only bugs and provided a development environment that is usable on that OS.
+
+
 ## 0.2.0 ***(May 4, 2021)***
 
 ### Bug Fixes
