@@ -139,6 +139,7 @@ class QRaveMapLayer():
         # Only add the layer if it's not already in the registry
         if not QgsProject.instance().mapLayersByName(map_layer.label):
             layer_uri = map_layer.layer_uri
+            rOutput = None
             # This might be a basemap
             if map_layer.layer_type == QRaveMapLayer.LayerTypes.WMS:
                 rOutput = QgsRasterLayer(layer_uri, map_layer.label, 'wms')
@@ -154,42 +155,43 @@ class QRaveMapLayer():
                 if transparency > 0:
                     rOutput.setOpacity((100 - transparency) / 100)
 
-            ##########################################
-            # Symbology
-            ##########################################
+            if rOutput is not None:
+                ##########################################
+                # Symbology
+                ##########################################
 
-            symbology = map_layer.bl_attr['symbology'] if map_layer.bl_attr is not None and 'symbology' in map_layer.bl_attr else None
-            # If the business logic has symbology defined
-            if symbology is not None:
-                qml_fname = '{}.qml'.format(symbology)
-                os.path.abspath(os.path.join(project.project_dir, qml_fname))
+                symbology = map_layer.bl_attr['symbology'] if map_layer.bl_attr is not None and 'symbology' in map_layer.bl_attr else None
+                # If the business logic has symbology defined
+                if symbology is not None:
+                    qml_fname = '{}.qml'.format(symbology)
+                    os.path.abspath(os.path.join(project.project_dir, qml_fname))
 
-                # Here are the search paths for QML files in order of precedence
-                hierarchy = [
-                    os.path.abspath(os.path.join(project.project_dir, qml_fname)),
-                    # This is the default one
-                    os.path.abspath(os.path.join(SYMBOLOGY_DIR, project.project_type, qml_fname)),
-                    os.path.abspath(os.path.join(SYMBOLOGY_DIR, 'Shared', qml_fname))
-                ]
-                # Find the first match
-                try:
-                    chosen_qml = next(iter([candidate for candidate in hierarchy if os.path.isfile(candidate)]))
-                    # Report to the terminal if we couldn't find a qml file to use
-                    if chosen_qml is None:
-                        settings.msg_bar(
-                            "Missing Symbology",
-                            "Could not find a valid .qml symbology file for layer {}. Search paths: [{}]".format(layer_uri, ', '.join(hierarchy)),
-                            level=Qgis.Warning
-                        )
-                    # Apply the QML file
-                    else:
-                        rOutput.loadNamedStyle(chosen_qml)
+                    # Here are the search paths for QML files in order of precedence
+                    hierarchy = [
+                        os.path.abspath(os.path.join(project.project_dir, qml_fname)),
+                        # This is the default one
+                        os.path.abspath(os.path.join(SYMBOLOGY_DIR, project.project_type, qml_fname)),
+                        os.path.abspath(os.path.join(SYMBOLOGY_DIR, 'Shared', qml_fname))
+                    ]
+                    # Find the first match
+                    try:
+                        chosen_qml = next(iter([candidate for candidate in hierarchy if os.path.isfile(candidate)]))
+                        # Report to the terminal if we couldn't find a qml file to use
+                        if chosen_qml is None:
+                            settings.msg_bar(
+                                "Missing Symbology",
+                                "Could not find a valid .qml symbology file for layer {}. Search paths: [{}]".format(layer_uri, ', '.join(hierarchy)),
+                                level=Qgis.Warning
+                            )
+                        # Apply the QML file
+                        else:
+                            rOutput.loadNamedStyle(chosen_qml)
 
-                except StopIteration:
-                    settings.log('Could not find valid symbology for layer at any of the following search paths: [ {} ]'.format(', '.join(hierarchy)), Qgis.Warning)
+                    except StopIteration:
+                        settings.log('Could not find valid symbology for layer at any of the following search paths: [ {} ]'.format(', '.join(hierarchy)), Qgis.Warning)
 
-            QgsProject.instance().addMapLayer(rOutput, False)
-            parentGroup.insertLayer(item.row(), rOutput)
+                QgsProject.instance().addMapLayer(rOutput, False)
+                parentGroup.insertLayer(item.row(), rOutput)
 
         # if the layer already exists trigger a refresh
         else:
