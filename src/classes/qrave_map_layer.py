@@ -137,7 +137,19 @@ class QRaveMapLayer():
             settings.log('Error deriving transparency from layer: {}'.format(e))
 
         # Only add the layer if it's not already in the registry
-        if not QgsProject.instance().mapLayersByName(map_layer.label):
+        exists = False
+        existing_layers = QgsProject.instance().mapLayersByName(map_layer.label)
+        layers_ancestry = [QRaveMapLayer.get_layer_ancestry(lyr) for lyr in existing_layers]
+
+        # Now we compare the ancestry group labels to the business logic ancestry branch names
+        # to see if this layer is already in the map
+        for lyr in layers_ancestry:
+            if len(lyr) == len(ancestry) \
+                    and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
+                exists = True
+                break
+
+        if not exists:
             layer_uri = map_layer.layer_uri
             rOutput = None
             # This might be a basemap
@@ -196,3 +208,18 @@ class QRaveMapLayer():
         # if the layer already exists trigger a refresh
         else:
             QgsProject.instance().mapLayersByName(map_layer.label)[0].triggerRepaint()
+
+    @staticmethod
+    def get_layer_ancestry(layer: list):
+        root = QgsProject.instance().layerTreeRoot()
+        tree_layer = root.findLayer(layer.id())
+
+        lyr_ancestry = []
+        if tree_layer:
+            layer_parent = tree_layer.parent()
+            while layer_parent is not None and layer_parent.name() != '' and len(lyr_ancestry) < 50:
+                lyr_ancestry.append(layer_parent.name())
+                layer_parent = layer_parent.parent()
+
+        lyr_ancestry.reverse()
+        return lyr_ancestry
