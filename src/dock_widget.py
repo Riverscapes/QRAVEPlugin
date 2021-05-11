@@ -298,10 +298,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             QRaveTreeTypes.BASEMAP_SUPER_FOLDER,
             QRaveTreeTypes.BASEMAP_SUB_FOLDER
         ]:
-            self.metaChange.emit(item.text(), MetaType.FOLDER, data, show)
+            self.metaChange.emit(item.text(), MetaType.FOLDER, data or {}, show)
         elif isinstance(data, dict):
             # this is just the generic case for any kind of metadata
-            self.metaChange.emit(item.text(), MetaType.NONE, data, show)
+            self.metaChange.emit(item.text(), MetaType.NONE, data or {}, show)
         else:
             # Do not  update the metadata if we have nothing to show
             self.metaChange.emit(item.text(), MetaType.NONE, {}, show)
