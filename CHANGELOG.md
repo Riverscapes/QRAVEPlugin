@@ -1,3 +1,11 @@
+## 0.4.0 ***(May 13, 2021)***
+
+* [Fixed a blocking bug that prevented working on QGIS Versions less than 3.18](https://github.com/Riverscapes/QRAVEPlugin/issues/16)
+* [Fixed an issue where layers with the same name in different projects cannot be added to the map](https://github.com/Riverscapes/QRAVEPlugin/issues/14)
+* [Fixed: Project-level "Add all to map" broken #13](https://github.com/Riverscapes/QRAVEPlugin/issues/13)
+* [Regression: Transparency issue fixed and Vectors now supported](https://github.com/Riverscapes/QRAVEPlugin/issues/2)
+* Misc problems and code cleanups.
+
 ## 0.3.0 ***(May 10, 2021)***
 
 * [Fixed the about screen regression issue](https://github.com/Riverscapes/QRAVEPlugin/issues/11)
