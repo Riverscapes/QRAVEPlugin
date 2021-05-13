@@ -219,13 +219,7 @@ class QRaveMapLayer():
                             # rOutput.triggerRepaint()
                 except Exception as e:
                     settings.log('Error deriving transparency from layer: {}'.format(e))
-
-                # if transparency > 0:
-                #     # For raster opacity setOpacity was introduced after 3.18
-                #     if "setOpacity" in dir(rOutput):
-                #         rOutput.setOpacity((100 - transparency) / 100)
-
-
+                    
                 QgsProject.instance().addMapLayer(rOutput, False)
                 parentGroup.insertLayer(item.row(), rOutput)
 
