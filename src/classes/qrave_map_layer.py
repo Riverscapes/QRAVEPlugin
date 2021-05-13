@@ -129,13 +129,6 @@ class QRaveMapLayer():
         # Loop over all the parent group layers for this raster
         # ensuring they are in the tree in correct, nested order
 
-        transparency = 0
-        try:
-            if 'transparency' in map_layer.bl_attr:
-                transparency = int(map_layer.bl_attr['transparency'])
-        except Exception as e:
-            settings.log('Error deriving transparency from layer: {}'.format(e))
-
         # Only add the layer if it's not already in the registry
         exists = False
         existing_layers = QgsProject.instance().mapLayersByName(map_layer.label)
@@ -159,13 +152,12 @@ class QRaveMapLayer():
             elif map_layer.layer_type in [QRaveMapLayer.LayerTypes.LINE, QRaveMapLayer.LayerTypes.POLYGON, QRaveMapLayer.LayerTypes.POINT]:
                 if map_layer.layer_name is not None:
                     layer_uri += "|layername={}".format(map_layer.layer_name)
-                rOutput = QgsVectorLayer(layer_uri, map_layer.label, "ogr")
+                rOutput = QgsVectorLayer(layer_uri, map_layer.label, "ogr")               
 
             elif map_layer.layer_type == QRaveMapLayer.LayerTypes.RASTER:
                 # Raster
                 rOutput = QgsRasterLayer(layer_uri, map_layer.label)
-                if transparency > 0:
-                    rOutput.setOpacity((100 - transparency) / 100)
+
 
             if rOutput is not None:
                 ##########################################
@@ -201,6 +193,38 @@ class QRaveMapLayer():
 
                     except StopIteration:
                         settings.log('Could not find valid symbology for layer at any of the following search paths: [ {} ]'.format(', '.join(hierarchy)), Qgis.Warning)
+
+                ############################################################
+                # Transparency. A few notes:
+                # - QML transparency will prevail for rasters before 3.18
+                # - We set this here so that QML layer transparency will be
+                #   overruled
+                ############################################################
+                transparency = 0
+
+                try:
+                    if 'transparency' in map_layer.bl_attr:
+                        transparency = int(map_layer.bl_attr['transparency'])
+                except Exception as e:
+                    settings.log('Error deriving transparency from layer: {}'.format(e))
+
+                try:
+                    if transparency > 0:
+                        if rOutput.__class__ is QgsVectorLayer:
+                            rOutput.setLayerTransparency(transparency)
+                            # rOutput.triggerRepaint()
+                        elif rOutput.__class__ is QgsRasterLayer:
+                            renderer = rOutput.renderer()
+                            renderer.setOpacity((100 - transparency) / 100.0)
+                            # rOutput.triggerRepaint()
+                except Exception as e:
+                    settings.log('Error deriving transparency from layer: {}'.format(e))
+
+                # if transparency > 0:
+                #     # For raster opacity setOpacity was introduced after 3.18
+                #     if "setOpacity" in dir(rOutput):
+                #         rOutput.setOpacity((100 - transparency) / 100)
+
 
                 QgsProject.instance().addMapLayer(rOutput, False)
                 parentGroup.insertLayer(item.row(), rOutput)
