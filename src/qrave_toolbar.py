@@ -18,11 +18,11 @@ from functools import partial
 import requests
 
 from qgis.utils import showPluginHelp
-from qgis.core import QgsTask, QgsApplication, QgsProject
+from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis
 
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl, pyqtSlot
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QDialogButtonBox
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu
 
 from .classes.settings import Settings, CONSTANTS
 from .classes.net_sync import NetSync
@@ -38,7 +38,7 @@ from .meta_widget import QRAVEMetaWidget
 
 # initialize Qt resources from file resources.py
 from . import resources
-
+from ..__version__ import __version__
 
 RESOURCES_DIR = os.path.join(os.path.dirname(__file__), '..', 'resources')
 
@@ -189,8 +189,16 @@ class QRAVE:
         self.toolbar.addAction(self.openProjectAction)
         self.toolbar.addWidget(self.helpButton)
 
+        # Do a check to see if the stored version is different than the current version
+        lastVersion = self.settings.getValue('pluginVersion')
+
         # This does a lazy netsync (i.e. it will run it if it feels like it)
-        self.net_sync_load()
+        versionChange = lastVersion != __version__
+        self.net_sync_load(force=versionChange)
+
+        if versionChange:
+            QgsMessageLog.logMessage("Version change detected: {} ==> {}".format(lastVersion, __version__), 'QRAVE', level=Qgis.Info)
+            self.settings.setValue('pluginVersion', __version__)
 
     def onProjectLoad(self, doc):
         # If the project has the plugin enabled then restore it.
@@ -283,6 +291,8 @@ class QRAVE:
         """
 
         lastDigestSync = self.settings.getValue('lastDigestSync')
+        lastVersion = self.settings.getValue('pluginVersion')
+
         currTime = int(time())  # timestamp in seconds
         plugin_init = self.settings.getValue('initialized')
 
@@ -290,10 +300,12 @@ class QRAVE:
 
         # No sync necessary in some cases:
         # 1. if the plugin is not already initialized OR
+        # 2. the version number has changed
         # 2. if netsync says it needs a sync (looking for index.json)
         # 3. if the force flag is set
         # 4. if the last was more than `digestSyncFreqHours` hours ago
         if plugin_init \
+                and lastVersion == __version__ \
                 and not self.netsync.need_sync \
                 and not force \
                 and isinstance(lastDigestSync, int) \
