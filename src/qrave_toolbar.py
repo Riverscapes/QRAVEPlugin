@@ -295,21 +295,27 @@ class QRAVE:
 
         currTime = int(time())  # timestamp in seconds
         plugin_init = self.settings.getValue('initialized')
+        autoUpdate = self.settings.getValue('autoUpdate')
 
         self.netsync = NetSync('Sync QRAVE resource files')
 
-        # No sync necessary in some cases:
-        # 1. if the plugin is not already initialized OR
-        # 2. the version number has changed
-        # 2. if netsync says it needs a sync (looking for index.json)
-        # 3. if the force flag is set
-        # 4. if the last was more than `digestSyncFreqHours` hours ago
-        if plugin_init \
-                and lastVersion == __version__ \
-                and not self.netsync.need_sync \
-                and not force \
-                and isinstance(lastDigestSync, int) \
-                and ((currTime - lastDigestSync) / 3600) < CONSTANTS['digestSyncFreqHours']:
+        perform_sync = False
+
+        # setting the force flag overrides everything else
+        if force:
+            perform_sync = True
+
+        # Otherwise you only get a sync if 'autoUpdate' is turned on
+        elif autoUpdate:
+            # If this is an old version or the plugin is uninitialized
+            if not plugin_init or lastVersion != __version__ or self.netsync.need_sync:
+                perform_sync = True
+            # If we haven't checked for more than `digestSyncFreqHours` hours
+            elif isinstance(lastDigestSync, int) \
+                    and ((currTime - lastDigestSync) / 3600) > CONSTANTS['digestSyncFreqHours']:
+                perform_sync = True
+
+        if perform_sync is False:
             self.netsync = None
             return
 

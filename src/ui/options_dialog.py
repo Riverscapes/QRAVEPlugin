@@ -2,13 +2,11 @@
 
 # Form implementation generated from reading ui file './src/ui/options_dialog.ui'
 #
-# Created by: PyQt5 UI code generator 5.14.1
+# Created by: PyQt5 UI code generator 5.11.3
 #
 # WARNING! All changes made in this file will be lost!
 
-
 from PyQt5 import QtCore, QtGui, QtWidgets
-
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
@@ -36,6 +34,9 @@ class Ui_Dialog(object):
         self.regionHelp.setObjectName("regionHelp")
         self.horizontalLayout.addWidget(self.regionHelp)
         self.verticalLayout.addLayout(self.horizontalLayout)
+        self.autoUpdate = QtWidgets.QCheckBox(Dialog)
+        self.autoUpdate.setObjectName("autoUpdate")
+        self.verticalLayout.addWidget(self.autoUpdate)
         self.loadDefaultView = QtWidgets.QCheckBox(Dialog)
         self.loadDefaultView.setObjectName("loadDefaultView")
         self.verticalLayout.addWidget(self.loadDefaultView)
@@ -58,4 +59,6 @@ class Ui_Dialog(object):
         self.basemapsInclude.setText(_translate("Dialog", "Include basemaps in explorer tree"))
         self.label.setText(_translate("Dialog", "Region"))
         self.regionHelp.setText(_translate("Dialog", "..."))
+        self.autoUpdate.setText(_translate("Dialog", "Automatically update resource files (symbology, business logic etc.)"))
         self.loadDefaultView.setText(_translate("Dialog", "Load default project views when opening projects"))
+
