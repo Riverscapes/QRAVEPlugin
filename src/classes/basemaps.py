@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import requests
+import urllib.parse
 from typing import Dict
 
 import lxml.etree
@@ -158,6 +159,7 @@ class BaseMaps(Borg):
                         # TODO: Need to go a little backward compatible. We can remove this logic after July 1, 2021
                         tile_type = layer.attrib['type'] if 'type' in layer.attrib else 'wms'
                         layer_url = layer.attrib['url']
+
                         q_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), layer_label)
 
                         meta = {meta.attrib['name']: meta.text for meta in layer.findall('Metadata/Meta')}
@@ -167,7 +169,8 @@ class BaseMaps(Borg):
                         if tile_type == 'wms':
                             pt_data = basemap_obj
                         else:
-                            url_with_params = 'type=xyz&url={}'.format(layer_url)
+                            encoded_url = urllib.parse.quote_plus(layer_url)
+                            url_with_params = 'type=xyz&url={}'.format(encoded_url)
                             pt_data = QRaveMapLayer(
                                 layer_label,
                                 QRaveMapLayer.LayerTypes.WEBTILE,
