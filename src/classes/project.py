@@ -182,7 +182,7 @@ class Project:
                 # Repeaters are a separate case
                 elif child_node.tag == 'Repeater':
                     qrepeater = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), child_node.attrib['label'])
-                    qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self, data=children_container.attrib), Qt.UserRole),
+                    qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self, data=dict(children_container.attrib)), Qt.UserRole),
                     curr_item.appendRow(qrepeater)
                     repeat_xpath = child_node.attrib['xpath']
                     repeat_node = child_node.find('Node')
