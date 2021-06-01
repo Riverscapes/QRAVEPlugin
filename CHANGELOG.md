@@ -1,3 +1,18 @@
+## 0.5.0 ***(June 1, 2021)***
+
+### New Features
+
+* [Update to support more basemap Types (XYZ and TMS)](https://github.com/Riverscapes/QRAVEPlugin/issues/21)
+* [Adding the ability to opt-out of automatic updates](https://github.com/Riverscapes/QRAVEPlugin/issues/23)
+
+### Bug Fixes
+
+* [Failing gracefully when the project XML doesn't conform to the latest version](https://github.com/Riverscapes/QRAVEPlugin/issues/28)
+* [Empty tree branches don't cause crashes anymore](https://github.com/Riverscapes/QRAVEPlugin/issues/15)
+* [Raster transparencies now work correctly](https://github.com/Riverscapes/QRAVEPlugin/issues/22)
+* [...lots of little annoying bugs](https://github.com/Riverscapes/QRAVEPlugin/issues/18)
+
+
 ## 0.4.0 ***(May 13, 2021)***
 
 * [Fixed a blocking bug that prevented working on QGIS Versions less than 3.18](https://github.com/Riverscapes/QRAVEPlugin/issues/16)
