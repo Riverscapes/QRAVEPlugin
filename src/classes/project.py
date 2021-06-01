@@ -118,7 +118,7 @@ class Project:
 
         for view in self.business_logic.findall('Views/View'):
             name = view.attrib['name']
-            view_id = view.attrib['id']
+            view_id = view.attrib['id'] if 'id' in view.attrib else None
 
             if name is None or view_id is None:
                 continue
