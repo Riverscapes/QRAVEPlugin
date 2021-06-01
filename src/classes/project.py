@@ -118,7 +118,7 @@ class Project:
 
         for view in self.business_logic.findall('Views/View'):
             name = view.attrib['name']
-            view_id = view.attrib['id']
+            view_id = view.attrib['id'] if 'id' in view.attrib else None
 
             if name is None or view_id is None:
                 continue
@@ -182,7 +182,7 @@ class Project:
                 # Repeaters are a separate case
                 elif child_node.tag == 'Repeater':
                     qrepeater = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), child_node.attrib['label'])
-                    qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self, data=children_container.attrib), Qt.UserRole),
+                    qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self, data=dict(children_container.attrib)), Qt.UserRole),
                     curr_item.appendRow(qrepeater)
                     repeat_xpath = child_node.attrib['xpath']
                     repeat_node = child_node.find('Node')

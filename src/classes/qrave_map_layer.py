@@ -44,7 +44,8 @@ class QRaveMapLayer():
         POINT = 'point'
         RASTER = 'raster'
         FILE = 'file'
-        WMS = 'WMS'
+        # Tile Types
+        WEBTILE = 'WEBTILE'
 
     def __init__(self,
                  label: str,
@@ -52,25 +53,27 @@ class QRaveMapLayer():
                  layer_uri: str,
                  bl_attr: Dict[str, str] = None,
                  meta: Dict[str, str] = None,
-                 layer_name: str = None
+                 layer_name: str = None,
+                 tile_type: str = None
                  ):
         self.label = label
         self.layer_uri = layer_uri
 
-        if isinstance(layer_uri, str) and len(layer_uri) > 0 and layer_type != QRaveMapLayer.LayerTypes.WMS:
+        if isinstance(layer_uri, str) and len(layer_uri) > 0 and layer_type != QRaveMapLayer.LayerTypes.WEBTILE:
             self.layer_uri = os.path.abspath(layer_uri)
 
         self.bl_attr = bl_attr
         self.meta = meta
         self.transparency = 0
         self.layer_name = layer_name
+        self.tile_type = tile_type
 
         if layer_type not in QRaveMapLayer.LayerTypes.__dict__.values():
             settings = Settings()
             settings.log('Layer type "{}" is not valid'.format(layer_type), Qgis.Critical)
         self.layer_type = layer_type
 
-        self.exists = self.layer_type == QRaveMapLayer.LayerTypes.WMS or os.path.isfile(layer_uri)
+        self.exists = self.layer_type == QRaveMapLayer.LayerTypes.WEBTILE or os.path.isfile(layer_uri)
 
     @staticmethod
     def _addgrouptomap(sGroupName, sGroupOrder, parentGroup):
@@ -146,18 +149,17 @@ class QRaveMapLayer():
             layer_uri = map_layer.layer_uri
             rOutput = None
             # This might be a basemap
-            if map_layer.layer_type == QRaveMapLayer.LayerTypes.WMS:
+            if map_layer.layer_type == QRaveMapLayer.LayerTypes.WEBTILE:
                 rOutput = QgsRasterLayer(layer_uri, map_layer.label, 'wms')
 
             elif map_layer.layer_type in [QRaveMapLayer.LayerTypes.LINE, QRaveMapLayer.LayerTypes.POLYGON, QRaveMapLayer.LayerTypes.POINT]:
                 if map_layer.layer_name is not None:
                     layer_uri += "|layername={}".format(map_layer.layer_name)
-                rOutput = QgsVectorLayer(layer_uri, map_layer.label, "ogr")               
+                rOutput = QgsVectorLayer(layer_uri, map_layer.label, "ogr")
 
             elif map_layer.layer_type == QRaveMapLayer.LayerTypes.RASTER:
                 # Raster
                 rOutput = QgsRasterLayer(layer_uri, map_layer.label)
-
 
             if rOutput is not None:
                 ##########################################
@@ -219,7 +221,7 @@ class QRaveMapLayer():
                             # rOutput.triggerRepaint()
                 except Exception as e:
                     settings.log('Error deriving transparency from layer: {}'.format(e))
-                    
+
                 QgsProject.instance().addMapLayer(rOutput, False)
                 parentGroup.insertLayer(item.row(), rOutput)
 

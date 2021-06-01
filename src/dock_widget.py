@@ -228,9 +228,13 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             else:
                 QRaveMapLayer.add_layer_to_map(item)
 
+        # Expand is the default option for wms because we might need to load the layers
         elif isinstance(item_data.data, QRaveBaseMap):
-            # Expand is the default option because we might need to load the layers
-            pass
+            if item_data.data.tile_type == 'wms':
+                pass
+            # All the XYZ layers can be added normally.
+            else:
+                QRaveMapLayer.add_layer_to_map(item)
 
         elif item_data.type in [QRaveTreeTypes.PROJECT_ROOT]:
             self.change_meta(item, item_data, True)
@@ -476,16 +480,20 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # This is the layer context menu
         if isinstance(data, QRaveMapLayer):
-            if data.layer_type == QRaveMapLayer.LayerTypes.WMS:
+            if data.layer_type == QRaveMapLayer.LayerTypes.WEBTILE:
                 self.basemap_context_menu(idx, item, project_tree_data)
             elif data.layer_type == QRaveMapLayer.LayerTypes.FILE:
                 self.file_layer_context_menu(idx, item, project_tree_data)
             else:
                 self.map_layer_context_menu(idx, item, project_tree_data)
 
-        # A QARaveBaseMap is just a container for layers
         elif isinstance(data, QRaveBaseMap):
-            self.folder_dumb_context_menu(idx, item, project_tree_data)
+            # A WMS QARaveBaseMap is just a container for layers
+            if data.tile_type == 'wms':
+                self.folder_dumb_context_menu(idx, item, project_tree_data)
+            # Every other kind of basemap is an add-able layer
+            else:
+                self.basemap_context_menu(idx, item, project_tree_data)
 
         elif project_tree_data.type == QRaveTreeTypes.PROJECT_ROOT:
             self.project_context_menu(idx, item, project_tree_data)

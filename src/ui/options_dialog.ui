@@ -50,6 +50,13 @@
     </layout>
    </item>
    <item>
+    <widget class="QCheckBox" name="autoUpdate">
+     <property name="text">
+      <string>Automatically update resource files (symbology, business logic etc.)</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QCheckBox" name="loadDefaultView">
      <property name="text">
       <string>Load default project views when opening projects</string>

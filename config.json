@@ -3,9 +3,11 @@
         "initialized": false,
         "loadDefaultView": true,
         "basemapsInclude": true,
+        "autoUpdate": true,
         "lastDigestSync": null,
         "lastResourceSync": null,
         "lastBrowsePath": null,
+        "pluginVersion": null,
         "basemapRegion": "United States"
     },
     "constants": {

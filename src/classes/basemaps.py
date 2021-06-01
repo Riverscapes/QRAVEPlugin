@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import requests
+import urllib.parse
 from typing import Dict
 
 import lxml.etree
@@ -22,10 +23,11 @@ REQUEST_ARGS = '?service=wms&request=GetCapabilities&version=1.0.0'
 
 class QRaveBaseMap():
 
-    def __init__(self, parent: QStandardItem, layer_url: str, meta: Dict[str, str]):
+    def __init__(self, parent: QStandardItem, layer_url: str, tile_type: str, meta: Dict[str, str]):
         self.parent = parent
         self.meta = meta
         self.loaded = False
+        self.tile_type = tile_type
         self.settings = Settings()
         self.layer_url = layer_url.replace('?', '')
 
@@ -33,36 +35,16 @@ class QRaveBaseMap():
         self.reset()
 
     def reset(self):
-        self.parent.removeRows(0, self.parent.rowCount())
-        loading_layer = QStandardItem('loading...')
-        f = loading_layer.font()
-        f.setItalic(True)
-        loading_layer.setFont(f)
-        loading_layer.setEnabled(False)
-        self.parent.appendRow(loading_layer)
+        if self.tile_type == 'wms':
+            self.parent.removeRows(0, self.parent.rowCount())
+            loading_layer = QStandardItem('loading...')
+            f = loading_layer.font()
+            f.setItalic(True)
+            loading_layer.setFont(f)
+            loading_layer.setEnabled(False)
+            self.parent.appendRow(loading_layer)
 
-    def _load_layers_done(self, exception, result=None):
-        """This is called when doSomething is finished.
-        Exception is not None if doSomething raises an exception.
-        result is the return value of doSomething."""
-        if exception is None:
-            if result is None:
-                self.settings.log('Completed with no exception and no result ', Qgis.Warning)
-            else:
-                try:
-                    self.parent.removeRows(0, self.parent.rowCount())
-                    for lyr in result.findall('Capability/Layer'):
-                        self.parse_layer(lyr, self.parent)
-
-                except Exception as e:
-                    self.settings.log(str(e), Qgis.Critical)
-
-        else:
-            self.settings.log("Exception: {}".format(exception),
-                              Qgis.Critical)
-            raise exception
-
-    def parse_layer(self, root_el, parent: QStandardItem):
+    def _parse_wms_layer(self, root_el, parent: QStandardItem):
 
         try:
             title = root_el.find('Title').text
@@ -76,6 +58,7 @@ class QRaveBaseMap():
             abstract = abstract_fnd.text if abstract_fnd is not None else "No abstract provided"
 
             urlWithParams = "crs={}&format={}&layers={}&styles&url={}".format(srs, lyr_format, name, self.layer_url)
+
             lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/layers/Raster.png'), title)
 
             extra_meta = {
@@ -87,7 +70,7 @@ class QRaveBaseMap():
                 ProjectTreeData(
                     QRaveTreeTypes.LEAF,
                     None,
-                    QRaveMapLayer(title, QRaveMapLayer.LayerTypes.WMS, urlWithParams, extra_meta)
+                    QRaveMapLayer(title, QRaveMapLayer.LayerTypes.WEBTILE, tile_type=self.tile_type, layer_uri=urlWithParams, meta=extra_meta)
                 ),
                 Qt.UserRole)
             lyr_item.setToolTip(wrap_by_word(abstract, 20))
@@ -100,24 +83,46 @@ class QRaveBaseMap():
                 Qgis.Warning
             )
             lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), root_el.find('Title').text)
-            lyr_item.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_SUB_FOLDER), Qt.UserRole),
+            lyr_item.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_SUB_FOLDER), Qt.UserRole)
 
         parent.appendRow(lyr_item)
 
         for sublyr in root_el.findall('Layer'):
-            self.parse_layer(sublyr, lyr_item)
+            self._parse_wms_layer(sublyr, lyr_item)
+
+    def _wms_fetch_done(self, exception, result=None):
+        """This is called when doSomething is finished.
+        Exception is not None if doSomething raises an exception.
+        result is the return value of doSomething."""
+        if exception is None:
+            if result is None:
+                self.settings.log('Completed with no exception and no result ', Qgis.Warning)
+            else:
+                try:
+                    self.parent.removeRows(0, self.parent.rowCount())
+                    for lyr in result.findall('Capability/Layer'):
+                        self._parse_wms_layer(lyr, self.parent)
+
+                except Exception as e:
+                    self.settings.log(str(e), Qgis.Critical)
+
+        else:
+            self.settings.log("Exception: {}".format(exception),
+                              Qgis.Critical)
+            raise exception
 
     def load_layers(self, force=False):
         if self.loaded is True and force is False:
             return
 
-        def _layer_fetch(task):
+        def _wms_fetch(task):
             result = requestFetch(self.layer_url + REQUEST_ARGS)
             return lxml.etree.fromstring(result)
 
-        self.settings.log('Fetching WMS Capabilities: {}'.format(self.layer_url), Qgis.Info)
-        ns_task = QgsTask.fromFunction('Loading WMS Data', _layer_fetch, on_finished=self._load_layers_done)
-        self.tm.addTask(ns_task)
+        if self.tile_type == 'wms':
+            self.settings.log('Fetching WMS Capabilities: {}'.format(self.layer_url), Qgis.Info)
+            ns_task = QgsTask.fromFunction('Loading WMS Data', _wms_fetch, on_finished=self._wms_fetch_done)
+            self.tm.addTask(ns_task)
 
 
 class BaseMaps(Borg):
@@ -151,13 +156,36 @@ class BaseMaps(Borg):
 
                     for layer in group_layer.findall('Layer'):
                         layer_label = layer.attrib['name']
+                        # TODO: Need to go a little backward compatible. We can remove this logic after July 1, 2021
+                        tile_type = layer.attrib['type'] if 'type' in layer.attrib else 'wms'
                         layer_url = layer.attrib['url']
+
                         q_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), layer_label)
 
                         meta = {meta.attrib['name']: meta.text for meta in layer.findall('Metadata/Meta')}
-                        # We set the data to be Basemaps to help us load this stuff later
-                        q_layer.setData(ProjectTreeData(QRaveTreeTypes.LEAF, None, QRaveBaseMap(q_layer, layer_url, meta)), Qt.UserRole)
 
+                        basemap_obj = QRaveBaseMap(q_layer, layer_url, tile_type, meta)
+
+                        if tile_type == 'wms':
+                            pt_data = basemap_obj
+                        else:
+                            encoded_url = urllib.parse.quote_plus(layer_url)
+                            url_with_params = 'type=xyz&url={}'.format(encoded_url)
+                            pt_data = QRaveMapLayer(
+                                layer_label,
+                                QRaveMapLayer.LayerTypes.WEBTILE,
+                                tile_type=tile_type,
+                                layer_uri=url_with_params,
+                                meta=meta
+                            )
+
+                        # WMS is complicated because it needs a lookup
+                        q_layer.setData(
+                            ProjectTreeData(QRaveTreeTypes.LEAF, None, pt_data),
+                            Qt.UserRole
+                        )
+
+                        # We set the data to be Basemaps to help us load this stuff later
                         q_group_layer.appendRow(q_layer)
         except Exception as e:
             settings = Settings()

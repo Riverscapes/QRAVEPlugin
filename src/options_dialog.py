@@ -37,6 +37,7 @@ class OptionsDialog(QDialog, Ui_Dialog):
     def setValues(self):
         self.basemapsInclude.setChecked(self.settings.getValue('basemapsInclude'))
         self.loadDefaultView.setChecked(self.settings.getValue('loadDefaultView'))
+        self.autoUpdate.setChecked(self.settings.getValue('autoUpdate'))
 
         # Set the combo box
         self.basemapRegion.clear()
@@ -52,6 +53,7 @@ class OptionsDialog(QDialog, Ui_Dialog):
             self.settings.setValue('basemapsInclude', self.basemapsInclude.isChecked())
             self.settings.setValue('loadDefaultView', self.loadDefaultView.isChecked())
             self.settings.setValue('basemapRegion', self.basemapRegion.currentText())
+            self.settings.setValue('autoUpdate', self.autoUpdate.isChecked())
 
         elif role == QDialogButtonBox.ResetRole:
             self.settings.resetAllSettings()
