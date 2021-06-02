@@ -1,3 +1,7 @@
+## 0.5.1 ***(June 1, 2021)***
+
+* Hotfix patch to allow for some new Riverscapes functionality
+
 ## 0.5.0 ***(June 1, 2021)***
 
 ### New Features
