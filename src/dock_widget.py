@@ -223,7 +223,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # This is the default action for all add-able layers including basemaps
         if isinstance(item_data.data, QRaveMapLayer):
-            if item_data.data.layer_type == QRaveMapLayer.LayerTypes.FILE:
+            if item_data.data.layer_type in [QRaveMapLayer.LayerTypes.FILE, QRaveMapLayer.LayerTypes.REPORT]:
                 self.file_system_open(item_data.data.layer_uri)
             else:
                 QRaveMapLayer.add_layer_to_map(item)
@@ -482,7 +482,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if isinstance(data, QRaveMapLayer):
             if data.layer_type == QRaveMapLayer.LayerTypes.WEBTILE:
                 self.basemap_context_menu(idx, item, project_tree_data)
-            elif data.layer_type == QRaveMapLayer.LayerTypes.FILE:
+            elif data.layer_type in [QRaveMapLayer.LayerTypes.FILE, QRaveMapLayer.LayerTypes.REPORT]:
                 self.file_layer_context_menu(idx, item, project_tree_data)
             else:
                 self.map_layer_context_menu(idx, item, project_tree_data)

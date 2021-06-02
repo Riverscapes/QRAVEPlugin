@@ -43,7 +43,9 @@ class QRaveMapLayer():
         LINE = 'line'
         POINT = 'point'
         RASTER = 'raster'
+        # Regular file types
         FILE = 'file'
+        REPORT = 'report'
         # Tile Types
         WEBTILE = 'WEBTILE'
 
