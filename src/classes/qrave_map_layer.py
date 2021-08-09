@@ -1,9 +1,10 @@
 from __future__ import annotations
 import os
-from typing import Dict, Union
+from typing import Dict
 from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer
-from qgis.PyQt.QtCore import Qt, QModelIndex, QUrl
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QStandardItem
+from .rspaths import parse_rel_path
 from .settings import CONSTANTS, Settings
 
 SYMBOLOGY_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'symbology')
@@ -58,11 +59,14 @@ class QRaveMapLayer():
                  layer_name: str = None,
                  tile_type: str = None
                  ):
+
         self.label = label
         self.layer_uri = layer_uri
 
-        if isinstance(layer_uri, str) and len(layer_uri) > 0 and layer_type != QRaveMapLayer.LayerTypes.WEBTILE:
-            self.layer_uri = os.path.abspath(layer_uri)
+        # If this is a real file then sanitize the URI
+        if isinstance(self.layer_uri, str) and len(layer_uri) > 0 and layer_type != QRaveMapLayer.LayerTypes.WEBTILE:
+            sani_path = parse_rel_path(layer_uri)
+            self.layer_uri = os.path.abspath(sani_path)
 
         self.bl_attr = bl_attr
         self.meta = meta
@@ -75,9 +79,9 @@ class QRaveMapLayer():
             settings.log('Layer type "{}" is not valid'.format(layer_type), Qgis.Critical)
         self.layer_type = layer_type
 
-        self.exists = self.layer_type == QRaveMapLayer.LayerTypes.WEBTILE or os.path.isfile(layer_uri)
+        self.exists = self.layer_type == QRaveMapLayer.LayerTypes.WEBTILE or os.path.isfile(self.layer_uri)
 
-    @staticmethod
+    @ staticmethod
     def _addgrouptomap(sGroupName, sGroupOrder, parentGroup):
         """
         Add a hierarchical group to the layer manager
@@ -97,7 +101,7 @@ class QRaveMapLayer():
 
         return thisGroup
 
-    @staticmethod
+    @ staticmethod
     def add_layer_to_map(item: QStandardItem):
         """
         Add a layer to the map

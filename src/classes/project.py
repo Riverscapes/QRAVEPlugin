@@ -135,6 +135,7 @@ class Project:
         self.qproject.appendRow(curr_item)
 
     def _recurse_tree(self, bl_el=None, proj_el=None, parent: QStandardItem = None):
+        settings = Settings()
         if self.business_logic is None:
             return
         if bl_el is None:
@@ -167,7 +168,7 @@ class Project:
         children_container = bl_el.find('Children')
 
         # If there are children then this is a branch
-        if children_container:
+        if children_container is not None:
             curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'))
             if is_root is True:
                 curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self, data=dict(children_container.attrib)), Qt.UserRole),
@@ -221,6 +222,10 @@ class Project:
             curr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), Qt.UserRole)
 
             if not map_layer.exists:
+                settings.msg_bar(
+                    'Missing File',
+                    'Error finding file with path={}'.format(map_layer.layer_uri),
+                    Qgis.Warning)
                 curr_item.setData(QBrush(Qt.red), Qt.ForegroundRole)
                 curr_item_font = curr_item.font()
                 curr_item_font.setItalic(True)
