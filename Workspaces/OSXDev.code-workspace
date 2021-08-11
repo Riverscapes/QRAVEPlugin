@@ -12,12 +12,11 @@
 			// "editor.background": "#1c2c2a"
 		},
 		"terminal.integrated.env.osx": {
-			"QGIS_PREFIX_PATH": "/Applications/QGIS.app/Contents",
-			"QGIS_PATH": "/Applications/QGIS.app/Contents",
-			"PYTHONPATH": "/Applications/QGIS.app/Contents/Resources/python:/Applications/QGIS.app/Contents/Resources/python/site-packages:/Applications/QGIS.app/Contents/Resources/python/site-packages/PyQt5",
-			"PATH": "${env:PATH}:/Applications/QGIS.app/Contents/MacOS/bin"
+			"PYTHONPATH": "${env:QGIS_PATH}/Contents/Resources/python:${env:QGIS_PATH}/Contents/Resources/python/site-packages:${env:QGIS_PATH}/Contents/Resources/python/site-packages/PyQt5",
+			"PATH": "${env:PATH}:${env:QGIS_PATH}/Contents/MacOS/bin"
 		},
-    "python.pythonPath": "/Applications/QGIS.app/Contents/MacOS/bin/python3.8",
+		// NOTE: For this to work you need an env file with "QGIS_PATH=/Applications/QGIS-LTR.app/Contents" or whatever your path is
+    "python.pythonPath": "${env:QGIS_PATH}/Contents/MacOS/bin/python3.8",
 	},
 	"launch": {
 		"configurations": [],
