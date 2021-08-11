@@ -81,7 +81,7 @@ class QRaveMapLayer():
 
         self.exists = self.layer_type == QRaveMapLayer.LayerTypes.WEBTILE or os.path.isfile(self.layer_uri)
 
-    @ staticmethod
+    @staticmethod
     def _addgrouptomap(sGroupName, sGroupOrder, parentGroup):
         """
         Add a hierarchical group to the layer manager
@@ -101,7 +101,7 @@ class QRaveMapLayer():
 
         return thisGroup
 
-    @ staticmethod
+    @staticmethod
     def add_layer_to_map(item: QStandardItem):
         """
         Add a layer to the map
