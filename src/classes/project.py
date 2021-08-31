@@ -9,6 +9,7 @@ from qgis.PyQt.QtGui import QStandardItem, QIcon, QBrush
 from qgis.PyQt.QtCore import Qt
 
 from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
+from .rspaths import parse_rel_path
 from .settings import CONSTANTS, Settings
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
@@ -68,11 +69,11 @@ class Project:
 
         hierarchy = [
             # 1. first check for a businesslogic file next to the project file
-            os.path.join(os.path.dirname(self.project_xml_path), bl_filename),
+            parse_rel_path(os.path.join(os.path.dirname(self.project_xml_path), bl_filename)),
             # 2. Second, check the businesslogic we've got from the web
-            os.path.join(BL_XML_DIR, bl_filename),
+            parse_rel_path(os.path.join(BL_XML_DIR, bl_filename)),
             # 3. Fall back to the default xml file
-            os.path.join(BL_XML_DIR, 'default.xml')
+            parse_rel_path(os.path.join(BL_XML_DIR, 'default.xml'))
         ]
 
         # Find the first match
@@ -81,11 +82,13 @@ class Project:
         if chosen_qml is not None:
             self.business_logic_path = chosen_qml
             try:
-                self.business_logic = lxml.etree.parse(chosen_qml).getroot()
+                self.business_logic = lxml.etree.parse(self.business_logic_path).getroot()
+                # Let the user know what business logic we're using
+                self.settings.log("Loaded business logic file: {}".format(self.business_logic_path), Qgis.Success)
             except TypeError as e:
-                raise Exception('Error parsing file: {}, {}'.format(chosen_qml, e))
+                raise Exception('Error parsing business logic file: {}, {}'.format(self.business_logic_path, e))
         else:
-            raise Exception('Could not find a valid file. Valid paths are: [ {} ]'.format(','.join(hierarchy)))
+            raise Exception('Could not find a valid business logic file. Valid paths are: [ {} ]'.format(','.join(hierarchy)))
 
     def _build_tree(self, force=False):
         """
