@@ -370,6 +370,7 @@ class QRAVE:
         dialog = AboutDialog()
         if self.acknowledgements is None:
             self.acknowledgements = requests.get('http://rave.riverscapes.xyz/dotnetack.html').text
+            print('hello')
 
         dialog.acknowledgements.setText(self.acknowledgements)
         dialog.exec_()
