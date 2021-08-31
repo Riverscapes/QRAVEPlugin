@@ -158,6 +158,9 @@ class Project:
 
         new_proj_el = proj_el
         if 'xpath' in bl_el.attrib:
+            if len(bl_el.attrib['xpath']) == 0:
+                self.settings.log("Empty Xpath detected on line {} of file: {}!".format(bl_el.sourceline, self.business_logic_path), Qgis.Warning)
+                return
             new_proj_el = xpathone_withref(self.project, proj_el, bl_el.attrib['xpath'])
             if new_proj_el is None:
                 # We just ignore layers we can't find. Log them though
@@ -168,6 +171,9 @@ class Project:
         if 'label' in bl_el.attrib:
             curr_label = bl_el.attrib['label']
         elif 'xpathlabel' in bl_el.attrib:
+            if len(bl_el.attrib['xpathlabel']) == 0:
+                self.settings.log("Empty xpathlabel detected on line {} of file: {}!".format(bl_el.sourceline, self.business_logic_path), Qgis.Warning)
+                return
             found = new_proj_el.xpath(bl_el.attrib['xpathlabel'])
             curr_label = found[0].text if found is not None and len(found) > 0 else '<unknown>'
 
@@ -194,6 +200,11 @@ class Project:
                     qrepeater = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), child_node.attrib['label'])
                     qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self, data=dict(children_container.attrib)), Qt.UserRole),
                     curr_item.appendRow(qrepeater)
+
+                    if len(child_node.attrib['xpath']) == 0:
+                        self.settings.log("Empty repeater xpath detected on line {} of file: {}!".format(child_node.sourceline, self.business_logic_path), Qgis.Warning)
+                        return
+
                     repeat_xpath = child_node.attrib['xpath']
                     repeat_node = child_node.find('Node')
                     if repeat_node is not None:
