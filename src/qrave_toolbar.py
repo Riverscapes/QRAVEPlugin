@@ -338,6 +338,9 @@ class QRAVE:
         last_dir = os.path.dirname(last_browse_path) if last_browse_path is not None else None
 
         dialog_return = QFileDialog.getOpenFileName(self.dockwidget, "Open a Riverscapes project", last_dir, self.tr("Riverscapes Project files (project.rs.xml)"))
+        if dialog_return is not None and len(dialog_return[0]) > 0:
+            # Remember this path for next time
+            self.settings.setValue('lastBrowsePath', dialog_return[0])
         if dialog_return is not None and dialog_return[0] != "" and os.path.isfile(dialog_return[0]):
             # We set the proect path in the project settings. This way it will be saved with the QgsProject file
             if self.dockwidget is None or self.dockwidget.isHidden() is True:
