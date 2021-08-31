@@ -106,10 +106,16 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             project = Project(project_path)
             project.load()
 
-            if project is not None and project.exists is True and project.qproject is not None:
+            if project is not None \
+                    and project.exists is True \
+                    and project.qproject is not None \
+                    and project.loadable is True:
                 self.model.appendRow(project.qproject)
                 self.expand_children_recursive(self.model.indexFromItem(project.qproject))
                 self.loaded_projects.append(project)
+            else:
+                # If this project is unloadable then make sure it never tries to load again
+                self.set_project_settings([x for x in qrave_projects if x != project_path])
 
         # Load the tree objects
         self.basemaps.load()
@@ -165,7 +171,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             # If this is a fresh load and the setting is set we load the default view
             load_default_setting = self.settings.getValue('loadDefaultView')
 
-            if load_default_setting is True \
+            if new_project is not None and load_default_setting is True \
                     and new_project.default_view is not None \
                     and new_project.default_view in new_project.views:
                 self.add_children_to_map(new_project.qproject, new_project.views[new_project.default_view])

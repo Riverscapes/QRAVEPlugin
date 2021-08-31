@@ -29,6 +29,7 @@ class Project:
 
         self.project_xml_path = os.path.abspath(project_xml_path)
         self.project = None
+        self.loadable = False
         self.project_type = None
         self.business_logic_path = None
         self.business_logic = None
@@ -44,11 +45,12 @@ class Project:
                 self._load_project()
                 self._load_businesslogic()
                 self._build_tree()
+                self.loadable = True
                 self.settings.msg_bar('Project Loaded', self.project_xml_path, Qgis.Success)
             except Exception as e:
-                self.settings.msg_bar("Error loading project", "Project: {}\n Exception: {}".format(self.project_xml_path, e),
+                self.settings.msg_bar("Error loading project", "Project: {}\n (See QRAVE logs for specifics)".format(self.project_xml_path),
                                       Qgis.Critical)
-                self.settings.log("Trace: {}".format(traceback.format_exc()), Qgis.Critical)
+                self.settings.log("Exception {}\n\nTrace: {}".format(e, traceback.format_exc()), Qgis.Critical)
 
     def _load_project(self):
         if os.path.isfile(self.project_xml_path):
@@ -84,9 +86,13 @@ class Project:
             try:
                 self.business_logic = lxml.etree.parse(self.business_logic_path).getroot()
                 # Let the user know what business logic we're using
-                self.settings.log("Loaded business logic file: {}".format(self.business_logic_path), Qgis.Success)
+                self.settings.log("Using business logic file: {}".format(self.business_logic_path), Qgis.Info)
             except TypeError as e:
                 raise Exception('Error parsing business logic file: {}, {}'.format(self.business_logic_path, e))
+            except lxml.etree.XMLSyntaxError as e:
+                raise Exception('XML Syntax error while parsing file: {}, {}'.format(self.business_logic_path, e))
+            except Exception as e:
+                raise Exception('Unknown XML File error: {}, {}'.format(self.business_logic_path, e))
         else:
             raise Exception('Could not find a valid business logic file. Valid paths are: [ {} ]'.format(','.join(hierarchy)))
 
