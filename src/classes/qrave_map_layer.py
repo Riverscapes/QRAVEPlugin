@@ -214,19 +214,25 @@ class QRaveMapLayer():
                     if 'transparency' in map_layer.bl_attr:
                         transparency = int(map_layer.bl_attr['transparency'])
                 except Exception as e:
-                    settings.log('Error deriving transparency from layer: {}'.format(e))
+                    settings.log('Error interpretting error in business logic: {}'.format(e), Qgis.Warning)
 
                 try:
                     if transparency > 0:
                         if rOutput.__class__ is QgsVectorLayer:
+                            if hasattr(rOutput, 'setLayerTransparency'):
                             rOutput.setLayerTransparency(transparency)
+                            elif hasattr(rOutput, 'setOpacity'):
+                                rOutput.setOpacity((100 - transparency) / 100.0)
+                            else:
+                                settings.log('Setting vector transparency: {}'.format(e), Qgis.Warning)
+
                             # rOutput.triggerRepaint()
                         elif rOutput.__class__ is QgsRasterLayer:
                             renderer = rOutput.renderer()
                             renderer.setOpacity((100 - transparency) / 100.0)
                             # rOutput.triggerRepaint()
                 except Exception as e:
-                    settings.log('Error deriving transparency from layer: {}'.format(e))
+                    settings.log('Error deriving transparency from layer: {}'.format(e), Qgis.Warning)
 
                 QgsProject.instance().addMapLayer(rOutput, False)
                 parentGroup.insertLayer(item.row(), rOutput)
