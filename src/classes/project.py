@@ -30,6 +30,7 @@ class Project:
         self.project_xml_path = os.path.abspath(project_xml_path)
         self.project = None
         self.loadable = False
+        self.load_errs = False
         self.project_type = None
         self.business_logic_path = None
         self.business_logic = None
@@ -40,17 +41,24 @@ class Project:
             self.project_dir = os.path.dirname(self.project_xml_path)
 
     def load(self):
+        self.load_errs = False
         if self.exists is True:
             try:
                 self._load_project()
                 self._load_businesslogic()
                 self._build_tree()
                 self.loadable = True
-                self.settings.msg_bar('Project Loaded', self.project_xml_path, Qgis.Success)
+                if self.load_errs is False:
+                    self.settings.msg_bar('Project Loaded', self.project_xml_path, Qgis.Success)
+                else:
+                    self.settings.msg_bar('Project Loaded with errors', "(See QRAVE logs for details)", Qgis.Critical)
             except Exception as e:
                 self.settings.msg_bar("Error loading project", "Project: {}\n (See QRAVE logs for specifics)".format(self.project_xml_path),
                                       Qgis.Critical)
                 self.settings.log("Exception {}\n\nTrace: {}".format(e, traceback.format_exc()), Qgis.Critical)
+        else:
+            self.settings.msg_bar("Project Not Found", self.project_xml_path,
+                                  Qgis.Critical)
 
     def _load_project(self):
         if os.path.isfile(self.project_xml_path):
@@ -111,7 +119,7 @@ class Project:
         self._build_views()
 
     def _build_views(self):
-        if self.business_logic is None:
+        if self.business_logic is None or self.qproject is None:
             return
 
         views = self.business_logic.find('Views')
@@ -159,7 +167,8 @@ class Project:
         new_proj_el = proj_el
         if 'xpath' in bl_el.attrib:
             if len(bl_el.attrib['xpath']) == 0:
-                self.settings.log("Empty Xpath detected on line {} of file: {}!".format(bl_el.sourceline, self.business_logic_path), Qgis.Warning)
+                self.load_errs = True
+                self.settings.log("Empty Xpath detected on line {} of file: {}".format(bl_el.sourceline, self.business_logic_path), Qgis.Critical)
                 return
             new_proj_el = xpathone_withref(self.project, proj_el, bl_el.attrib['xpath'])
             if new_proj_el is None:
@@ -172,7 +181,8 @@ class Project:
             curr_label = bl_el.attrib['label']
         elif 'xpathlabel' in bl_el.attrib:
             if len(bl_el.attrib['xpathlabel']) == 0:
-                self.settings.log("Empty xpathlabel detected on line {} of file: {}!".format(bl_el.sourceline, self.business_logic_path), Qgis.Warning)
+                self.load_errs = True
+                self.settings.log("Empty xpathlabel detected on line {} of file: {}".format(bl_el.sourceline, self.business_logic_path), Qgis.Critical)
                 return
             found = new_proj_el.xpath(bl_el.attrib['xpathlabel'])
             curr_label = found[0].text if found is not None and len(found) > 0 else '<unknown>'
@@ -202,7 +212,8 @@ class Project:
                     curr_item.appendRow(qrepeater)
 
                     if len(child_node.attrib['xpath']) == 0:
-                        self.settings.log("Empty repeater xpath detected on line {} of file: {}!".format(child_node.sourceline, self.business_logic_path), Qgis.Warning)
+                        self.load_errs = True
+                        self.settings.log("Empty repeater xpath detected on line {} of file: {}".format(child_node.sourceline, self.business_logic_path), Qgis.Critical)
                         return
 
                     repeat_xpath = child_node.attrib['xpath']

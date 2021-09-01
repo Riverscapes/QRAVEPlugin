@@ -71,6 +71,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         self.settings = Settings()
 
+        # If a project fails to load we track it and don't autorefresh it.
+        self.failed_loads = []
+
         self.model = QStandardItemModel()
 
         self.loaded_projects: List(Project) = []
@@ -129,6 +132,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             self.expand_children_recursive(self.model.indexFromItem(self.basemaps.regions[region]))
 
     def get_project_settings(self):
+        qrave_projects = []
         try:
             qrave_projects_raw, type_conversion_ok = self.qproject.readEntry(
                 CONSTANTS['settingsCategory'],
@@ -145,13 +149,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         except Exception as e:
             self.settings.log('Error loading project settings: {}'.format(e), Qgis.Warning)
-            qrave_projects = []
 
-        filtered = [pf for pf in qrave_projects if os.path.isfile(pf)]
-        filtered.reverse()
-        # We Treat this like a stack where the last project in goes on the top.
-        # Element 0 should be the top item
-        return filtered
+        return qrave_projects
 
     def set_project_settings(self, projects: List[str]):
         self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'qrave_projects', json.dumps(projects))
