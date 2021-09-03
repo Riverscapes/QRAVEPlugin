@@ -11,7 +11,7 @@
 			"titleBar.activeBackground": "#006823",
 			// "editor.background": "#1c2c2a"
 		},
-		"python.pythonPath": "${env:OSGEO4W_ROOT}/apps/Python37/python.exe",
+		"python.pythonPath": "${env:OSGEO4W_ROOT}/apps/Python39/python3.exe",
 	},
 	"launch": {
 		"configurations": [],
