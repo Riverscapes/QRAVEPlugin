@@ -7,8 +7,8 @@ import json
 
 from qgis.PyQt import uic
 from qgis.core import Qgis
-from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices, QGuiApplication
-from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction
+from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices, QGuiApplication, QBrush
+from qgis.PyQt.QtWidgets import QDockWidget, QMenu, QMessageBox
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl
 
 from .classes.settings import Settings, CONSTANTS
@@ -66,10 +66,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
                     proj_meta_font.setBold(True)
                     proj_meta.setFont(proj_meta_font)
                     for k, v in meta['project'].items():
-                        proj_meta.appendRow([
-                            QStandardItem(k),
-                            QStandardItem(v)
-                        ])
+                        self.appendMetaItem(proj_meta, k, v[0], v[1])
                     root_item.appendRow(proj_meta)
                 if 'warehouse' in meta and len(meta['warehouse'].keys()) > 0:
                     wh_meta = QStandardItem('Warehouse Meta')
@@ -77,10 +74,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
                     wh_meta_font.setBold(True)
                     wh_meta.setFont(wh_meta_font)
                     for k, v in meta['warehouse'].items():
-                        wh_meta.appendRow([
-                            QStandardItem(k),
-                            QStandardItem(v)
-                        ])
+                        self.appendMetaItem(wh_meta, k, v[0], v[1])
                     root_item.appendRow(wh_meta)
 
         elif meta_type == MetaType.FOLDER:
@@ -102,10 +96,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
             self.treeView.setHeaderHidden(False)
             if meta is not None and len(meta.keys()) > 0:
                 for k, v in meta.items():
-                    root_item.appendRow([
-                        QStandardItem(k),
-                        QStandardItem(v)
-                    ])
+                    self.appendMetaItem(root_item, k, v[0], v[1])
             else:
                 self.treeView.setHeaderHidden(True)
                 self.treeView.setEnabled(False)
@@ -138,12 +129,36 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
         if show is True:
             self.show()
 
+    def appendMetaItem(self, root_item: QStandardItem, key: str, value: str, meta_type=None):
+        val_item = QStandardItem(value)
+        val_item.setData(meta_type, Qt.UserRole)
+
+        # Getting ready for custom meta types
+        if meta_type == 'url' or meta_type == 'image' or meta_type == 'video' and value.startswith('http'):
+            val_item.setData(QBrush(Qt.blue), Qt.ForegroundRole)
+        # val_item.setUnderlineStyle(QTextCharFormat.SingleUnderline)
+
+        root_item.appendRow([
+            QStandardItem(key),
+            val_item
+        ])
+
     def closeEvent(self, event):
         self.hide()
 
     def default_tree_action(self, index):
         item = self.model.itemFromIndex(index)
-        data = item.data(Qt.UserRole)
+        meta_type = item.data(Qt.UserRole)
+        text = item.text()
+
+        if meta_type is not None and text is not None:
+            if meta_type == 'url' or meta_type == 'image' or meta_type == 'video' and text.startswith('http'):
+                qm = QMessageBox
+                qm.question(self, '', "Visit in browser?", qm.Yes | qm.No)
+                if qm.Yes:
+                    QDesktopServices.openUrl(QUrl(text))
+        else:
+            self.copy(text)
 
     def open_menu(self, position):
 
@@ -158,16 +173,21 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
         self.menu.clear()
         if item_val is not None:
             row_text = {item_name.text(): item_val.text()}
-            self.menu.addAction('Copy Name to Clipboard', lambda: self.copy(item_name.text()))
-            self.menu.addAction('Copy Value to Clipboard', lambda: self.copy(item_val.text()))
-            self.menu.addAction('Copy Row to Clipboard (json)', lambda: self.copy(
+            meta_type = item_val.data(Qt.UserRole)
+            if meta_type == 'url' or meta_type == 'image' or meta_type == 'video' and item_val.text().startswith('http'):
+                self.menu.addAction('Visit URL in Browser', lambda: QDesktopServices.openUrl(QUrl(item_val.text())))
+                self.menu.addSeparator()
+            self.menu.addAction('Copy name', lambda: self.copy(item_name.text()))
+            self.menu.addAction('Copy value', lambda: self.copy(item_val.text()))
+            self.menu.addAction('Copy row (json)', lambda: self.copy(
                 json.dumps(row_text, indent=4, sort_keys=True)
             ))
-        self.menu.addAction('Copy All to Clipboard (json)', lambda: self.copy(json.dumps(self.meta, indent=4, sort_keys=True)))
+        self.menu.addAction('Copy all rows (json)', lambda: self.copy(json.dumps(self.meta, indent=4, sort_keys=True)))
 
         self.menu.exec_(self.treeView.viewport().mapToGlobal(position))
 
     def copy(self, data: str):
+        self.settings.msg_bar('Item Copied to clipboard:', data, Qgis.Success)
         cb = QGuiApplication.clipboard()
         cb.clear(mode=cb.Clipboard)
         cb.setText(data, mode=cb.Clipboard)

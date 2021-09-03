@@ -64,9 +64,22 @@ class Project:
         if os.path.isfile(self.project_xml_path):
             self.project = lxml.etree.parse(self.project_xml_path).getroot()
 
-            self.meta = {meta.attrib['name']: meta.text for meta in self.project.findall('MetaData/Meta')}
-            self.warehouse_meta = {meta.attrib['name']: meta.text for meta in self.project.findall('Warehouse/Meta')}
+            self.meta = self.extract_meta(self.project.findall('MetaData/Meta'))
+            self.warehouse_meta = self.extract_meta(self.project.findall('Warehouse/Meta'))
             self.project_type = self.project.find('ProjectType').text
+
+            realizations = self.project.find('Realizations')
+            if realizations is None:
+                raise Exception('Could not find the <Realizations> node. Are you sure the xml file you opened is Riverscapes Project? File: {}'.format(self.project_xml_path))
+
+    def extract_meta(self, nodelist):
+        meta = {}
+        for meta_node in nodelist:
+            key = meta_node.attrib['name']
+            value = meta_node.text
+            type = meta_node.attrib['type'] if 'type' in meta_node.attrib else None
+            meta[key] = (value, type)
+        return meta
 
     def _load_businesslogic(self):
         if self.project is None or self.project_type is None:
@@ -104,6 +117,11 @@ class Project:
         else:
             raise Exception('Could not find a valid business logic file. Valid paths are: [ {} ]'.format(','.join(hierarchy)))
 
+        # Check for a different kind of file
+        root_node = self.business_logic.find('Node')
+        if root_node is None:
+            raise Exception('Could not find the root <Node> element. Are you sure the xml file you opened is Riverscapes Business logic XML? File: {}'.format(self.business_logic_path))
+
     def _build_tree(self, force=False):
         """
         Parse the XML and return any basemaps you find
@@ -115,8 +133,11 @@ class Project:
             return
 
         # Parse the XML
-        self.qproject = self._recurse_tree()
-        self._build_views()
+        if self.business_logic is None:
+            self.settings.log("No business logic file for this project could be found.")
+        else:
+            self.qproject = self._recurse_tree()
+            self._build_views()
 
     def _build_views(self):
         if self.business_logic is None or self.qproject is None:
@@ -153,10 +174,13 @@ class Project:
 
     def _recurse_tree(self, bl_el=None, proj_el=None, parent: QStandardItem = None):
         settings = Settings()
-        if self.business_logic is None:
-            return
+
         if bl_el is None:
             bl_el = self.business_logic.find('Node')
+
+        if bl_el is None:
+            self.settings.log('No default businesslogic root node could be located in file: {}'.format(self.business_logic_path), Qgis.Critical)
+            return
 
         is_root = proj_el is None
         bl_attr = bl_el.attrib
@@ -237,7 +261,7 @@ class Project:
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'))
 
             # Couldn't find this node. Ignore it.
-            meta = {meta.attrib['name']: meta.text for meta in new_proj_el.findall('MetaData/Meta')}
+            meta = self.extract_meta(new_proj_el.findall('MetaData/Meta'))
             new_proj_el.find('Path')
 
             layer_name = None
