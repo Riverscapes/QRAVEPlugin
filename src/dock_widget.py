@@ -320,10 +320,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if wh_meta is not None:
 
             if 'program' in wh_meta and 'id' in wh_meta:
-                return '/'.join([CONSTANTS['warehouseUrl'], wh_meta['program'], wh_meta['id']])
+                return '/'.join([CONSTANTS['warehouseUrl'], wh_meta['program'][0], wh_meta['id'][0]])
 
             elif '_rs_wh_id' in wh_meta and '_rs_wh_program' in wh_meta:
-                return '/'.join([CONSTANTS['warehouseUrl'], wh_meta['_rs_wh_program'], wh_meta['_rs_wh_id']])
+                return '/'.join([CONSTANTS['warehouseUrl'], wh_meta['_rs_wh_program'][0], wh_meta['_rs_wh_id'][0]])
 
         return None
 
