@@ -19,35 +19,34 @@ Licensed under the [GNU General Public License Version 3](https://github.com/Riv
 
 1. Make a batch file on your desktop to launch VSCode with the QGIS development paths and environment
 
-fill in paths where appropriate
+fill in paths where appropriate. NOTE: ALL THESE PATHS SHOULD BE CHECKED. They change from version to version!!
 
 ```batch
 @echo off
 @REM First one needs an explicit path
-call "C:\Program Files\QGIS 3.18\bin\o4w_env.bat"
+call "C:\Program Files\QGIS 3.16.10\bin\o4w_env.bat"
 call %OSGEO4W_ROOT%\bin\qt5_env.bat
 call %OSGEO4W_ROOT%\bin\py3_env.bat
 
 @echo off
-path %PATH%;%OSGEO4W_ROOT%\apps\qgis\bin
+path %PATH%;%OSGEO4W_ROOT%\apps\qgis-ltr\bin
 path %PATH%;%OSGEO4W_ROOT%\apps\Qt5\bin
-path %PATH%;%OSGEO4W_ROOT%\apps\Python37\Scripts
+path %PATH%;%OSGEO4W_ROOT%\apps\Python39\Scripts
 
 rem o4w_env.bat starts with a clean path, so add what you need
 
-set QGIS_PREFIX_PATH=%OSGEO4W_ROOT%:\=/%/apps/qgis
+set QGIS_PREFIX_PATH=%OSGEO4W_ROOT%:\=/%/apps/qgis-ltr
 set GDAL_FILENAME_IS_UTF8=YES
 rem Set VSI cache to be used as buffer, see #6448
 set VSI_CACHE=TRUE
 set VSI_CACHE_SIZE=1000000
-set QT_PLUGIN_PATH=%OSGEO4W_ROOT%\apps\qgis\qtplugins;%OSGEO4W_ROOT%\apps\qt5\plugins
+set QT_PLUGIN_PATH=%OSGEO4W_ROOT%\apps\qgis-ltr\qtplugins;%OSGEO4W_ROOT%\apps\qt5\plugins
 
-set PYTHONPATH=%PYTHONPATH%;%OSGEO4W_ROOT%\apps\qgis\python\
-set PYTHONPATH=%PYTHONPATH%;%OSGEO4W_ROOT%\apps\qgis\python\qgis
-@REM set PYTHONPATH=%PYTHONPATH%;%OSGEO4W_ROOT%\apps\qgis\python\qgis\PyQt
+set PYTHONPATH=%PYTHONPATH%;%OSGEO4W_ROOT%\apps\qgis-ltr\python\
+set PYTHONPATH=%PYTHONPATH%;%OSGEO4W_ROOT%\apps\qgis-ltr\python\qgis
 
 @REM We include local python scripts since this is where pip installs to for ptvsd and pb_tool
-path %PATH%;%APPDATA%\Python\Python37\Scripts
+path %PATH%;%APPDATA%\Python\Python39\Scripts
 
 pushd %~dp0
 call "C:\Users\Matt\AppData\Local\Programs\Microsoft VS Code\bin\code.cmd"
