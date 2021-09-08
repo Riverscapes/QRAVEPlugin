@@ -302,6 +302,16 @@ class Project:
 
 
 def xpathone_withref(root_el, el, xpath_str):
+    """Generic method for looking up an xpath including support for the ref attribute
+
+    Args:
+        root_el ([type]): [description]
+        el ([type]): [description]
+        xpath_str ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
     found = el.xpath(xpath_str)
     settings = Settings()
     # If the node is not found we need to check if it's a reference
@@ -311,21 +321,41 @@ def xpathone_withref(root_el, el, xpath_str):
             # If not even the ref is found then this is not valid
             if ref_found is not None and len(ref_found) > 0:
                 ref_str = ref_found[0].attrib['ref']
-                # Now we go hunting for the origin of the reference
-                origin = root_el.xpath('Inputs/*[@id="{}"]'.format(ref_str))
-                # we found the origin but the reference could not be found
-                if origin is None or len(origin) < 1:
-                    settings.msg_bar(
-                        'Missing Node',
-                        'Error finding input node with xpath={} and ref="{}"'.format(xpath_str, ref_str),
-                        Qgis.Warning)
-                    return
-                else:
-                    return origin[0]
+                return xpath_findref(root_el, ref_str, xpath_str)
 
         settings.log(
             'Error finding project xml node with path="{}"'.format(xpath_str),
             Qgis.Warning)
     else:
         # If the node is found and is not a reference this is the easy case
-        return found[0]
+        if 'ref' in found[0].attrib:
+            ref_str = found[0].attrib['ref']
+            return xpath_findref(root_el, ref_str, xpath_str)
+        else:
+            return found[0]
+
+
+def xpath_findref(root_el, ref_str, xpath_str):
+    """If the ref attribute is set then we need to go looking for an <Inputs> node 
+    that corresponds
+
+    Args:
+        root_el ([type]): [description]
+        ref_str ([type]): [description]
+        xpath_str ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
+    settings = Settings()
+    # Now we go hunting for the origin of the reference
+    origin = root_el.xpath('Inputs/*[@id="{}"]'.format(ref_str))
+    # we found the origin but the reference could not be found
+    if origin is None or len(origin) < 1:
+        settings.log(
+            'Missing Node',
+            'Error finding input node with xpath={} and ref="{}"'.format(xpath_str, ref_str),
+            Qgis.Warning)
+        return
+    else:
+        return origin[0]
