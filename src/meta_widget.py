@@ -131,6 +131,8 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
 
     def appendMetaItem(self, root_item: QStandardItem, key: str, value: str, meta_type=None):
         val_item = QStandardItem(value)
+        if (value is not None and len(value) > 0):
+            val_item.setToolTip(value)
         val_item.setData(meta_type, Qt.UserRole)
 
         # Getting ready for custom meta types
