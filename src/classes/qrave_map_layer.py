@@ -81,6 +81,32 @@ class QRaveMapLayer():
 
         self.exists = self.layer_type == QRaveMapLayer.LayerTypes.WEBTILE or os.path.isfile(self.layer_uri)
 
+    def _getlayerposition(item):
+
+        name = item.text()
+        order = [name]
+        absolute_position = 0
+        parent = item.parent()
+        if parent is not None:
+            child_idx = 0
+            child = parent.child(child_idx)
+            child_data = child.data(Qt.UserRole)
+            while child_data is not None:
+                if child.text() == name:
+                    return absolute_position, order
+                if isinstance(child_data.data, QRaveMapLayer):
+                    if child_data.data.layer_type in [QRaveMapLayer.LayerTypes.LINE, QRaveMapLayer.LayerTypes.POINT, QRaveMapLayer.LayerTypes.POLYGON, QRaveMapLayer.LayerTypes.RASTER]:
+                        absolute_position += 1
+                else:
+                    if child_data.type == 'PROJECT_FOLDER':
+                        absolute_position += 1
+                order.append(child.text())
+                child_idx += 1
+                child = parent.child(child_idx)
+                child_data = child.data(Qt.UserRole) if child is not None else None
+                
+        return absolute_position, order
+
     @staticmethod
     def _addgrouptomap(sGroupName, sGroupOrder, parentGroup):
         """
@@ -119,19 +145,31 @@ class QRaveMapLayer():
         # Loop over all the parent group layers for this raster
         # ensuring they are in the tree in correct, nested order
         ancestry = []
+        ancestry_order = []
         if map_layer.exists is True:
             parent = item.parent()
             while parent is not None and len(ancestry) < 50:
-                ancestry.append((parent.text(), parent.row()))
+                pos, order = QRaveMapLayer._getlayerposition(parent)
+                ancestry.append((parent.text(), pos))
+                ancestry_order.append((parent.text(), order))
                 parent = parent.parent()
         else:
             # Layer does not exist. do not try to put it on the map
             return
 
         ancestry.reverse()
+        ancestry_order.reverse()
         parentGroup = None
-        for agroup in ancestry:
-            parentGroup = QRaveMapLayer._addgrouptomap(agroup[0], agroup[1], parentGroup)
+        for agroup, group_order in ancestry_order:
+            if not parentGroup:
+                parentGroup = QgsProject.instance().layerTreeRoot()
+            pos = 0
+            group_order.reverse()
+            for group in group_order:
+                test_group = parentGroup.findGroup(group)
+                if test_group:
+                    pos += 1
+            parentGroup = QRaveMapLayer._addgrouptomap(agroup, pos, parentGroup)
 
         assert parentGroup, "All rasters should be nested and so parentGroup should be instantiated by now"
 
