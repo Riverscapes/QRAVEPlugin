@@ -161,7 +161,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # If this project is not already in
         if xml_path not in qrave_projects:
-            qrave_projects.append(xml_path)
+            qrave_projects.insert(0, xml_path)
             self.set_project_settings(qrave_projects)
             self.reload_tree()
 
