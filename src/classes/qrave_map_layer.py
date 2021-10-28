@@ -284,6 +284,15 @@ class QRaveMapLayer():
                 QgsProject.instance().addMapLayer(rOutput, False)
                 parentGroup.insertLayer(item.row(), rOutput)
 
+                ##########################################
+                # Feature Filter (Definition Query)
+                ##########################################
+
+                filter = map_layer.bl_attr['filter'] if map_layer.bl_attr is not None and 'filter' in map_layer.bl_attr else None
+        
+                if filter is not None:
+                    rOutput.setSubsetString(filter)
+        
         # if the layer already exists trigger a refresh
         else:
             QgsProject.instance().mapLayersByName(map_layer.label)[0].triggerRepaint()
