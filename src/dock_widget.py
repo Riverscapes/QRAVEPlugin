@@ -110,11 +110,32 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     def reload_tree(self):
         # re-initialize our model and reload the projects from file
         # Try not to do this too often if you can
+        expanded_states = {}
+
+        def get_checked_state(idx, output=[]):
+            
+            for idy in range(self.model.rowCount(idx)):
+                child = self.model.index(idy, 0, idx)
+                output = get_checked_state(child, output)
+
+            item = self.model.itemFromIndex(idx)
+            expanded = self.treeView.isExpanded(idx)
+            output.append((item.text(), expanded))
+
+            return output
+
+        for project in self.loaded_projects:
+            if not isinstance(project, str):
+                project_name = project.qproject.text()
+                project_states = []
+                project_states = get_checked_state(self.model.indexFromItem(project.qproject), project_states)
+                expanded_states[project_name] = project_states
+
         self.model.clear()
         self.loaded_projects = []
         qrave_projects = self.get_project_settings()
 
-        for project_name, project_path in qrave_projects:
+        for project_name, _basename, project_path in qrave_projects:
             project = Project(project_path)
             project.load()
 
@@ -124,7 +145,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     and project.loadable is True:
                 project.qproject.setText(project_name)
                 self.model.appendRow(project.qproject)
-                self.expand_children_recursive(self.model.indexFromItem(project.qproject))
+                if project_name in expanded_states.keys():
+                    self.restore_expaned_state(self.model.indexFromItem(project.qproject), expanded_states[project_name])
+                else:
+                    self.expand_children_recursive(self.model.indexFromItem(project.qproject))
                 self.loaded_projects.append(project)
             else:
                 # If this project is unloadable then make sure it never tries to load again
@@ -171,10 +195,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         test_project = Project(xml_path)
         test_project.load()
-        project_basename = test_project.qproject.text()
-        count = [project[1] for project in qrave_projects].count(xml_path)
-        name = f'{project_basename} Copy {count:02d}' if count > 0 else project_basename
-        qrave_projects.insert(0, (name, xml_path)) # newest project always on top
+        basename = test_project.qproject.text()
+        count = [project[1] for project in qrave_projects].count(basename)
+        name = f'{basename} Copy {count:02d}' if count > 0 else basename
+        qrave_projects.insert(0, (name, basename, xml_path))
         self.set_project_settings(qrave_projects)
         self.reload_tree()
 
@@ -231,6 +255,46 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         if not self.treeView.isExpanded(idx) and not collapsed:
             self.treeView.setExpanded(idx, True)
+
+    def restore_expaned_state(self, idx: QModelIndex = None, states: List(dict) = None):
+        """Expand all the children of a QTreeView node. Do it recursively
+        TODO: Recursion might not be the best for large trees here.
+
+        Args:
+            idx (QModelIndex, optional): [description]. Defaults to None.
+            force: ignore the "collapsed" business logic attribute
+        """
+        if idx is None:
+            idx = self.treeView.rootIndex()
+
+        for idy in range(self.model.rowCount(idx)):
+            child = self.model.index(idy, 0, idx)
+            self.restore_expaned_state(child, states)
+
+        item = self.model.itemFromIndex(idx)
+        item_data = item.data(Qt.UserRole) if item is not None else None
+
+        # NOTE: This is pretty verbose on purpose
+
+        # This thing needs to have data or it defaults to being expanded
+        if item_data is None or item_data.data is None:
+            collapsed = False
+
+        # Collapsed is an attribute set in the business logic
+        # Never expand the QRaveBaseMap object becsause there's a network call involved
+        elif isinstance(item_data.data, QRaveBaseMap): #\
+                # or (isinstance(item_data.data, dict) and 'collapsed' in item_data.data and item_data.data['collapsed'] == 'true'):
+            collapsed = True
+
+        else:
+            collapsed = False
+
+        name = item.text()
+        state = next((item_state[1] for item_state in states if item_state[0] == name), None)
+
+        if not self.treeView.isExpanded(idx) and not collapsed and state is True:
+            self.treeView.setExpanded(idx, True)
+
 
     def default_tree_action(self, idx: QModelIndex):
         if not idx.isValid():
@@ -374,11 +438,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             qrave_projects = []
 
         # Filter out the project we want to close and reload the tree
-        qrave_projects = [x.project_xml_path for x in self.loaded_projects if x != project]
+        project_name = project.qproject.text()
+        qrave_projects = [(name, basename, xml) for name, basename, xml in qrave_projects if name != project_name]
 
         # Write the settings back to the project
         self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'qrave_projects', json.dumps(qrave_projects))
-        self.loaded_projects = qrave_projects
+        self.loaded_projects = [loaded_project for loaded_project in self.loaded_projects if loaded_project.qproject.text() != project_name]
         self.reload_tree()
 
     def file_system_open(self, fpath: str):
