@@ -97,6 +97,15 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         except Exception:
             return None
 
+    def _get_project_by_name(self, name):
+        try:
+            for project in self.loaded_projects:
+                if project.qproject.text() == name:
+                    return project
+            return None
+        except Exception:
+            return None
+
     @pyqtSlot()
     def reload_tree(self):
         # re-initialize our model and reload the projects from file
@@ -105,7 +114,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.loaded_projects = []
         qrave_projects = self.get_project_settings()
 
-        for project_path in qrave_projects:
+        for project_name, project_path in qrave_projects:
             project = Project(project_path)
             project.load()
 
@@ -113,6 +122,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     and project.exists is True \
                     and project.qproject is not None \
                     and project.loadable is True:
+                project.qproject.setText(project_name)
                 self.model.appendRow(project.qproject)
                 self.expand_children_recursive(self.model.indexFromItem(project.qproject))
                 self.loaded_projects.append(project)
@@ -159,21 +169,24 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     def add_project(self, xml_path: str):
         qrave_projects = self.get_project_settings()
 
-        # If this project is not already in
-        if xml_path not in qrave_projects:
-            qrave_projects.insert(0, xml_path)
-            self.set_project_settings(qrave_projects)
-            self.reload_tree()
+        test_project = Project(xml_path)
+        test_project.load()
+        project_basename = test_project.qproject.text()
+        count = [project[1] for project in qrave_projects].count(xml_path)
+        name = f'{project_basename} Copy {count:02d}' if count > 0 else project_basename
+        qrave_projects.insert(0, (name, xml_path)) # newest project always on top
+        self.set_project_settings(qrave_projects)
+        self.reload_tree()
 
-            new_project = self._get_project(xml_path)
+        new_project = self._get_project_by_name(name)
 
-            # If this is a fresh load and the setting is set we load the default view
-            load_default_setting = self.settings.getValue('loadDefaultView')
+        # If this is a fresh load and the setting is set we load the default view
+        load_default_setting = self.settings.getValue('loadDefaultView')
 
-            if new_project is not None and load_default_setting is True \
-                    and new_project.default_view is not None \
-                    and new_project.default_view in new_project.views:
-                self.add_children_to_map(new_project.qproject, new_project.views[new_project.default_view])
+        if new_project is not None and load_default_setting is True \
+                and new_project.default_view is not None \
+                and new_project.default_view in new_project.views:
+            self.add_children_to_map(new_project.qproject, new_project.views[new_project.default_view])
 
     def closeEvent(self, event):
         """ When the user clicks the "X" in the dockwidget titlebar

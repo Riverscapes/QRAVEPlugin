@@ -188,6 +188,9 @@ class QRaveMapLayer():
                     and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
                 exists = True
                 break
+            elif lyr[0] == ancestry[0][0]: # bit of a hacky way to test if map layer is in the same named qproject
+                exists = True
+                break
 
         if not exists:
             layer_uri = map_layer.layer_uri
