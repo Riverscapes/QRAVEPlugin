@@ -81,6 +81,7 @@ class QRaveMapLayer():
 
         self.exists = self.layer_type == QRaveMapLayer.LayerTypes.WEBTILE or os.path.isfile(self.layer_uri)
 
+    @staticmethod
     def _getlayerposition(item):
 
         name = item.text()
@@ -98,13 +99,13 @@ class QRaveMapLayer():
                     if child_data.data.layer_type in [QRaveMapLayer.LayerTypes.LINE, QRaveMapLayer.LayerTypes.POINT, QRaveMapLayer.LayerTypes.POLYGON, QRaveMapLayer.LayerTypes.RASTER]:
                         absolute_position += 1
                 else:
-                    if child_data.type == 'PROJECT_FOLDER':
+                    if child_data.type == QRaveTreeTypes.PROJECT_FOLDER:
                         absolute_position += 1
                 order.append(child.text())
                 child_idx += 1
                 child = parent.child(child_idx)
                 child_data = child.data(Qt.UserRole) if child is not None else None
-                
+
         return absolute_position, order
 
     @staticmethod
@@ -188,7 +189,7 @@ class QRaveMapLayer():
                     and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
                 exists = True
                 break
-            elif lyr[0] == ancestry[0][0]: # bit of a hacky way to test if map layer is in the same named qproject
+            elif lyr[0] == ancestry[0][0]:  # bit of a hacky way to test if map layer is in the same named qproject
                 exists = True
                 break
 
@@ -289,10 +290,10 @@ class QRaveMapLayer():
                 ##########################################
 
                 filter = map_layer.bl_attr['filter'] if map_layer.bl_attr is not None and 'filter' in map_layer.bl_attr else None
-        
+
                 if filter is not None:
                     rOutput.setSubsetString(filter)
-        
+
         # if the layer already exists trigger a refresh
         else:
             QgsProject.instance().mapLayersByName(map_layer.label)[0].triggerRepaint()

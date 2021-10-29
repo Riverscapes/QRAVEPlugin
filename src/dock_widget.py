@@ -113,7 +113,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         expanded_states = {}
 
         def get_checked_state(idx, output=[]):
-            
+
             for idy in range(self.model.rowCount(idx)):
                 child = self.model.index(idy, 0, idx)
                 output = get_checked_state(child, output)
@@ -282,8 +282,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # Collapsed is an attribute set in the business logic
         # Never expand the QRaveBaseMap object becsause there's a network call involved
-        elif isinstance(item_data.data, QRaveBaseMap): #\
-                # or (isinstance(item_data.data, dict) and 'collapsed' in item_data.data and item_data.data['collapsed'] == 'true'):
+        elif isinstance(item_data.data, QRaveBaseMap):  # \
+            # or (isinstance(item_data.data, dict) and 'collapsed' in item_data.data and item_data.data['collapsed'] == 'true'):
             collapsed = True
 
         else:
@@ -294,7 +294,6 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         if not self.treeView.isExpanded(idx) and not collapsed and state is True:
             self.treeView.setExpanded(idx, True)
-
 
     def default_tree_action(self, idx: QModelIndex):
         if not idx.isValid():
