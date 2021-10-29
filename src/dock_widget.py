@@ -419,8 +419,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             QDesktopServices.openUrl(QUrl(url))
 
     def close_all(self):
-        for p in range(len(self.loaded_projects)):
-            self.close_project(self.loaded_projects[0])
+        if len(self.loaded_projects) > 0:
+            for p in range(len(self.loaded_projects)):
+                self.close_project(self.loaded_projects[0])
 
     def close_project(self, project: Project):
         """ Close the project

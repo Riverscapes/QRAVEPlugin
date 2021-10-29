@@ -357,16 +357,17 @@ class QRAVE:
     def closeAllProjects(self):
         """Close all open projects"""
         if self.dockwidget is not None:
-            msgBox = QMessageBox()
-            msgBox.setWindowTitle("Close All Riverscapes Projects?")
-            msgBox.setIcon(QMessageBox.Question)
-            msgBox.setText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
-            # msgBox.setInformativeText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
-            msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            msgBox.setDefaultButton(QMessageBox.No)
-            response = msgBox.exec_()
-            if response == QMessageBox.Yes:
-                self.dockwidget.close_all()
+            if len(self.dockwidget.loaded_projects) > 0:
+                msgBox = QMessageBox()
+                msgBox.setWindowTitle("Close All Riverscapes Projects?")
+                msgBox.setIcon(QMessageBox.Question)
+                msgBox.setText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
+                # msgBox.setInformativeText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
+                msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                msgBox.setDefaultButton(QMessageBox.No)
+                response = msgBox.exec_()
+                if response == QMessageBox.Yes:
+                    self.dockwidget.close_all()
 
     def locateResources(self):
         """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
