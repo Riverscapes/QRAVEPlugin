@@ -311,3 +311,11 @@ class QRaveMapLayer():
 
         lyr_ancestry.reverse()
         return lyr_ancestry
+
+    @staticmethod
+    def remove_project_from_map(project_name):
+
+        root = QgsProject.instance().layerTreeRoot()
+        for group in [child for child in root.children() if child.nodeType() == 0]:
+            if group.name() == project_name:
+                root.removeChildNode(group)

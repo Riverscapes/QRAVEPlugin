@@ -441,6 +441,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         project_name = project.qproject.text()
         qrave_projects = [(name, basename, xml) for name, basename, xml in qrave_projects if name != project_name]
 
+        QRaveMapLayer.remove_project_from_map(project_name)
+
         # Write the settings back to the project
         self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'qrave_projects', json.dumps(qrave_projects))
         self.loaded_projects = [loaded_project for loaded_project in self.loaded_projects if loaded_project.qproject.text() != project_name]

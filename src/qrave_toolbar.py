@@ -22,7 +22,7 @@ from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QMessageBox
 
 from .classes.settings import Settings, CONSTANTS
 from .classes.net_sync import NetSync
@@ -120,6 +120,12 @@ class QRAVE:
         self.openProjectAction.setStatusTip('Open QRAVE project')
         self.openProjectAction.setWhatsThis('Open QRAVE project')
 
+        self.closeAllProjectsAction = QAction(QIcon(':plugins/qrave_toolbar/collapse.png'), self.tr(u'Close All Riverscapes Projects'), self.iface.mainWindow())
+        self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
+
+        self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
+        self.closeAllProjectsAction.setWhatsThis('Close all open Riverscapes projects')
+
         self.helpButton = QToolButton()
         self.helpButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.helpButton.setMenu(QMenu())
@@ -187,6 +193,7 @@ class QRAVE:
 
         self.toolbar.addAction(self.openAction)
         self.toolbar.addAction(self.openProjectAction)
+        self.toolbar.addAction(self.closeAllProjectsAction)
         self.toolbar.addWidget(self.helpButton)
 
         # Do a check to see if the stored version is different than the current version
@@ -346,6 +353,20 @@ class QRAVE:
             if self.dockwidget is None or self.dockwidget.isHidden() is True:
                 self.toggle_widget(forceOn=True)
             self.dockwidget.add_project(dialog_return[0])
+
+    def closeAllProjects(self):
+        """Close all open projects"""
+        if self.dockwidget is not None:
+            msgBox = QMessageBox()
+            msgBox.setWindowTitle("Close All Riverscapes Projects?")
+            msgBox.setIcon(QMessageBox.Question)
+            msgBox.setText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
+            # msgBox.setInformativeText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
+            msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msgBox.setDefaultButton(QMessageBox.No)
+            response = msgBox.exec_()
+            if response == QMessageBox.Yes:
+                self.dockwidget.close_all()
 
     def locateResources(self):
         """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
