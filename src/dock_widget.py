@@ -131,6 +131,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 project_states = get_checked_state(self.model.indexFromItem(project.qproject), project_states)
                 expanded_states[project_name] = project_states
 
+        basemap_states = None
+        region = self.settings.getValue('basemapRegion')
+        if self.basemaps.regions is not None and len(self.basemaps.regions) > 0 :
+            basemap_states = []
+            basemap_states = get_checked_state(self.model.indexFromItem(self.basemaps.regions[region]), basemap_states)
+
         self.model.clear()
         self.loaded_projects = []
         qrave_projects = self.get_project_settings()
@@ -163,7 +169,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 and region is not None and len(region) > 0 \
                 and region in self.basemaps.regions.keys():
             self.model.appendRow(self.basemaps.regions[region])
-            self.expand_children_recursive(self.model.indexFromItem(self.basemaps.regions[region]))
+            if basemap_states is not None:
+                self.restore_expaned_state(self.model.indexFromItem(self.basemaps.regions[region]), basemap_states)
+            else:
+                self.expand_children_recursive(self.model.indexFromItem(self.basemaps.regions[region]))
 
     def get_project_settings(self):
         qrave_projects = []
