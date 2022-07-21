@@ -84,17 +84,21 @@ class Project:
     def _load_businesslogic(self):
         if self.project is None or self.project_type is None:
             return
+        # TODO Determine if V2 needed
 
         self.business_logic = None
 
         # Case-sensitive filename we expect
         bl_filename = '{}.xml'.format(self.project_type)
+        bl_file_dir = bl_filename
+        if self.project.attrib['{http://www.w3.org/2001/XMLSchema-instance}noNamespaceSchemaLocation'] == 'https://xml.riverscapes.xyz/Projects/XSD/V2/RiverscapesProject.xsd':
+            bl_file_dir = os.path.join('V2', bl_filename)
 
         hierarchy = [
             # 1. first check for a businesslogic file next to the project file
             parse_rel_path(os.path.join(os.path.dirname(self.project_xml_path), bl_filename)),
             # 2. Second, check the businesslogic we've got from the web
-            parse_rel_path(os.path.join(BL_XML_DIR, bl_filename)),
+            parse_rel_path(os.path.join(BL_XML_DIR, bl_file_dir)),
             # 3. Fall back to the default xml file
             parse_rel_path(os.path.join(BL_XML_DIR, 'default.xml'))
         ]
@@ -264,7 +268,7 @@ class Project:
             meta = self.extract_meta(new_proj_el.findall('MetaData/Meta'))
             new_proj_el.find('Path')
 
-            layer_name = None           
+            layer_name = None
 
             # If this is a geopackage it's special
             if new_proj_el.getparent().tag == 'Layers':
@@ -279,11 +283,11 @@ class Project:
                     self.settings.log("Could not find <Path> element on line {} of file: {}".format(new_proj_el.sourceline, self.business_logic_path), Qgis.Critical)
                     return
 
-            layer_uri = os.path.join(self.project_dir, new_proj_el.find('Path').text)
+            # layer_uri = os.path.join(self.project_dir, new_proj_el.find('Path').text)
             # If this is a geopackage it's special
-            if new_proj_el.getparent().tag == 'Layers':
-                layer_name = new_proj_el.find('Path').text
-                layer_uri = os.path.join(self.project_dir, new_proj_el.getparent().getparent().find('Path').text)
+            # if new_proj_el.getparent().tag == 'Layers':
+            #     layer_name = new_proj_el.find('Path').text
+            #     layer_uri = os.path.join(self.project_dir, new_proj_el.getparent().getparent().find('Path').text)
 
             layer_type = bl_attr['type'] if 'type' in bl_attr else 'unknown'
 
