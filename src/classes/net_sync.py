@@ -143,7 +143,8 @@ class NetSync(QgsTask):
             self.setProgress(self.progress)
 
         for remote_path, remote_md5 in businesslogics.items():
-            local_path = os.path.join(self.business_logic_xml_dir, os.path.basename(remote_path))
+            # local_path = os.path.join(self.business_logic_xml_dir, os.path.basename(remote_path))
+            local_path = os.path.join(self.business_logic_xml_dir, os.path.relpath(remote_path, "RaveBusinessLogic"))
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
                 QgsMessageLog.logMessage("BusinessLogic downloaded: {}".format(local_path), MESSAGE_CATEGORY, level=Qgis.Info)

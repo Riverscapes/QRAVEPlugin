@@ -45,6 +45,9 @@ def requestDownload(remote_url: str, local_path: str, expected_md5=None):
     # Get a file and put it somewhere local
     try:
         resp = requests.get(url=remote_url, timeout=15, headers={'Cache-Control': 'no-cache'})
+        local_dir = os.path.dirname(local_path)     # Excludes file name
+        if not os.path.exists(local_dir):
+            os.makedirs(local_dir)
         with open(local_path, 'wb') as lf:
             lf.write(resp.content)
 
@@ -53,7 +56,6 @@ def requestDownload(remote_url: str, local_path: str, expected_md5=None):
             os.remove(local_path)
             QgsMessageLog.logMessage("MD5 did not match expected for file: {}".format(remote_url), 'QRAVE', level=Qgis.Warning)
             return False
-        
 
     except requests.exceptions.Timeout:
         QgsMessageLog.logMessage("Fetching file timed out: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)

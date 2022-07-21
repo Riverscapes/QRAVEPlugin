@@ -264,11 +264,20 @@ class Project:
             meta = self.extract_meta(new_proj_el.findall('MetaData/Meta'))
             new_proj_el.find('Path')
 
-            layer_name = None
-            layer_path = new_proj_el.find('Path')
-            if layer_path is None:
-                self.settings.log("Could not find <Path> element on line {} of file: {}".format(new_proj_el.sourceline, self.business_logic_path), Qgis.Critical)
-                return
+            layer_name = None           
+
+            # If this is a geopackage it's special
+            if new_proj_el.getparent().tag == 'Layers':
+                # layer_name = new_proj_el.find('Path').text
+                layer_name = new_proj_el.attrib['lyrName']
+                layer_uri = os.path.join(self.project_dir, new_proj_el.getparent().getparent().find('Path').text)
+
+            else:
+                layer_uri = os.path.join(self.project_dir, new_proj_el.find('Path').text)
+                layer_path = new_proj_el.find('Path')
+                if layer_path is None:
+                    self.settings.log("Could not find <Path> element on line {} of file: {}".format(new_proj_el.sourceline, self.business_logic_path), Qgis.Critical)
+                    return
 
             layer_uri = os.path.join(self.project_dir, new_proj_el.find('Path').text)
             # If this is a geopackage it's special
