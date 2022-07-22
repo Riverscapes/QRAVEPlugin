@@ -12,9 +12,16 @@ from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
 from .rspaths import parse_rel_path
 from .settings import CONSTANTS, Settings
 
+import re
+
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 BL_XML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', CONSTANTS['businessLogicDir'])
+
+VERSIONS = {
+    "V1": "/V1/[a-zA-Z]+.xsd",
+    "V2": "/V2/RiverscapesProject.xsd",
+}
 
 
 class Project:
@@ -36,6 +43,7 @@ class Project:
         self.business_logic = None
         self.qproject = None
         self.project_dir = None
+        self.version = None
         self.exists = os.path.isfile(self.project_xml_path)
         if self.exists:
             self.project_dir = os.path.dirname(self.project_xml_path)
@@ -45,6 +53,20 @@ class Project:
         if self.exists is True:
             try:
                 self._load_project()
+                # Retrieving schema url from project xml
+                for attrib_key in self.project.attrib:
+                    if 'noNamespaceSchemaLocation' in attrib_key:
+                        schema_location_attrib = self.project.attrib[attrib_key]
+                    else:
+                        raise Exception('Error finding schema location in project')
+
+                if re.search(VERSIONS["V1"], schema_location_attrib):
+                    self.version = 'V1'
+                elif re.search(VERSIONS["V2"], schema_location_attrib):
+                    self.version = 'V2'
+                else:
+                    raise Exception("Error determining version of Riverscapes Project")
+
                 self._load_businesslogic()
                 self._build_tree()
                 self.loadable = True
@@ -89,15 +111,18 @@ class Project:
 
         # Case-sensitive filename we expect
         bl_filename = '{}.xml'.format(self.project_type)
-        bl_file_dir = bl_filename
-        if self.project.attrib['{http://www.w3.org/2001/XMLSchema-instance}noNamespaceSchemaLocation'] == 'https://xml.riverscapes.xyz/Projects/XSD/V2/RiverscapesProject.xsd':
-            bl_file_dir = os.path.join('V2', bl_filename)
+        if self.version == 'V1':
+            web_bl_filename = bl_filename
+        elif self.version == 'V2':
+            web_bl_filename = os.path.join('V2', bl_filename)
+        else:
+            raise Exception("Error: Unable to get web BusinessLogic filename from version")
 
         hierarchy = [
             # 1. first check for a businesslogic file next to the project file
             parse_rel_path(os.path.join(os.path.dirname(self.project_xml_path), bl_filename)),
             # 2. Second, check the businesslogic we've got from the web
-            parse_rel_path(os.path.join(BL_XML_DIR, bl_file_dir)),
+            parse_rel_path(os.path.join(BL_XML_DIR, web_bl_filename)),
             # 3. Fall back to the default xml file
             parse_rel_path(os.path.join(BL_XML_DIR, 'default.xml'))
         ]
@@ -271,10 +296,13 @@ class Project:
 
             # If this is a geopackage it's special
             if new_proj_el.getparent().tag == 'Layers':
-                if self.project.attrib['{http://www.w3.org/2001/XMLSchema-instance}noNamespaceSchemaLocation'] == 'https://xml.riverscapes.xyz/Projects/XSD/V2/RiverscapesProject.xsd':
+                if self.version == "V1":
+                    layer_name = new_proj_el.find('Path').text
+                elif self.version == "V2":
                     layer_name = new_proj_el.attrib['lyrName']
                 else:
-                    layer_name = new_proj_el.find('Path').text
+                    raise Exception("Error: Unable to get layer name from version")
+
                 layer_uri = os.path.join(self.project_dir, new_proj_el.getparent().getparent().find('Path').text)
 
             else:
