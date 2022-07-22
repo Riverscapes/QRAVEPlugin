@@ -84,7 +84,6 @@ class Project:
     def _load_businesslogic(self):
         if self.project is None or self.project_type is None:
             return
-        # TODO Determine if V2 needed
 
         self.business_logic = None
 
