@@ -89,6 +89,12 @@ After this is done you need to restart VSCode completely (not just relloading th
 
 3. Open up the `Workspaces/OSXDev.code-workspace` using VSCode. This file contains all the right environment variables necessary to find and work with QGIS python libraries.
 
+Launching the Qt designer:
+
+```bash
+$QGIS_PATH/Contents/MacOS/bin/designer 
+```
+
 
 ## Development resources
 
@@ -101,4 +107,19 @@ After this is done you need to restart VSCode completely (not just relloading th
 ## License
 
 Licensed under the [GNU General Public License Version 3](https://github.com/Riverscapes/RiverscapesToolbar/blob/master/LICENSE).
+
+## QT Designer
+
+On MacOS
+
+`/Applications/QGIS.app/Contents/MacOS/bin/designer`
+
+## Debugging
+
+1. Make sure the Plugin Reloader plugin is installed in QGIS.
+1. Start QGIS
+1. Click the Visual Studio Code button on the Plugins toolbar.
+1. Click the play button in Visual Studio Code for the "QGIS Debug" process. This will fail if the previous step was not performed.
+1. Drop a breakpoint.
+1. Cause the breakpoint to fire. VSCode should pause at the breakpoint.
 
