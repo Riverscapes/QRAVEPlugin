@@ -111,10 +111,8 @@ class Project:
 
         # Case-sensitive filename we expect
         bl_filename = '{}.xml'.format(self.project_type)
-        if self.version == 'V1':
-            web_bl_filename = bl_filename
-        elif self.version == 'V2':
-            web_bl_filename = os.path.join('V2', bl_filename)
+        if self.version == 'V1' or self.version == 'V2':
+            web_bl_filename = os.path.join(self.version, bl_filename)
         else:
             raise Exception("Error: Unable to get web BusinessLogic filename from version")
 
