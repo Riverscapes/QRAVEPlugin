@@ -120,7 +120,7 @@ class QRAVE:
         self.openProjectAction.setStatusTip('Open QRAVE project')
         self.openProjectAction.setWhatsThis('Open QRAVE project')
 
-        self.closeAllProjectsAction = QAction(QIcon(':plugins/qrave_toolbar/collapse.png'), self.tr(u'Close All Riverscapes Projects'), self.iface.mainWindow())
+        self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/collapse.png'), self.tr(u'Close All Riverscapes Projects'), self.iface.mainWindow())
         self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
 
         self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
