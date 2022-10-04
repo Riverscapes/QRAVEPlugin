@@ -124,7 +124,12 @@ class QRaveMapLayer():
         # Attempt to find the specified group in the parent
         thisGroup = parentGroup.findGroup(sGroupName)
         if not thisGroup:
-            thisGroup = parentGroup.insertGroup(sGroupOrder, sGroupName)
+
+            # Hack to ensure that basemaps are always added to the bottom of the ToC
+            if sGroupName == 'Basemaps' and sGroupOrder == 0 and parentGroup == QgsProject.instance().layerTreeRoot():
+                thisGroup = parentGroup.addGroup(sGroupName)
+            else:
+                thisGroup = parentGroup.insertGroup(sGroupOrder, sGroupName)
 
         return thisGroup
 
