@@ -145,14 +145,14 @@ class QRAVE:
         #     self.tr('Website'),
         #     self.iface.mainWindow()
         # )
-        # self.websiteAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz")))
+        # self.websiteAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.net")))
 
         self.helpAction = QAction(
             QIcon(':/plugins/qrave_toolbar/Help.png'),
             self.tr('Help'),
             self.iface.mainWindow()
         )
-        self.helpAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.xyz")))
+        self.helpAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("http://rave.riverscapes.net")))
 
         self.raveOptionsAction = QAction(
             QIcon(':/plugins/qrave_toolbar/Options.png'),
@@ -394,7 +394,7 @@ class QRAVE:
         """
         dialog = AboutDialog()
         if self.acknowledgements is None:
-            self.acknowledgements = requests.get('http://rave.riverscapes.xyz/dotnetack.html').text
+            self.acknowledgements = requests.get('http://rave.riverscapes.net/dotnetack.html').text
             print('hello')
 
         dialog.acknowledgements.setText(self.acknowledgements)

@@ -25,7 +25,7 @@ changelog=https://github.com/Riverscapes/QRAVEPlugin/blob/master/CHANGELOG.md
 # Tags are comma separated with spaces allowed
 tags=python,riverscapes,rave
 
-homepage=http://rave.riverscapes.xyz
+homepage=http://rave.riverscapes.net
 category=Plugins
 icon=icon.png
 
