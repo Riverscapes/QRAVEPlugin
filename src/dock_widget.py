@@ -133,7 +133,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         basemap_states = None
         region = self.settings.getValue('basemapRegion')
-        if self.basemaps.regions is not None and len(self.basemaps.regions) > 0 :
+        if self.basemaps.regions is not None and len(self.basemaps.regions) > 0:
             basemap_states = []
             basemap_states = get_checked_state(self.model.indexFromItem(self.basemaps.regions[region]), basemap_states)
 
@@ -419,10 +419,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if url is not None:
             QDesktopServices.openUrl(QUrl(url))
 
-    def layer_warehouse_view(self, data: QRaveMapLayer):
+    def layer_warehouse_view(self, data: ProjectTreeData):
         """Open this project in the warehouse if the warehouse meta entries exist
         """
-        url = self.get_warehouse_url(data.meta)
+        url = self.get_warehouse_url(data.data.meta)
         if url is not None:
             QDesktopServices.openUrl(QUrl(url))
 
