@@ -31,6 +31,8 @@ from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QM
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices
 from qgis.core import Qgis, QgsRasterLayer, QgsVectorLayer, QgsProject
 from qgis.PyQt import uic
+
+from .classes.rspaths import safe_make_abspath, safe_make_relpath
 from .ui.dock_widget import Ui_QRAVEDockWidgetBase
 from .meta_widget import MetaType
 from .classes.qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
@@ -61,8 +63,11 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         self.setupUi(self)
         self.menu = ContextMenu()
+        self.settings = Settings()
         self.qproject = QgsProject.instance()
         self.qproject.cleared.connect(self.close_all)
+
+        self.qproject.homePathChanged.connect(self.project_homePathChanged)
 
         self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
         self.treeView.customContextMenuRequested.connect(self.open_menu)
@@ -70,8 +75,6 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.treeView.clicked.connect(self.item_change)
 
         self.treeView.expanded.connect(self.expand_tree_item)
-
-        self.settings = Settings()
 
         # If a project fails to load we track it and don't autorefresh it.
         self.failed_loads = []
@@ -195,10 +198,32 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         except Exception as e:
             self.settings.log('Error loading project settings: {}'.format(e), Qgis.Warning)
 
+        qgs_path = self.qproject.absoluteFilePath()
+        if os.path.isfile(qgs_path):
+            qgs_path_dir = os.path.dirname(qgs_path)
+            # Change all relative paths back to absolute ones
+            qrave_projects = [(name, basename, safe_make_abspath(xml_path, qgs_path_dir)) for name, basename, xml_path in qrave_projects]
+
         return qrave_projects
 
+
+    @pyqtSlot()
+    def project_homePathChanged(self):
+        """Trigger an event before saving the project so we have an opportunity to corrent the paths
+        """
+        projects = self.get_project_settings()
+        self.set_project_settings(projects)
+
     def set_project_settings(self, projects: List[str]):
+        qgs_path = self.qproject.absoluteFilePath()
+        if projects and os.path.isdir(os.path.dirname(qgs_path)):
+            qgs_path_dir = os.path.dirname(qgs_path)
+            # Swap all abspaths for relative ones
+            projects = [(name, basename, safe_make_relpath(xml_path, qgs_path_dir)) for name, basename, xml_path in projects]
         self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'qrave_projects', json.dumps(projects))
+
+    def remove_project_settings(self):
+        self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'qrave_projects')
 
     @pyqtSlot()
     def add_project(self, xml_path: str):
@@ -429,7 +454,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             QDesktopServices.openUrl(QUrl(url))
 
     def close_all(self):
-        if len(self.loaded_projects) > 0:
+        if self.loaded_projects and len(self.loaded_projects) > 0:
             for p in range(len(self.loaded_projects)):
                 self.close_project(self.loaded_projects[0])
 
@@ -437,13 +462,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         """ Close the project
         """
         try:
-            qrave_projects_raw, type_conversion_ok = self.qproject.readEntry(
-                CONSTANTS['settingsCategory'],
-                'qrave_projects'
-            )
-            qrave_projects = json.loads(qrave_projects_raw)
-            if not type_conversion_ok or qrave_projects is None:
-                qrave_projects = []
+            qrave_projects = self.get_project_settings()
         except Exception as e:
             self.settings.log('Error closing project: {}'.format(e), Qgis.Warning)
             qrave_projects = []
@@ -455,7 +474,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         QRaveMapLayer.remove_project_from_map(project_name)
 
         # Write the settings back to the project
-        self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'qrave_projects', json.dumps(qrave_projects))
+        self.set_project_settings(qrave_projects)
         self.loaded_projects = [loaded_project for loaded_project in self.loaded_projects if loaded_project.qproject.text() != project_name]
         self.reload_tree()
 
