@@ -69,12 +69,13 @@ clone this repo to `qrave_toolbar_dev` so that `qrave_toolbar` is what gets used
 
 ## On OSX
 
-before you start you need to set an environment variable to tell VSCode where QGIS's version of python is. This will depend on which shell you're using (The default is bash but we tend to use zsh)
+before you start you need to set two environment variables to tell VSCode where QGIS's version of python is. This will depend on which shell you're using (The default is bash but we tend to use zsh)
 
 1. You need to add the following line at the bottom of your `~/.bashrc` or `~/.zshrc` file:
 
 ```bash
 export QGIS_PATH=/Applications/QGIS.app
+export QGIS_PLUGINS=/Users/USERNAME/Library/Application Support/QGIS/QGIS3/profiles/user/python/plugins
 ```
 
 ***NOTE: This path must not end in a slash and must match what's on your system. If you're using the LTR version of QGIS this path might be something like `/Applications/QGIS-LTR.app`***

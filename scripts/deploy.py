@@ -4,29 +4,29 @@ from glob import glob
 import shutil
 import re
 import zipfile
-
+import os
 
 PLUGIN_NAME = "qrave_toolbar"
 UI_DIR = "src/ui"
 
 
-def copy_plugin():
-    rootdir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    deployfolder = os.path.abspath(os.path.join(rootdir, '..', PLUGIN_NAME))
+def copy_plugin(plugin_dir: str):
+    source_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    deploy_dir = os.path.abspath(os.path.join(plugin_dir, PLUGIN_NAME))
 
-    if rootdir == deployfolder:
+    if deploy_dir == source_dir:
         print('deploy and source folders cannot be the same!')
         sys.exit(1)
 
-    print('Deploy to {}? (y/N)'.format(deployfolder))
+    print('Deploy to {}? (y/N)'.format(deploy_dir))
     yesno('Exiting')
 
-    if os.path.isdir(deployfolder):
-        print('Folder exists \n{}\n and will be deleted? Is this ok? (y/N)'.format(deployfolder))
+    if os.path.isdir(deploy_dir):
+        print('Folder exists \n{}\n and will be deleted? Is this ok? (y/N)'.format(deploy_dir))
         yesno('Go change the __version__.py file and come back')
-        shutil.rmtree(deployfolder)
+        shutil.rmtree(deploy_dir)
 
-    os.mkdir(deployfolder)
+    os.mkdir(deploy_dir)
     keep_patterns = [
         ['__version__.py'],
         ['icon.png'],
@@ -40,17 +40,17 @@ def copy_plugin():
     ]
     files = []
     for p in keep_patterns:
-        files += glob(os.path.join(rootdir, *p), recursive=True)
+        files += glob(os.path.join(source_dir, *p), recursive=True)
 
     for f in files:
-        dst = os.path.join(deployfolder, os.path.relpath(f, rootdir))
-        dst_dir = os.path.dirname(dst)
+        dst = os.path.normpath(os.path.join(deploy_dir, os.path.relpath(f, source_dir)))
+        dst_dir = os.path.normpath(os.path.dirname(dst))
         if not os.path.isdir(dst_dir):
             os.makedirs(dst_dir, exist_ok=True)
         shutil.copy(f, dst)
         print('\n{}\n{}\n'.format(f, dst))
 
-    return deployfolder
+    return deploy_dir
 
 
 def move_meta(deployfolder, version):
@@ -88,6 +88,13 @@ if __name__ == '__main__':
     print('Did the UI compile and you forgot to run "pb_tool compile" (y/N)')
     yesno('run "pb_tool compile" and then try again')
 
+    if 'QGIS_PLUGINS' not in os.environ:
+        raise Exception('QGIS_PLUGINS is not set. You should set it in your .bashrc or .zshrc file to something like .../QGIS/QGIS3/profiles/user/python/plugins')
+
+    plugin_dir = os.environ['QGIS_PLUGINS']
+    if len(plugin_dir) < 10 or not os.path.isdir(plugin_dir):
+        raise Exception('QGIS_PLUGINS is not a valid path')
+
     vfile = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '__version__.py'))
     version = re.search(
         '^__version__\\s*=\\s*"(.*)"',
@@ -98,7 +105,7 @@ if __name__ == '__main__':
     print('Current version is: {}. Is this ok? (y/N)'.format(version))
     yesno('Go change the __version__.py file and come back')
 
-    deployfolder = copy_plugin()
+    deployfolder = copy_plugin(plugin_dir)
 
     move_meta(deployfolder, version)
     zip_plugin(deployfolder, version)
