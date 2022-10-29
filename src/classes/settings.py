@@ -36,6 +36,7 @@ class Settings(SettingsBorg):
         SettingsBorg.__init__(self)
 
         # The iface is important as a pointer so we can get to the messagebar
+        self.iface = None
         if iface is not None and 'iface' not in self.__dict__:
             self.iface = iface
         if not self._initdone:

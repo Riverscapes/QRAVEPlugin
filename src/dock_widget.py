@@ -47,6 +47,8 @@ ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
 
 
 class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
+    """QGIS Plugin Implementation."""
+    layerMenuOpen = pyqtSignal(ContextMenu, QStandardItem, ProjectTreeData)
 
     closingPlugin = pyqtSignal()
     dataChange = pyqtSignal()
@@ -620,6 +622,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             self.menu.addAction('VIEW_WEB_SOURCE', lambda: self.layer_warehouse_view(item_data))
 
         self.menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
+        self.layerMenuOpen.emit(self.menu, item, item_data)
 
     def file_layer_context_menu(self, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
         self.menu.clear()

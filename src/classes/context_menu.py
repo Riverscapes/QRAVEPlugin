@@ -67,6 +67,13 @@ class ContextMenu(QMenu):
     #     self.menu = ContextMenu()
     #     super().__init__(self)
 
+    def addCustomAction(self, icon: QIcon, text: str, slot: pyqtSlot = None, enabled=True):
+        action = super().addAction(icon, text)
+        action.setEnabled(enabled)
+
+        if slot is not None:
+            action.triggered.connect(slot)
+
     def addAction(self, lookup: str, slot: pyqtSlot = None, enabled=True):
         if lookup not in self.MENUS:
             raise Exception('Menu not found')

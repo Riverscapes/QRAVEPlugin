@@ -20,7 +20,7 @@ import requests
 from qgis.utils import showPluginHelp
 from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis
 
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl, pyqtSignal
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QMessageBox
 
@@ -61,8 +61,8 @@ class QRAVE:
 
         self.pluginIsActive = False
 
-        self.dockwidget = None
-        self.metawidget = None
+        self.dockwidget = QRAVEDockWidget()
+        self.metawidget = QRAVEMetaWidget()
 
         # Populated on load from a URL
         self.acknowledgements = None
@@ -228,10 +228,8 @@ class QRAVE:
         # disconnects
         self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
         self.qproject.readProject.disconnect(self.onProjectLoad)
-        # remove this statement if dockwidget is to remain
-        # for reuse if plugin is reopened
-        self.dockwidget = None
 
+        # remove this statement if dockwidget is to remain
         self.pluginIsActive = False
 
     def unload(self):
@@ -254,19 +252,12 @@ class QRAVE:
         if not self.pluginIsActive:
             self.pluginIsActive = True
 
-            # dockwidget may not exist if:
-            #    first run of plugin
-            #    removed on close (see self.onClosePlugin method)
-            if self.dockwidget is None:
-                # Create the dockwidget (after translation) and keep reference
-                self.dockwidget = QRAVEDockWidget()
-                self.metawidget = QRAVEMetaWidget()
-                # Hook metadata changes up to the metawidget
-                self.dockwidget.metaChange.connect(self.metawidget.load)
+            # Hook metadata changes up to the metawidget
+            self.dockwidget.metaChange.connect(self.metawidget.load)
 
-                # Run a network sync operation to get the latest stuff. Don't force it.
-                #  This is just a quick check
-                self.net_sync_load()
+            # Run a network sync operation to get the latest stuff. Don't force it.
+            #  This is just a quick check
+            self.net_sync_load()
 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
