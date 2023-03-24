@@ -1,6 +1,7 @@
 ## 0.8.1 ***(March 24, 2023)***
 
 * Add framework for QRiS integration
+* Support for relative paths in project XML
 
 ## 0.5.1 ***(June 1, 2021)***
 
