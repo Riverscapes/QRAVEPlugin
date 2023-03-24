@@ -1,3 +1,7 @@
+## 0.8.1 ***(March 24, 2023)***
+
+* Add framework for QRiS integration
+
 ## 0.5.1 ***(June 1, 2021)***
 
 * Hotfix patch to allow for some new Riverscapes functionality
