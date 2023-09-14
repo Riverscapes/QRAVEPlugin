@@ -108,7 +108,7 @@ class QRAVE:
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
         self.qproject.readProject.connect(self.onProjectLoad)
 
-        self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), self.tr(u'Riverscapes Plugin (QRAVE)'), self.iface.mainWindow())
+        self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'), self.tr(u'Riverscapes Plugin (QRAVE)'), self.iface.mainWindow())
         self.openAction.triggered.connect(self.toggle_widget)
 
         self.openAction.setStatusTip('Toggle the project viewer')
@@ -176,7 +176,7 @@ class QRAVE:
         self.find_resources_action.triggered.connect(self.locateResources)
 
         self.about_action = QAction(
-            QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'),
+            QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'),
             self.tr('About QRAVE'),
             self.iface.mainWindow()
         )
