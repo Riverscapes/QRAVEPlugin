@@ -8,6 +8,8 @@
         <file alias="Options.png">../Images/Options.png</file>
         <file alias="RaveAddIn.png">../Images/RaveAddIn.png</file>
         <file alias="RaveAddIn_16px.png">../Images/RaveAddIn_16px.png</file>
+        <file alias="viewer-icon.svg">../Images/viewer-icon.svg</file>
+        <file alias="viewer-icon_24.png">../Images/viewer-icon_24.png</file>
         
         
         <file alias="refresh.png">../Images/refresh.png</file>

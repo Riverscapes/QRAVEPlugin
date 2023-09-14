@@ -1,5 +1,5 @@
 import os
-from qgis.PyQt import uic
+from qgis.PyQt import uic, QtGui
 from qgis.PyQt.QtWidgets import QDialog
 from qgis.PyQt.QtGui import QPixmap
 from qgis.PyQt.QtCore import pyqtSignal
@@ -24,8 +24,10 @@ class AboutDialog(QDialog, Ui_Dialog):
         QDialog.__init__(self, parent)
         self.setupUi(self)
 
-        pixmap = QPixmap(':/plugins/qrave_toolbar/RaveAddIn.png').scaled(128, 128)
+        pixmap = QtGui.QIcon(':/plugins/qrave_toolbar/viewer-icon.svg').pixmap(128, 128)
         self.logo.setPixmap(pixmap)
+
+        self.setWindowTitle("About QRave Toolbar")
         self.website.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['webUrl']))
         self.issues.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['issueUrl']))
         self.changelog.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['changelogUrl']))
