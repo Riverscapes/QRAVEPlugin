@@ -36,4 +36,4 @@ class Ui_QRAVEDockWidgetBase(object):
 
     def retranslateUi(self, QRAVEDockWidgetBase):
         _translate = QtCore.QCoreApplication.translate
-        QRAVEDockWidgetBase.setWindowTitle(_translate("QRAVEDockWidgetBase", "Riverscapes Toolbar (QRAVE)"))
+        QRAVEDockWidgetBase.setWindowTitle(_translate("QRAVEDockWidgetBase", "Riverscapes Viewer"))

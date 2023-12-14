@@ -3,7 +3,7 @@
 # This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=Riverscapes Plugin (QRAVE) DEV_COPY
+name=Riverscapes Viewer DEV_COPY
 qgisMinimumVersion=3.0
 description=Explore symbolized Riverscapes projects
 version=0.0.0dev

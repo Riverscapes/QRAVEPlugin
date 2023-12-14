@@ -84,11 +84,11 @@ class QRAVE:
 
         # Declare instance attributes
         self.actions = []
-        self.menu = self.tr(u'&Riverscapes Plugin (QRAVE)')
+        self.menu = self.tr(u'&Riverscapes Viewer Plugin')
 
         # TODO: We are going to let the user set this up in a future iteration
-        self.toolbar = self.iface.addToolBar(u'QRAVE')
-        self.toolbar.setObjectName(u'QRAVE')
+        self.toolbar = self.iface.addToolBar(u'Riverscapes Viewer')
+        self.toolbar.setObjectName(u'Riverscapes Viewer')
 
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
@@ -108,7 +108,7 @@ class QRAVE:
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
         self.qproject.readProject.connect(self.onProjectLoad)
 
-        self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'), self.tr(u'Riverscapes Plugin (QRAVE)'), self.iface.mainWindow())
+        self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'), self.tr(u'Riverscapes Viewer'), self.iface.mainWindow())
         self.openAction.triggered.connect(self.toggle_widget)
 
         self.openAction.setStatusTip('Toggle the project viewer')
@@ -117,10 +117,10 @@ class QRAVE:
         self.openProjectAction = QAction(QIcon(':/plugins/qrave_toolbar/OpenProject.png'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
         self.openProjectAction.triggered.connect(self.projectBrowserDlg)
 
-        self.openProjectAction.setStatusTip('Open QRAVE project')
-        self.openProjectAction.setWhatsThis('Open QRAVE project')
+        self.openProjectAction.setStatusTip('Open Riverscapes project')
+        self.openProjectAction.setWhatsThis('Open Riverscapes project')
 
-        self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/collapse.png'), self.tr(u'Close All Riverscapes Projects'), self.iface.mainWindow())
+        self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/close.png'), self.tr(u'Close All Riverscapes Projects'), self.iface.mainWindow())
         self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
 
         self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
@@ -177,7 +177,7 @@ class QRAVE:
 
         self.about_action = QAction(
             QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'),
-            self.tr('About QRAVE'),
+            self.tr('About Riverscapes Viewer'),
             self.iface.mainWindow()
         )
         self.about_action.triggered.connect(self.about_load)
@@ -204,7 +204,7 @@ class QRAVE:
         self.net_sync_load(force=versionChange)
 
         if versionChange:
-            QgsMessageLog.logMessage("Version change detected: {} ==> {}".format(lastVersion, __version__), 'QRAVE', level=Qgis.Info)
+            QgsMessageLog.logMessage("Version change detected: {} ==> {}".format(lastVersion, __version__), 'Riverscapes Viewer', level=Qgis.Info)
             self.settings.setValue('pluginVersion', __version__)
 
     def onProjectLoad(self, doc):
@@ -241,7 +241,7 @@ class QRAVE:
 
         for action in self.actions:
             self.iface.removePluginMenu(
-                self.tr(u'&Riverscapes Plugin (QRAVE)'),
+                self.tr(u'&Riverscapes Viewer Plugin'),
                 action)
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
@@ -295,7 +295,7 @@ class QRAVE:
         plugin_init = self.settings.getValue('initialized')
         autoUpdate = self.settings.getValue('autoUpdate')
 
-        self.netsync = NetSync('Sync QRAVE resource files')
+        self.netsync = NetSync('Sync Riverscapes resource files')
 
         perform_sync = False
 

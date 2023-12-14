@@ -27,7 +27,7 @@ class AboutDialog(QDialog, Ui_Dialog):
         pixmap = QtGui.QIcon(':/plugins/qrave_toolbar/viewer-icon.svg').pixmap(128, 128)
         self.logo.setPixmap(pixmap)
 
-        self.setWindowTitle("About QRave Toolbar")
+        self.setWindowTitle("About Riverscapes Viewer")
         self.website.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['webUrl']))
         self.issues.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['issueUrl']))
         self.changelog.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['changelogUrl']))
