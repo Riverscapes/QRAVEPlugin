@@ -1,25 +1,23 @@
 <RCC>
     <qresource prefix="/plugins/qrave_toolbar">
 
-        <file alias="BrowseFolder.png">../Images/BrowseFolder.png</file>
-        <file alias="Help.png">../Images/Help.png</file>
-        <file alias="NewProject.png">../Images/NewProject.png</file>
-        <file alias="OpenProject.png">../Images/OpenProject.png</file>
-        <file alias="Options.png">../Images/Options.png</file>
-        <file alias="RaveAddIn.png">../Images/RaveAddIn.png</file>
-        <file alias="RaveAddIn_16px.png">../Images/RaveAddIn_16px.png</file>
+        <file alias="BrowseFolder.png">../Images/folder.svg</file>
+        <file alias="Help.png">../Images/help.svg</file>
+        <file alias="NewProject.png">../Images/add.svg</file>
+        <file alias="OpenProject.png">../Images/open.svg</file>
+        <file alias="Options.png">../Images/settings.svg</file>
         <file alias="viewer-icon.svg">../Images/viewer-icon.svg</file>
         <file alias="viewer-icon_24.png">../Images/viewer-icon_24.png</file>
         
         
-        <file alias="refresh.png">../Images/refresh.png</file>
+        <file alias="refresh.png">../Images/refresh.svg</file>
         <file alias="project_view.png">../Images/project_view.png</file>
         <file alias="tree.png">../Images/tree.png</file>
-        <file alias="expand.png">../Images/expand.png</file>
-        <file alias="collapse.png">../Images/collapse.png</file>
-        <file alias="AddToMap.png">../Images/AddToMap.png</file>
-        <file alias="metadata.png">../Images/metadata.png</file>
-        <file alias="close.png">../Images/close.png</file>
+        <file alias="expand.png">../Images/expand.svg</file>
+        <file alias="collapse.png">../Images/collapse.svg</file>
+        <file alias="AddToMap.png">../Images/add_to_map.svg</file>
+        <file alias="metadata.png">../Images/metadata.svg</file>
+        <file alias="close.png">../Images/close.svg</file>
 
 
         <!-- Layer icons -->
@@ -28,6 +26,7 @@
         <file alias="layers/Polygon.png">../Images/layers/Polygon16.png</file>
         <file alias="layers/Polyline.png">../Images/layers/Polyline16.png</file>
         <file alias="layers/Raster.png">../Images/layers/Raster16.png</file>
+        <file alias="layers/basemap.svg">../Images/layers/basemap.svg</file>
 
     </qresource>
 </RCC>

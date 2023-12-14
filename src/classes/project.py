@@ -284,7 +284,7 @@ class Project:
             elif bl_type == 'raster':
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/Raster.png'))
             else:
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'))
+                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/viewer-icon_24.png'))
 
             # Couldn't find this node. Ignore it.
             meta = self.extract_meta(new_proj_el.findall('MetaData/Meta'))

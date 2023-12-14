@@ -145,7 +145,7 @@ class BaseMaps(Borg):
         # Parse the XML
         try:
             for region in lxml.etree.parse(BASEMAPS_XML_PATH).getroot().findall('Region'):
-                q_region = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), 'Basemaps')
+                q_region = QStandardItem(QIcon(':/plugins/qrave_toolbar/layers/basemap.svg'), 'Basemaps')
                 q_region.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_ROOT), Qt.UserRole),
                 self.regions[region.attrib['name']] = q_region
 
@@ -160,7 +160,8 @@ class BaseMaps(Borg):
                         tile_type = layer.attrib['type'] if 'type' in layer.attrib else 'wms'
                         layer_url = layer.attrib['url']
 
-                        q_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'), layer_label)
+                        icon = 'BrowseFolder.png' if tile_type == 'wms' else 'layers/Raster.png'
+                        q_layer = QStandardItem(QIcon(f':/plugins/qrave_toolbar/{icon}'), layer_label)
 
                         meta = {meta.attrib['name']: meta.text for meta in layer.findall('Metadata/Meta')}
 
