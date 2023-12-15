@@ -127,7 +127,7 @@ class Ui_Dialog(object):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
         self.logo.setText(_translate("Dialog", "LOGO"))
-        self.label_2.setText(_translate("Dialog", "River Analysis and Viewer Explorer for QGIS (QRAVE)"))
+        self.label_2.setText(_translate("Dialog", "Riverscapes Viewer Plugin for QGIS"))
         self.version.setText(_translate("Dialog", "Version:"))
         self.groupBox_2.setTitle(_translate("Dialog", "Support"))
         self.website.setText(_translate("Dialog", "..."))

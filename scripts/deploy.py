@@ -6,7 +6,7 @@ import re
 import zipfile
 import os
 
-PLUGIN_NAME = "qrave_toolbar"
+PLUGIN_NAME = "riverscapes_viewer"
 UI_DIR = "src/ui"
 
 

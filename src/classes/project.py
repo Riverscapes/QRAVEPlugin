@@ -187,7 +187,7 @@ class Project:
             if name is None or view_id is None:
                 continue
 
-            view_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/project_view.png'), name)
+            view_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/view.svg'), name)
             view_layer_ids = [layer.attrib['id'] for layer in view.findall('Layers/Layer')]
             self.views[view_id] = view_layer_ids
             view_item.setData(
@@ -244,10 +244,11 @@ class Project:
 
         # If there are children then this is a branch
         if children_container is not None:
-            curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'))
             if is_root is True:
+                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'))
                 curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self, data=dict(children_container.attrib)), Qt.UserRole),
             else:
+                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'))
                 curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data=dict(children_container.attrib)), Qt.UserRole),
 
             for child_node in children_container.xpath('*'):
@@ -283,8 +284,12 @@ class Project:
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/MultiDot.png'))
             elif bl_type == 'raster':
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/Raster.png'))
+            elif bl_type == 'file':
+                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/draft.svg'))
+            elif bl_type == 'report':
+                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/description.svg'))
             else:
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'))
+                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/viewer-icon.png'))
 
             # Couldn't find this node. Ignore it.
             meta = self.extract_meta(new_proj_el.findall('MetaData/Meta'))

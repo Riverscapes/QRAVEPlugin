@@ -11,7 +11,7 @@ class ContextMenu(QMenu):
         ),
         'COLLAPSE_ALL': (
             "Collapse All Child Nodes",
-            ':/plugins/qrave_toolbar/expand.png',
+            ':/plugins/qrave_toolbar/collapse.png',
         ),
         'ADD_ALL_TO_MAP': (
             "Add All Layers To The Map",
@@ -27,7 +27,7 @@ class ContextMenu(QMenu):
         ),
         'OPEN_FILE': (
             'Open File',
-            ':/plugins/qrave_toolbar/RaveAddIn_16px.png'
+            ':/plugins/qrave_toolbar/open.svg'
         ),
         'BROWSE_FOLDER': (
             'Browse Folder',
