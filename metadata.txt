@@ -10,7 +10,7 @@ version=0.0.0dev
 author=North Arrow Research
 email=info@northarrowresearch.com
 
-about=RAVE AddIn is part of the Riverscapes Consortium’s much larger family of tools for analyzing riverscapes. RAVE itself does not do any analysis, but allows exploring of any Riverscapes-compliant project. Rave provides an explorer in which you can navigate the “project tree”, and add any layer to map symbolized appropriately.
+about=The Riverscapes Viewer Plugin is part of the Riverscapes Consortium’s much larger family of tools for analyzing riverscapes. The Riverscapes Viewer Plugin itself does not do any analysis, but allows exploring of any Riverscapes-compliant project. Rave provides an explorer in which you can navigate the “project tree”, and add any layer to map symbolized appropriately.
 
 tracker=https://github.com/Riverscapes/QRAVEPlugin/issues
 repository=https://github.com/Riverscapes/QRAVEPlugin
