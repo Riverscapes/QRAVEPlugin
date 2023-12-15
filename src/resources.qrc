@@ -4,14 +4,11 @@
         <file alias="BrowseFolder.png">../Images/folder.svg</file>
         <file alias="Help.png">../Images/help.svg</file>
         <file alias="NewProject.png">../Images/add.svg</file>
-        <file alias="OpenProject.png">../Images/open.svg</file>
+        <file alias="open.svg">../Images/open.svg</file>
         <file alias="Options.png">../Images/settings.svg</file>
         <file alias="viewer-icon.svg">../Images/viewer-icon.svg</file>
-        <file alias="viewer-icon_24.png">../Images/viewer-icon_24.png</file>
-        
-        
+
         <file alias="refresh.png">../Images/refresh.svg</file>
-        <file alias="project_view.png">../Images/project_view.png</file>
         <file alias="tree.png">../Images/tree.png</file>
         <file alias="expand.png">../Images/expand.svg</file>
         <file alias="collapse.png">../Images/collapse.svg</file>
@@ -19,6 +16,10 @@
         <file alias="metadata.png">../Images/metadata.svg</file>
         <file alias="close.png">../Images/close.svg</file>
 
+        <file alias="description.svg">../Images/description.svg</file>
+        <file alias="draft.svg">../Images/draft.svg</file>
+        <file alias="summarize.svg">../Images/summarize.svg</file>
+        <file alias="view.svg">../Images/view.svg</file>
 
         <!-- Layer icons -->
         <file alias="layers/Dot.png">../Images/layers/Dot16.png</file>
@@ -27,6 +28,7 @@
         <file alias="layers/Polyline.png">../Images/layers/Polyline16.png</file>
         <file alias="layers/Raster.png">../Images/layers/Raster16.png</file>
         <file alias="layers/basemap.svg">../Images/layers/basemap.svg</file>
+        <file alias="layers/satellite.svg">../Images/layers/satellite.svg</file>
 
     </qresource>
 </RCC>

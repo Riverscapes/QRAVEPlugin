@@ -27,7 +27,7 @@ class ContextMenu(QMenu):
         ),
         'OPEN_FILE': (
             'Open File',
-            ':/plugins/qrave_toolbar/RaveAddIn_16px.png'
+            ':/plugins/qrave_toolbar/open.svg'
         ),
         'BROWSE_FOLDER': (
             'Browse Folder',

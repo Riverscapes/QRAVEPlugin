@@ -160,7 +160,7 @@ class BaseMaps(Borg):
                         tile_type = layer.attrib['type'] if 'type' in layer.attrib else 'wms'
                         layer_url = layer.attrib['url']
 
-                        icon = 'BrowseFolder.png' if tile_type == 'wms' else 'layers/Raster.png'
+                        icon = 'BrowseFolder.png' if tile_type == 'wms' else 'layers/satellite.svg'
                         q_layer = QStandardItem(QIcon(f':/plugins/qrave_toolbar/{icon}'), layer_label)
 
                         meta = {meta.attrib['name']: meta.text for meta in layer.findall('Metadata/Meta')}

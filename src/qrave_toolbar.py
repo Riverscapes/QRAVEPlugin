@@ -114,7 +114,7 @@ class QRAVE:
         self.openAction.setStatusTip('Toggle the project viewer')
         self.openAction.setWhatsThis('Toggle the project viewer')
 
-        self.openProjectAction = QAction(QIcon(':/plugins/qrave_toolbar/OpenProject.png'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
+        self.openProjectAction = QAction(QIcon(':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
         self.openProjectAction.triggered.connect(self.projectBrowserDlg)
 
         self.openProjectAction.setStatusTip('Open Riverscapes project')
