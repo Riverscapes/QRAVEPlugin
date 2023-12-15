@@ -1,3 +1,8 @@
+## 0.9.0 ***(December 15, 2023)***
+
+* Refresh QRAVE as Riverscapes Viewer
+* logo and icon changes
+
 ## 0.8.1 ***(March 24, 2023)***
 
 * Add framework for QRiS integration
