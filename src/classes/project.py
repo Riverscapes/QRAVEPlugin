@@ -73,9 +73,9 @@ class Project:
                 if self.load_errs is False:
                     self.settings.msg_bar('Project Loaded', self.project_xml_path, Qgis.Success)
                 else:
-                    self.settings.msg_bar('Project Loaded with errors', "(See QRAVE logs for details)", Qgis.Critical)
+                    self.settings.msg_bar('Project Loaded with errors', "(See Riverscapes Viewer logs for details)", Qgis.Critical)
             except Exception as e:
-                self.settings.msg_bar("Error loading project", "Project: {}\n (See QRAVE logs for specifics)".format(self.project_xml_path),
+                self.settings.msg_bar("Error loading project", "Project: {}\n (See Riverscapes Viewer logs for specifics)".format(self.project_xml_path),
                                       Qgis.Critical)
                 self.settings.log("Exception {}\n\nTrace: {}".format(e, traceback.format_exc()), Qgis.Critical)
         else:
