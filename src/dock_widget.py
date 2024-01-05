@@ -124,6 +124,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 output = get_checked_state(child, output)
 
             item = self.model.itemFromIndex(idx)
+            if item is None:
+                return output
             expanded = self.treeView.isExpanded(idx)
             output.append((item.text(), expanded))
 
