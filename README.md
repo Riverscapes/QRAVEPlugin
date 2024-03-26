@@ -104,6 +104,11 @@ $QGIS_PATH/Contents/MacOS/bin/designer
 * [Qt for Python](https://doc.qt.io/qtforpython-5/) - Qt is a C++ library so you need to specify the Python docs. This is where you find help with things like QtGui and QtWidgets
 
 
+## Buildsing the UI files
+
+```
+pyuic5 -x input.ui -o output.py
+```
 
 ## License
 
