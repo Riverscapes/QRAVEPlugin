@@ -57,10 +57,7 @@ class NetSync(QgsTask):
         return True
 
     def cancel(self):
-        QgsMessageLog.logMessage(
-            'Net Sync "{name}" was canceled'.format(
-                name=self.description()),
-            MESSAGE_CATEGORY, Qgis.Info)
+        QgsMessageLog.logMessage('Net Sync "{name}" was canceled'.format(name=self.description()), MESSAGE_CATEGORY, Qgis.Info)
         super().cancel()
 
     def finished(self, result=None):
