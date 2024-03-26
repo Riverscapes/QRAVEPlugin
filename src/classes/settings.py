@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import html
-
+from qgis.core import QgsAuthMethodConfig, QgsApplication
 from qgis.core import QgsMessageLog, Qgis, QgsProject, QgsSettings
 
 with open(os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')) as cfg_file:
@@ -14,6 +14,7 @@ CONSTANTS = cfg_json['constants']
 
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
+AUTH_CONFIG_NAME = "RiverscapesDataExchangeToken"
 
 
 class SettingsBorg(object):
@@ -67,7 +68,8 @@ class Settings(SettingsBorg):
             self.iface.messageBar().pushMessage(title, msg, level=level, duration=duration)
         # Fall back to regular logging
         else:
-            QgsMessageLog.logMessage("{}: {}".format(title, msg), MESSAGE_CATEGORY, level=level)
+            QgsMessageLog.logMessage("{}: {}".format(
+                title, msg), MESSAGE_CATEGORY, level=level)
 
     def resetAllSettings(self):
         for key in _DEFAULTS.keys():
@@ -101,4 +103,48 @@ class Settings(SettingsBorg):
         """
         # Set it in the file
         self.s.setValue(key, json.dumps({"v": value}))
-        self.log("SETTINGS SET: {}={} of type '{}'".format(key, value, html.escape(str(type(value)))), level=Qgis.Info)
+        self.log("SETTINGS SET: {}={} of type '{}'".format(
+            key, value, html.escape(str(type(value)))), level=Qgis.Info)
+
+
+class SecureSettings(SettingsBorg):
+    def __init__(self):
+        if not self._initdone:
+            self.authMgr = QgsApplication.authManager()
+
+            # Must be the last thing we do in init
+            self._initdone = True
+
+    def store_token(self, token: str) -> None:
+        """ Store the token in the auth manager
+
+        Args:
+            token (str): _description_
+        """
+        config = QgsAuthMethodConfig()
+        config.setMethod("Basic")
+        config.setName(AUTH_CONFIG_NAME)
+        # config.setUri("https://api.riverscapes.org")
+        config.setConfig("token", token)
+
+        self.authMgr.storeAuthenticationConfig(config)
+
+    def retrieve_token(self) -> str:
+        """ Retrieve the token from the auth manager
+
+        Returns:
+            str: The bearer token
+        """
+        config = QgsAuthMethodConfig()
+        ok = self.authMgr.loadAuthenticationConfig(AUTH_CONFIG_NAME, config, True)
+
+        if ok:
+            token = config.config('token')
+            return token
+        else:
+            return None
+
+    def delete_token(self):
+        """ Delete the token from the auth manager
+        """
+        self.authMgr.deleteAuthenticationConfig(AUTH_CONFIG_NAME)

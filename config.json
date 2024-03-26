@@ -20,6 +20,13 @@
         "webUrl": "https://viewer.riverscapes.net",
         "issueUrl": "https://github.com/Riverscapes/QRAVEPlugin/issues",
         "changelogUrl": "https://github.com/Riverscapes/QRAVEPlugin/releases",
-        "resourcesUrl": "https://xml.riverscapes.net/"
+        "resourcesUrl": "https://xml.riverscapes.net/",
+        "apiUrl": "https://api.riverscapes.net/",
+        "apiAuth": {
+          "domain": "riverscapes.auth0.com",
+          "clientId": "pH1ADlGVi69rMozJS1cixkuL5DMVLhKC",
+          "scope": "openid",
+          "port": 4721
+        }
     }
 }

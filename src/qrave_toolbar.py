@@ -24,7 +24,7 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl,
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QMessageBox
 
-from .classes.settings import Settings, CONSTANTS
+from .classes.settings import Settings, SecureSettings, CONSTANTS
 from .classes.net_sync import NetSync
 from .classes.basemaps import BaseMaps
 
@@ -76,6 +76,7 @@ class QRAVE:
             'i18n',
             'QRAVE_{}.qm'.format(locale))
         self.settings = Settings(iface=self.iface)
+        self.secure_settings = SecureSettings()
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -108,23 +109,28 @@ class QRAVE:
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
         self.qproject.readProject.connect(self.onProjectLoad)
 
-        self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'), self.tr(u'Riverscapes Viewer'), self.iface.mainWindow())
+        self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'),
+                                  self.tr(u'Riverscapes Viewer'), self.iface.mainWindow())
         self.openAction.triggered.connect(self.toggle_widget)
 
         self.openAction.setStatusTip('Toggle the project viewer')
         self.openAction.setWhatsThis('Toggle the project viewer')
 
-        self.openProjectAction = QAction(QIcon(':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
+        self.openProjectAction = QAction(QIcon(
+            ':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
         self.openProjectAction.triggered.connect(self.projectBrowserDlg)
 
         self.openProjectAction.setStatusTip('Open Riverscapes project')
         self.openProjectAction.setWhatsThis('Open Riverscapes project')
 
-        self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/close.png'), self.tr(u'Close All Riverscapes Projects'), self.iface.mainWindow())
+        self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/close.png'), self.tr(
+            u'Close All Riverscapes Projects'), self.iface.mainWindow())
         self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
 
-        self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
-        self.closeAllProjectsAction.setWhatsThis('Close all open Riverscapes projects')
+        self.closeAllProjectsAction.setStatusTip(
+            'Close all open Riverscapes projects')
+        self.closeAllProjectsAction.setWhatsThis(
+            'Close all open Riverscapes projects')
 
         self.helpButton = QToolButton()
         self.helpButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
@@ -166,7 +172,8 @@ class QRAVE:
             self.tr('Update resources'),
             self.iface.mainWindow()
         )
-        self.net_sync_action.triggered.connect(lambda: self.net_sync_load(force=True))
+        self.net_sync_action.triggered.connect(
+            lambda: self.net_sync_load(force=True))
 
         self.find_resources_action = QAction(
             QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'),
@@ -204,7 +211,8 @@ class QRAVE:
         self.net_sync_load(force=versionChange)
 
         if versionChange:
-            QgsMessageLog.logMessage("Version change detected: {} ==> {}".format(lastVersion, __version__), 'Riverscapes Viewer', level=Qgis.Info)
+            QgsMessageLog.logMessage("Version change detected: {} ==> {}".format(
+                lastVersion, __version__), 'Riverscapes Viewer', level=Qgis.Info)
             self.settings.setValue('pluginVersion', __version__)
 
     def onProjectLoad(self, doc):
@@ -279,7 +287,8 @@ class QRAVE:
             self.metawidget.hide()
 
         if self.dockwidget is not None and not self.dockwidget.isHidden():
-            self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'enabled', True)
+            self.qproject.writeEntry(
+                CONSTANTS['settingsCategory'], 'enabled', True)
         else:
             self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'enabled')
 
@@ -333,9 +342,11 @@ class QRAVE:
         :return:
         """
         last_browse_path = self.settings.getValue('lastBrowsePath')
-        last_dir = os.path.dirname(last_browse_path) if last_browse_path is not None else None
+        last_dir = os.path.dirname(
+            last_browse_path) if last_browse_path is not None else None
 
-        dialog_return = QFileDialog.getOpenFileName(self.dockwidget, "Open a Riverscapes project", last_dir, self.tr("Riverscapes Project files (project.rs.xml)"))
+        dialog_return = QFileDialog.getOpenFileName(
+            self.dockwidget, "Open a Riverscapes project", last_dir, self.tr("Riverscapes Project files (project.rs.xml)"))
         if dialog_return is not None and len(dialog_return[0]) > 0:
             # Remember this path for next time
             self.settings.setValue('lastBrowsePath', dialog_return[0])
@@ -352,7 +363,8 @@ class QRAVE:
                 msgBox = QMessageBox()
                 msgBox.setWindowTitle("Close All Riverscapes Projects?")
                 msgBox.setIcon(QMessageBox.Question)
-                msgBox.setText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
+                msgBox.setText(
+                    "Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
                 # msgBox.setInformativeText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
                 msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
                 msgBox.setDefaultButton(QMessageBox.No)
