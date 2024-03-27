@@ -12,12 +12,15 @@ import hashlib
 import base64
 import logging
 import requests
-
+from .settings import CONSTANTS
 # Disable all the weird terminal noise from urllib3
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("urllib3").propagate = False
 
 CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
+
+# BASE is the name we want to use inside the settings keys
+MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 
 class GraphQLAPIException(Exception):
@@ -78,7 +81,7 @@ class GraphQLAPI():
         self.shutdown()
 
     def log(self, msg: str, level: Qgis.MessageLevel = Qgis.Info):
-        QgsMessageLog.logMessage(msg, 'QRAVE', level=level)
+        QgsMessageLog.logMessage(msg, MESSAGE_CATEGORY, level=level)
 
     def _generate_challenge(self, code: str) -> str:
         return self._base64_url(hashlib.sha256(code.encode('utf-8')).digest())
@@ -310,29 +313,11 @@ class GraphQLAPI():
         """
         headers = {"authorization": "Bearer " +
                    self.access_token} if self.access_token else {}
-        
 
-        class NetworkRequestTask(QgsTask):
-            def __init__(self, uri, query, variables, headers):
-                super().__init__('Network request', QgsTask.CanCancel)
-                self.uri = uri
-                self.query = query
-                self.variables = variables
-                self.headers = headers
-
-            def run(self):
-                request = requests.post(self.uri, json={
-                    'query': self.query,
-                    'variables': self.variables
-                }, headers=self.headers, timeout=30)
-                # Handle the response here
-                # ...
-                return True
-
-                request = requests.post(self.uri, json={
-                    'query': query,
-                    'variables': variables
-                }, headers=headers, timeout=30)
+        request = requests.post(self.uri, json={
+            'query': query,
+            'variables': variables
+        }, headers=headers, timeout=30)
 
         if request.status_code == 200:
             resp_json = request.json()

@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.resize(343, 710)
+        Dialog.resize(411, 750)
         self.verticalLayout = QtWidgets.QVBoxLayout(Dialog)
         self.verticalLayout.setObjectName("verticalLayout")
         self.projectNameLayout = QtWidgets.QHBoxLayout()
@@ -42,6 +42,7 @@ class Ui_Dialog(object):
         self.projectPathLable.setObjectName("projectPathLable")
         self.projectPathLayout.addWidget(self.projectPathLable)
         self.projectPathValue = QtWidgets.QLabel(Dialog)
+        self.projectPathValue.setMaximumSize(QtCore.QSize(16777215, 16777215))
         font = QtGui.QFont()
         font.setPointSize(13)
         font.setItalic(False)
@@ -164,6 +165,9 @@ class Ui_Dialog(object):
         self.openWebProjectBtn = QtWidgets.QPushButton(Dialog)
         self.openWebProjectBtn.setObjectName("openWebProjectBtn")
         self.verticalLayout.addWidget(self.openWebProjectBtn)
+        self.errorLable = QtWidgets.QLabel(Dialog)
+        self.errorLable.setObjectName("errorLable")
+        self.verticalLayout.addWidget(self.errorLable)
         self.actionBtnLayout = QtWidgets.QHBoxLayout()
         self.actionBtnLayout.setObjectName("actionBtnLayout")
         self.actionBtnBox = QtWidgets.QDialogButtonBox(Dialog)
@@ -213,3 +217,4 @@ class Ui_Dialog(object):
         self.progressLabel.setText(_translate("Dialog", "Progress"))
         self.progressSubLabel.setText(_translate("Dialog", "Uploading vbet.gpkg"))
         self.openWebProjectBtn.setText(_translate("Dialog", "View In Data Exchange"))
+        self.errorLable.setText(_translate("Dialog", "Error"))
