@@ -24,7 +24,7 @@ from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl,
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QMessageBox
 
-from .classes.settings import Settings, SecureSettings, CONSTANTS
+from .classes.settings import Settings, CONSTANTS
 from .classes.net_sync import NetSync
 from .classes.basemaps import BaseMaps
 
@@ -76,7 +76,6 @@ class QRAVE:
             'i18n',
             'QRAVE_{}.qm'.format(locale))
         self.settings = Settings(iface=self.iface)
-        self.secure_settings = SecureSettings()
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
