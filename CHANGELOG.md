@@ -1,3 +1,16 @@
+
+## 0.9.1 ***(March 27, 2024)***
+
+### Fixed
+- Bug with "Show Basemaps in Project Tree" checkbox throwing error
+- Bug when adding Basemaps to versions of QGIS < 3.28
+- View in Warehouse button menu item now working properly with new Riverscapes Projects version
+
+### Changed
+- removed lingering references to QRAVE
+- Updated urls to riverscapes.net
+- Update Settings window title
+
 ## 0.9.0 ***(December 15, 2023)***
 
 * Refresh QRAVE as Riverscapes Viewer

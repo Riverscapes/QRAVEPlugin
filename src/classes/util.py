@@ -27,15 +27,15 @@ def requestFetch(remote_url: str, expected_md5=None):
         return resp.content
 
     except requests.exceptions.Timeout:
-        QgsMessageLog.logMessage("Fetching digest timed out: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
+        QgsMessageLog.logMessage("Fetching digest timed out: {}".format(remote_url), 'Riverscapes Viewer', level=Qgis.Critical)
         return False
         # Maybe set up for a retry, or continue in a retry loop
     except requests.exceptions.TooManyRedirects:
         # Tell the user their URL was bad and try a different one
-        QgsMessageLog.logMessage("Fetching digest failed with too many redirects: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
+        QgsMessageLog.logMessage("Fetching digest failed with too many redirects: {}".format(remote_url), 'Riverscapes Viewer', level=Qgis.Critical)
         return False
     except requests.exceptions.RequestException as e:
-        QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
+        QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), 'Riverscapes Viewer', level=Qgis.Critical)
         # catastrophic error. bail.
         raise SystemExit(e)
     return True
@@ -54,19 +54,19 @@ def requestDownload(remote_url: str, local_path: str, expected_md5=None):
         # Do an MD5 check if we need to
         if os.path.isfile(local_path) and expected_md5 is not None and expected_md5 != md5(local_path):
             os.remove(local_path)
-            QgsMessageLog.logMessage("MD5 did not match expected for file: {}".format(remote_url), 'QRAVE', level=Qgis.Warning)
+            QgsMessageLog.logMessage("MD5 did not match expected for file: {}".format(remote_url), 'Riverscapes Viewer', level=Qgis.Warning)
             return False
 
     except requests.exceptions.Timeout:
-        QgsMessageLog.logMessage("Fetching file timed out: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
+        QgsMessageLog.logMessage("Fetching file timed out: {}".format(remote_url), 'Riverscapes Viewer', level=Qgis.Critical)
         return False
         # Maybe set up for a retry, or continue in a retry loop
     except requests.exceptions.TooManyRedirects:
         # Tell the user their URL was bad and try a different one
-        QgsMessageLog.logMessage("Fetching file failed with too many redirects: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
+        QgsMessageLog.logMessage("Fetching file failed with too many redirects: {}".format(remote_url), 'Riverscapes Viewer', level=Qgis.Critical)
         return False
     except requests.exceptions.RequestException as e:
-        QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), 'QRAVE', level=Qgis.Critical)
+        QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), 'Riverscapes Viewer', level=Qgis.Critical)
         # catastrophic error. bail.
         raise SystemExit(e)
     return True

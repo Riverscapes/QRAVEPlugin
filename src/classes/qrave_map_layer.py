@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+
 from typing import Dict
 from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer
 from qgis.PyQt.QtCore import Qt
@@ -247,7 +248,8 @@ class QRaveMapLayer():
             rOutput = None
             # This might be a basemap
             if map_layer.layer_type == QRaveMapLayer.LayerTypes.WEBTILE:
-                rOutput = QgsRasterLayer(layer_uri, map_layer.label, 'wms')
+                out_uri = layer_uri.replace('%3F', '?').replace('%3A', ':').replace('%2F', '/').replace('%3D', '=')
+                rOutput = QgsRasterLayer(out_uri, map_layer.label, 'wms')
 
             elif map_layer.layer_type in [QRaveMapLayer.LayerTypes.LINE, QRaveMapLayer.LayerTypes.POLYGON, QRaveMapLayer.LayerTypes.POINT]:
                 if map_layer.layer_name is not None:

@@ -11,13 +11,13 @@
         "basemapRegion": "United States"
     },
     "constants": {
-        "logCategory": "QRAVE",
-        "settingsCategory": "QRAVE",
+        "logCategory": "Riverscapes Viewer",
+        "settingsCategory": "RiverscapesViewer",
         "businessLogicDir": "blXML",
         "symbologyDir": "symbology",
         "digestSyncFreqHours": 24,
-        "warehouseUrl": "https://data.riverscapes.net/#",
-        "webUrl": "https://rave.riverscapes.net",
+        "warehouseUrl": "https://data.riverscapes.net",
+        "webUrl": "https://viewer.riverscapes.net",
         "issueUrl": "https://github.com/Riverscapes/QRAVEPlugin/issues",
         "changelogUrl": "https://github.com/Riverscapes/QRAVEPlugin/releases",
         "resourcesUrl": "https://xml.riverscapes.net/"

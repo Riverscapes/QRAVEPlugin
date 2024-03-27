@@ -55,7 +55,7 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "Options"))
+        Dialog.setWindowTitle(_translate("Dialog", " Riverscapes Viewer Settings"))
         self.basemapsInclude.setText(_translate("Dialog", "Include basemaps in explorer tree"))
         self.label.setText(_translate("Dialog", "Region"))
         self.regionHelp.setText(_translate("Dialog", "..."))

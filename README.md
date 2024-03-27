@@ -1,6 +1,6 @@
 # Riverscapes Viewer
 
-The Riverscapes Viewer (QRAVE) is a [QGIS](http://www.qgis.org/en/site/) plugin you can use to interact with riverscapes data. See the repository online documentation for more information:
+The Riverscapes Viewer (formerly QRAVE) is a [QGIS](http://www.qgis.org/en/site/) plugin you can use to interact with riverscapes data. See the repository online documentation for more information:
 
 <https://riverscapes.github.io/RiverscapesToolbar/>
 
@@ -63,7 +63,7 @@ pip install pylint autopep8 ptvsd pb-tool
 * [Plugin Builder 3](http://g-sherman.github.io/Qgis-Plugin-Builder) -- Creates a QGIS plugin template for use as a starting point in plugin development. Not totally necessary but good to have if you want to build plugins.
 
 
-clone this repo to `qrave_toolbar_dev` so that `qrave_toolbar` is what gets used for deployment
+clone this repo to `riverscapes_viewer_dev` so that `riverscapes_viewer` is what gets used for deployment
 
 
 
