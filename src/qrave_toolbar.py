@@ -42,6 +42,8 @@ from ..__version__ import __version__
 
 RESOURCES_DIR = os.path.join(os.path.dirname(__file__), '..', 'resources')
 
+# BASE is the name we want to use inside the settings keys
+MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 class QRAVE:
     """QGIS Plugin Implementation."""
@@ -211,7 +213,7 @@ class QRAVE:
 
         if versionChange:
             QgsMessageLog.logMessage("Version change detected: {} ==> {}".format(
-                lastVersion, __version__), 'Riverscapes Viewer', level=Qgis.Info)
+                lastVersion, __version__), MESSAGE_CATEGORY, level=Qgis.Info)
             self.settings.setValue('pluginVersion', __version__)
 
     def onProjectLoad(self, doc):
