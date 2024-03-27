@@ -87,7 +87,12 @@ class Project:
             self.project = lxml.etree.parse(self.project_xml_path).getroot()
 
             self.meta = self.extract_meta(self.project.findall('MetaData/Meta'))
-            self.warehouse_meta = self.extract_meta(self.project.findall('Warehouse/Meta'))
+            if self.version == 'V1':
+                self.warehouse_meta = self.extract_meta(self.project.findall('Warehouse/Meta')) 
+            else:
+                # Version 2 has a different warehouse structure
+                self.warehouse_meta = self.extract_warehouse(self.project.find('Warehouse'))
+
             self.project_type = self.project.find('ProjectType').text
 
             realizations = self.project.find('Realizations')
@@ -101,6 +106,13 @@ class Project:
             value = meta_node.text
             type = meta_node.attrib['type'] if 'type' in meta_node.attrib else None
             meta[key] = (value, type)
+        return meta
+    
+    def extract_warehouse(self, node):
+        meta = {}
+        meta['id'] = (node.attrib['id'], 'string')
+        meta['apiUrl'] = (node.attrib['apiUrl'], 'string')
+        meta['ref'] = (node.attrib['ref'], 'string')
         return meta
 
     def _load_businesslogic(self):

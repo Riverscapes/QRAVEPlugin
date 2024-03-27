@@ -438,6 +438,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
             elif '_rs_wh_id' in wh_meta and '_rs_wh_program' in wh_meta:
                 return '/'.join([CONSTANTS['warehouseUrl'], wh_meta['_rs_wh_program'][0], wh_meta['_rs_wh_id'][0]])
+            elif 'id' in wh_meta:
+                return '/'.join([CONSTANTS['warehouseUrl'], 'p', wh_meta['id'][0]])
 
         return None
 
