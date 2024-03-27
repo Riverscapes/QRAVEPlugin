@@ -249,7 +249,6 @@ class QRaveMapLayer():
             # This might be a basemap
             if map_layer.layer_type == QRaveMapLayer.LayerTypes.WEBTILE:
                 out_uri = layer_uri.replace('%3F', '?').replace('%3A', ':').replace('%2F', '/').replace('%3D', '=')
-                out_uri = layer_uri
                 rOutput = QgsRasterLayer(out_uri, map_layer.label, 'wms')
 
             elif map_layer.layer_type in [QRaveMapLayer.LayerTypes.LINE, QRaveMapLayer.LayerTypes.POLYGON, QRaveMapLayer.LayerTypes.POINT]:
