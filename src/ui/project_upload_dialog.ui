@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>453</width>
-    <height>641</height>
+    <width>411</width>
+    <height>750</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -122,14 +122,14 @@
       </spacer>
      </item>
      <item>
-      <widget class="QToolButton" name="toolButton">
+      <widget class="QToolButton" name="loginBtn">
        <property name="text">
         <string>Login</string>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QToolButton" name="toolButton_2">
+      <widget class="QToolButton" name="loginResetBtn">
        <property name="text">
         <string>Reset</string>
        </property>
@@ -164,7 +164,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="tagAddLayout">
+    <widget class="QGroupBox" name="ownershipGroup">
      <property name="minimumSize">
       <size>
        <width>0</width>
@@ -212,7 +212,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="groupBox_2">
+    <widget class="QGroupBox" name="accessGroup">
      <property name="title">
       <string>Access</string>
      </property>
@@ -240,7 +240,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="groupBox_3">
+    <widget class="QGroupBox" name="tagGroup">
      <property name="title">
       <string>Tags</string>
      </property>
@@ -265,7 +265,7 @@
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_4">
         <item>
-         <widget class="QPlainTextEdit" name="plainTextEdit">
+         <widget class="QLineEdit" name="addTag">
           <property name="placeholderText">
            <string>Add Tag</string>
           </property>
@@ -295,6 +295,19 @@
       </item>
      </layout>
     </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer_2">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
    </item>
    <item>
     <spacer name="verticalSpacer">

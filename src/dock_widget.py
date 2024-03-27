@@ -740,7 +740,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         Open the Project Upload dialog
         """
 
-        dialog = ProjectUploadDialog()
+        dialog = ProjectUploadDialog(None, project)
         # if self.dockwidget:
         #     dialog.dataChange.connect(self.dockwidget.dataChange)
         dialog.exec_()

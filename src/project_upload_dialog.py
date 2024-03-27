@@ -1,36 +1,87 @@
-import os
-import json
-from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox
-from qgis.PyQt.QtCore import pyqtSignal, QUrl
-from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.core import Qgis
+from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot
 
-from .classes.settings import SecureSettings
-from .classes.basemaps import BaseMaps
-
+from .classes.DataExchangeAPI import DataExchangeAPI
+from .classes.settings import CONSTANTS
 
 # DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
 #     os.path.dirname(__file__), 'ui', 'options_dialog.ui'))
 from .ui.project_upload_dialog import Ui_Dialog
 
+# Here are the states we're going to pass through
+
+
+class State:
+    ERROR = -1
+    INITIALIZING = 0
+    LOGING_IN = 1
+    FETCHING_PROFILE = 2
+    FETCHING_EXISTING_PROJECT = 3
+    USER_ACTION = 4
+    VALIDATING = 5
+    UPLOADING = 6
+    WAITING_FOR_COMPLETION = 7
+    COMPLETED = 8
+
 
 class ProjectUploadDialog(QDialog, Ui_Dialog):
 
     closingPlugin = pyqtSignal()
+    stateChange = pyqtSignal()
     dataChange = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, project=None):
         """Constructor."""
         QDialog.__init__(self, parent)
         self.setupUi(self)
-        self.secure_settings = SecureSettings()
+        self.project_xml = project
+        self.flow_state = State.INITIALIZING
+        self.stateChange.connect(self.state_change_handler)
 
-        self.token = self.secure_settings.retrieve_token()
+        self.api = DataExchangeAPI()
+
         self.selectedOrg = None
+        self.existingProject = None
         self.selectUpdate = False
         self.access = None
         self.tags = []
+
+        self.projectNameValue.setText(self.project_xml.project.find('Name').text)
+        # The text should fill the label with ellipses if it's too long
+        project_path = self.project_xml.project_xml_path
+        self.projectPathValue.setText(project_path)
+        self.projectPathValue.setToolTip(project_path)
+
+        self.stateChange.emit()
+
+    @pyqtSlot()
+    def state_change_handler(self):
+        """ Control the state of the controls in the dialog
+        """
+        allow_user_action = self.flow_state in [State.USER_ACTION]
+        # QtWidgets.QDialogButtonBox
+        # set the ok button text to "Start"
+        self.actionBtnBox.button(QDialogButtonBox.Ok).setText("Start")
+        self.actionBtnBox.button(QDialogButtonBox.Cancel).setText(self.flow_state == State.USER_ACTION and "Cancel" or "Stop")
+        # Disabled the ok button
+        self.actionBtnBox.button(QDialogButtonBox.Ok).setEnabled(allow_user_action)
+
+        self.openWebProjectBtn.setEnabled(allow_user_action and self.existingProject is not None)
+
+        # Hide the reset button if we're not initialized
+        self.loginBtn.setVisible(False)
+        self.loginResetBtn.setVisible(allow_user_action)
+
+        self.progressBar.setEnabled(self.flow_state in [State.UPLOADING])
+        self.progressBar.setValue(0)
+        self.progressSubLabel.setEnabled(self.flow_state in [State.UPLOADING])
+        self.progressSubLabel.setText('...')
+
+        # Set things enabled at the group level to save time
+        self.newOrUpdateLayout.setEnabled(allow_user_action)
+        self.ownershipGroup.setEnabled(allow_user_action)
+        self.tagGroup.setEnabled(allow_user_action)
+        self.accessGroup.setEnabled(allow_user_action)
 
     def check_login(self):
         # 1. Check the secure settings for a valid token
@@ -40,7 +91,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         pass
 
     def login_reset(self):
-        self.secure_settings.delete_token()
         self.token = None
         pass
 

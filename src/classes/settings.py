@@ -1,8 +1,6 @@
 import os
 import json
-import logging
 import html
-from qgis.core import QgsAuthMethodConfig, QgsApplication
 from qgis.core import QgsMessageLog, Qgis, QgsProject, QgsSettings
 
 with open(os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')) as cfg_file:
@@ -105,46 +103,3 @@ class Settings(SettingsBorg):
         self.s.setValue(key, json.dumps({"v": value}))
         self.log("SETTINGS SET: {}={} of type '{}'".format(
             key, value, html.escape(str(type(value)))), level=Qgis.Info)
-
-
-class SecureSettings(SettingsBorg):
-    def __init__(self):
-        if not self._initdone:
-            self.authMgr = QgsApplication.authManager()
-
-            # Must be the last thing we do in init
-            self._initdone = True
-
-    def store_token(self, token: str) -> None:
-        """ Store the token in the auth manager
-
-        Args:
-            token (str): _description_
-        """
-        config = QgsAuthMethodConfig()
-        config.setMethod("Basic")
-        config.setName(AUTH_CONFIG_NAME)
-        # config.setUri("https://api.riverscapes.org")
-        config.setConfig("token", token)
-
-        self.authMgr.storeAuthenticationConfig(config)
-
-    def retrieve_token(self) -> str:
-        """ Retrieve the token from the auth manager
-
-        Returns:
-            str: The bearer token
-        """
-        config = QgsAuthMethodConfig()
-        ok = self.authMgr.loadAuthenticationConfig(AUTH_CONFIG_NAME, config, True)
-
-        if ok:
-            token = config.config('token')
-            return token
-        else:
-            return None
-
-    def delete_token(self):
-        """ Delete the token from the auth manager
-        """
-        self.authMgr.deleteAuthenticationConfig(AUTH_CONFIG_NAME)
