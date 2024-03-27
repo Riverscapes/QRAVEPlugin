@@ -129,3 +129,6 @@ On MacOS
 1. Drop a breakpoint.
 1. Cause the breakpoint to fire. VSCode should pause at the breakpoint.
 
+```
+https://github.com/planetfederal/qgis-connect-plugin/blob/885773aa0bed618f85bd15d4c67ccbbcf9bee64c/boundlessconnect/gui/connectdockwidget.py#L430
+```
