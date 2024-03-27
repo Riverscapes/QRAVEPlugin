@@ -7,6 +7,9 @@ from .settings import CONSTANTS
 
 MyOrgs = namedtuple('MyOrgs', ['id', 'name', 'myRole'])
 
+# BASE is the name we want to use inside the settings keys
+MESSAGE_CATEGORY = CONSTANTS['logCategory']
+
 
 class DataExchangeAPI():
     """ Class to handle data exchange between the different components of the system
@@ -49,7 +52,7 @@ class DataExchangeAPI():
                 }
             }
             """, {'id': project_id})
-        QgsMessageLog.logMessage('get_project success', 'QRAVE')
+        QgsMessageLog.logMessage('get_project success', MESSAGE_CATEGORY)
         return project['data']['project']
 
     def get_user_info(self) -> List[MyOrgs]:
@@ -71,7 +74,7 @@ class DataExchangeAPI():
                 }
             }
             """, {})
-        QgsMessageLog.logMessage('get_organizations success', 'QRAVE')
+        QgsMessageLog.logMessage('get_organizations success', MESSAGE_CATEGORY)
         self.myId = orgs['data']['profile']['id']
         self.myName = orgs['data']['profile']['name']
         self.myOrgs = [MyOrgs(**org) for org in orgs['data']['profile']['organizations']['items']]

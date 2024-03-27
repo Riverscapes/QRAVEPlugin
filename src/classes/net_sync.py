@@ -155,7 +155,7 @@ class NetSync(QgsTask):
             local_path = os.path.join(self.resource_dir, os.path.basename(remote_path))
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
-                QgsMessageLog.logMessage("Basemaps downloaded: {}".format(local_path), 'Riverscapes Viewer', level=Qgis.Info)
+                QgsMessageLog.logMessage("Basemaps downloaded: {}".format(local_path), MESSAGE_CATEGORY, level=Qgis.Info)
 
                 self.downloaded += 1
             all_local_files = [x for x in all_local_files if x != local_path]
@@ -169,9 +169,9 @@ class NetSync(QgsTask):
                 rel_check = os.path.relpath(dfile, os.path.join(os.path.dirname(__file__), '..', '..', 'resources'))
                 if len(os.path.split(rel_check)) < 3:
                     os.remove(dfile)
-                    QgsMessageLog.logMessage("Extraneous file removed: {}".format(dfile), 'Riverscapes Viewer', level=Qgis.Warning)
+                    QgsMessageLog.logMessage("Extraneous file removed: {}".format(dfile), MESSAGE_CATEGORY, level=Qgis.Warning)
                 else:
-                    QgsMessageLog.logMessage("Can't remove file because it's in the wrong place: {}".format(dfile), 'QRiverscapes Viewer', level=Qgis.Critical)
+                    QgsMessageLog.logMessage("Can't remove file because it's in the wrong place: {}".format(dfile), MESSAGE_CATEGORY, level=Qgis.Critical)
             except Exception as e:
-                QgsMessageLog.logMessage("Error deleting file: {}".format(dfile), 'Riverscapes Viewer', level=Qgis.Critical)
+                QgsMessageLog.logMessage("Error deleting file: {}".format(dfile), MESSAGE_CATEGORY, level=Qgis.Critical)
         self.setProgress(100)

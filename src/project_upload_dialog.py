@@ -1,5 +1,6 @@
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot
+from qgis.core import Qgis, QgsMessageLog
 
 from .classes.DataExchangeAPI import DataExchangeAPI
 from .classes.settings import CONSTANTS
@@ -9,6 +10,9 @@ from .classes.settings import CONSTANTS
 from .ui.project_upload_dialog import Ui_Dialog
 
 # Here are the states we're going to pass through
+
+# BASE is the name we want to use inside the settings keys
+MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 
 class State:
@@ -40,10 +44,18 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         self.api = DataExchangeAPI()
 
-        self.selectedOrg = None
+        #   <Warehouse id="00000000-0000-0000-0000-000000000000" apiUrl="https://api.data.riverscapes.net"/>
+        self.warehouse_id = None
+        self.apiUrl = None
+        warehouse_tag = self.project_xml.project.find('Warehouse')
+        if warehouse_tag is not None:
+            self.warehouse_id = warehouse_tag.get('id')
+            self.apiUrl = warehouse_tag.get('apiUrl')
+            # if apiUrl != self.api.api.uri:
+            #     self.set_error(f'The project is not associated with the current warehouse ({apiUrl}) vs ({self.api.api.uri})')
+
+        # This is the existing project record from the API
         self.existingProject = None
-        self.selectUpdate = False
-        self.access = None
         self.tags = []
 
         self.projectNameValue.setText(self.project_xml.project.find('Name').text)
@@ -53,6 +65,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.projectPathValue.setToolTip(project_path)
 
         self.stateChange.emit()
+
+    def set_error(self, message):
+        self.flow_state = State.ERROR
+        self.stateChange.emit()
+        QgsMessageLog.logMessage(message, MESSAGE_CATEGORY, Qgis.Error)
 
     @pyqtSlot()
     def state_change_handler(self):
@@ -67,6 +84,15 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.actionBtnBox.button(QDialogButtonBox.Ok).setEnabled(allow_user_action)
 
         self.openWebProjectBtn.setEnabled(allow_user_action and self.existingProject is not None)
+
+        # If the self.warehouse_id is not set then we're going to disable the "new" option
+        if self.warehouse_id is None:
+            if self.optModifyProject.isChecked():
+                self.optNewProject.setChecked(True)
+            self.optModifyProject.setEnabled(False)
+            self.selectUpdate = False
+        else:
+            self.optModifyProject.setEnabled(True)
 
         # Hide the reset button if we're not initialized
         self.loginBtn.setVisible(False)
@@ -91,8 +117,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         pass
 
     def login_reset(self):
-        self.token = None
-        pass
+        self.api = None
+        self.api = DataExchangeAPI()
+        self.stateChange.emit()
 
     def init_values_async(self):
         # 0. Verify logged-in status and bail if not (if any of the following fail then also reset the login status)
