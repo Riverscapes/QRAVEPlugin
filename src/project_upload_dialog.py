@@ -2,7 +2,7 @@ from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot
 from qgis.core import Qgis, QgsMessageLog
 
-from .classes.DataExchangeAPI import DataExchangeAPI
+from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
 from .classes.settings import CONSTANTS
 
 # DIALOG_CLASS, _ = uic.loadUiType(os.path.join(

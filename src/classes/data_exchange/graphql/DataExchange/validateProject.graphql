@@ -1,0 +1,12 @@
+query validateProject($xml: String!, $owner: OwnerInput, $files: [String!]!) {
+  validateProject(xml: $xml, owner: $owner, files: $files) {
+    valid
+    errors {
+      code
+      message
+      severity
+      __typename
+    }
+  }
+}
+     

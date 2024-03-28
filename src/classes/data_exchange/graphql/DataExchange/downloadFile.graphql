@@ -1,0 +1,9 @@
+query downloadFile($projectId: ID! $filePath: String!) {
+  downloadFile(projectId: $projectId, filePath: $filePath) {
+    localPath
+    etag
+    size
+    contentType
+    downloadUrl
+  }
+}

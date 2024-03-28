@@ -1,0 +1,10 @@
+query checkUpload($token: String!) {
+  checkUpload(token: $token) {
+    data
+    errors
+    metaData
+    percentComplete
+    status
+    __typename
+  }
+}
