@@ -66,21 +66,15 @@
       </widget>
      </item>
      <item>
-      <widget class="QLabel" name="projectPathValue">
-       <property name="maximumSize">
-        <size>
-         <width>16777215</width>
-         <height>16777215</height>
-        </size>
-       </property>
-       <property name="font">
-        <font>
-         <pointsize>13</pointsize>
-         <italic>false</italic>
-        </font>
+      <widget class="QLineEdit" name="projectPathValue">
+       <property name="enabled">
+        <bool>true</bool>
        </property>
        <property name="text">
-        <string>/Users/Download/RSProject/project.rs.xml</string>
+        <string>...</string>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
@@ -366,11 +360,25 @@
     </widget>
    </item>
    <item>
-    <widget class="QLabel" name="errorLable">
-     <property name="text">
-      <string>Error</string>
-     </property>
-    </widget>
+    <layout class="QHBoxLayout" name="errorLayout">
+     <item>
+      <widget class="QLabel" name="errorSummaryLable">
+       <property name="text">
+        <string>Error</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QToolButton" name="errorMoreBtn">
+       <property name="toolTip">
+        <string>Copy error to clipboard</string>
+       </property>
+       <property name="text">
+        <string>More</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
    <item>
     <layout class="QHBoxLayout" name="actionBtnLayout">

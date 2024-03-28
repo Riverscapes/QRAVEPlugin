@@ -15,7 +15,7 @@
         <file alias="AddToMap.png">../Images/add_to_map.svg</file>
         <file alias="metadata.png">../Images/metadata.svg</file>
         <file alias="close.png">../Images/close.svg</file>
-        <file alias="upload_project.png">../Images/upload_project.svg</file>
+        <file alias="upload_project.svg">../Images/upload_project.svg</file>
 
         <file alias="description.svg">../Images/description.svg</file>
         <file alias="draft.svg">../Images/draft.svg</file>
@@ -30,6 +30,9 @@
         <file alias="layers/Raster.png">../Images/layers/Raster16.png</file>
         <file alias="layers/basemap.svg">../Images/layers/basemap.svg</file>
         <file alias="layers/satellite.svg">../Images/layers/satellite.svg</file>
+
+        <!-- "Borrowed" from QGIS Core -->
+        <file alias="mActionEditCopy.svg">../Images/mActionEditCopy.svg</file>
 
     </qresource>
 </RCC>

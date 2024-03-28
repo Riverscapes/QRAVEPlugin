@@ -21,7 +21,7 @@
         "issueUrl": "https://github.com/Riverscapes/QRAVEPlugin/issues",
         "changelogUrl": "https://github.com/Riverscapes/QRAVEPlugin/releases",
         "resourcesUrl": "https://xml.riverscapes.net/",
-        "DE_API_Url": "https://api.riverscapes.net/",
+        "DE_API_Url": "https://api.data.riverscapes.net",
         "DE_API_Auth": {
           "audience": "https://api.riverscapes.net",
           "domain": "auth.riverscapes.net",

@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Any, Callable
 import os
 import time
 from PyQt5.QtGui import QDesktopServices
@@ -42,6 +42,7 @@ class RunGQLQueryTask(QgsTask):
         self.query = query
         self.variables = variables
         self.error = None
+        self.response = None
 
     def run(self):
         try:
@@ -59,21 +60,20 @@ class RunGQLQueryTask(QgsTask):
                     # Authentication timeout: re-login and retry the query
                     if len(list(filter(lambda err: 'You must be authenticated' in err['message'], resp_json['errors']))) > 0:
                         self.log("Authentication timed out. Fetching new token...")
-                        self.api.refresh_token()
+                        self.api._refresh_token()
                         self.log("   done. Re-trying query...")
                         return self.run()
                     raise GraphQLAPIException(f"Query failed to run by returning code of {request.status_code}. ERRORS: {json.dumps(resp_json, indent=4, sort_keys=True)}")
                 else:
-                    return request.json()
+                    self.response = request.json()
+                    return self.response
             else:
                 raise GraphQLAPIException(f"Query failed to run by returning code of {request.status_code}. {self.query} {json.dumps(self.variables)}")
         except GraphQLAPIException as e:
             self.error = e
-            self.setException(e)
             return False
         except Exception as e:
             self.error = e
-            self.setException(e)
             return False
 
 
@@ -100,6 +100,23 @@ class GraphQLAPIConfig():
         self.port = port
         self.audience = audience
         self.success_url = success_url
+
+
+class RefreshTokenTask(QgsTask):
+    def __init__(self, api):
+        super().__init__('RefreshTokenTask', QgsTask.CanCancel)
+        self.api = api
+        self.success = False
+        self.error = None
+
+    def run(self):
+        try:
+            self.api._refresh_token(True)
+            self.success = True
+            return True
+        except Exception as e:
+            self.error = e
+            return False
 
 
 class GraphQLAPI():
@@ -171,8 +188,24 @@ class GraphQLAPI():
         if self.token_timeout:
             self.token_timeout.cancel()
 
-    def refresh_token(self, force: bool = False):
-        """_summary_
+    def refresh_token(self, callback: Callable[[RefreshTokenTask], None] = None):
+        """ Refresh the authentication token
+
+        Raises:
+            error: _description_
+
+        Returns:
+            _type_: _description_
+        """
+        task = RefreshTokenTask(self)
+        task.taskCompleted.connect(lambda: callback(task))
+        task.taskTerminated.connect(lambda: callback(task))
+        QgsApplication.taskManager().addTask(task)
+        return task
+
+    def _refresh_token(self, force: bool = False):
+        """ This is the actual code for refreshing the token. It is called by the RefreshTokenTask
+        so that it can be run asynchronously
 
         Raises:
             error: _description_
@@ -230,10 +263,10 @@ class GraphQLAPI():
         response.raise_for_status()
         res = response.json()
         self.token_timeout = threading.Timer(
-            res["expires_in"] - 20, self.refresh_token)
+            res["expires_in"] - 20, self._refresh_token)
         self.token_timeout.start()
         self.access_token = res["access_token"]
-        self.log("SUCCESSFUL Browser Authentication")
+        self.log("SUCCESSFUL Browser Authentication", Qgis.Success)
 
     def _wait_for_auth_code(self):
         """ Wait for the auth code to come back from the server using a simple HTTP server
@@ -311,7 +344,7 @@ class GraphQLAPI():
             # Loop for up to 10 seconds
             while time.time() - start_time < 10:
                 # If the server thread is still running, shut it down
-                self.log(f"Waiting for auth code...")
+                # self.log(f"Waiting for auth code...")
                 if not server_thread.is_alive():
                     server.server_close()
                     break
@@ -337,14 +370,32 @@ class GraphQLAPI():
 
             auth_code = query_resp['code']
 
-        self.log("   done." + auth_code)
         return auth_code
 
-    def run_query(self, query, variables, callback=None):
-        """ Run a query against the GraphQL API
+    def run_query(self, query: str, variables: Dict[str, Any], callback: Callable[[RunGQLQueryTask], None]):
+        """ Run a query asynchronously against the GraphQL API
 
-        Note that if callback is specified then the query will be run asynchronously
-        otherwise it will be run synchronously.
+        Args:
+            query (_type_): _description_
+            variables (_type_): _description_
+            callback (function): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        task = RunGQLQueryTask(self, query, variables)
+
+        # For Async usage
+        task.taskCompleted.connect(lambda: callback(task))
+        task.taskTerminated.connect(lambda: callback(task))
+
+        QgsApplication.taskManager().addTask(task)
+        return task
+
+    def run_query_sync(self, query: str, variables: Dict[str, any]):
+        """ Run a query against the GraphQL API synchronously. 
+
+        this WILL block the main thread so use with caution
 
         Args:
             query (_type_): _description_
@@ -360,9 +411,4 @@ class GraphQLAPI():
         task = RunGQLQueryTask(self, query, variables)
 
         # For Async usage
-        if callback:
-            task.taskCompleted.connect(callback)
-            QgsApplication.taskManager().addTask(task)
-            return task
-        else:
-            return task.run()
+        return task.run()

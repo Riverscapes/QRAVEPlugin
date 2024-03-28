@@ -1,36 +1,68 @@
-from typing import List
+from typing import List, Callable
 import os
 from collections import namedtuple
 from qgis.core import QgsMessageLog, Qgis
 
-from ..GraphQLAPI import GraphQLAPI, GraphQLAPIConfig
+from ..GraphQLAPI import GraphQLAPI, GraphQLAPIConfig, RunGQLQueryTask, RefreshTokenTask
 from ..settings import CONSTANTS
-from ..borg import Borg
 
-MyOrgs = namedtuple('MyOrgs', ['id', 'name', 'myRole'])
+MyOrg = namedtuple('MyOrg', ['id', 'name', 'myRole'])
+
+
+class DEProfile:
+    def __init__(self, id, name, organizations):
+        self.id = id
+        self.name = name
+        self.organizations: List[MyOrg] = organizations
+
+
+class DEProject:
+    def __init__(self, id, name, ownedBy, visibility, permissions, tags):
+        self.id = id
+        self.name = name
+        self.tags = tags
+        self.ownedBy = ownedBy
+        self.visibility = visibility
+        self.permissions = permissions
+
 
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 
-class DataExchangeAPI(Borg):
+class DataExchangeAPI():
     # This will mean that all instances of this class will share the same state
     _shared_state = {}
 
     """ Class to handle data exchange between the different components of the system
     """
 
-    def __init__(self):
-        self.myId = None
-        self.myName = None
-        self.myOrgs = []
-        self.initialized = False
-        self.api = GraphQLAPI(
-            apiUrl=CONSTANTS['DE_API_Url'],
-            config=GraphQLAPIConfig(**CONSTANTS['DE_API_Auth'])
-        )
-        self.api.refresh_token()
-        self.initialized = self.api.access_token is not None
+    def __init__(self, on_login=Callable[[bool], None]):
+        # Make sure the Borg pattern is initialized
+        self.__dict__ = self._shared_state
+        if not hasattr(self, 'initialized'):
+            self.myId = None
+            self.myName = None
+            self.myOrgs = []
+            self.initialized = False
+            self.on_login = on_login
+            self.api = GraphQLAPI(
+                apiUrl=CONSTANTS['DE_API_Url'],
+                config=GraphQLAPIConfig(**CONSTANTS['DE_API_Auth'])
+            )
+            self.initialized = self.api.access_token is not None
+        # Regardless of outcome we should check the token status
+        self.api.refresh_token(self._handle_refresh_token)
+
+    def _handle_refresh_token(self, task: RefreshTokenTask):
+        if task.error:
+            QgsMessageLog.logMessage('Error refreshing token', MESSAGE_CATEGORY, Qgis.Error)
+            QgsMessageLog.logMessage(task.error, MESSAGE_CATEGORY, Qgis.Error)
+            self.initialized = False
+            self.on_login(task)
+        else:
+            self.initialized = True
+            self.on_login(task)
 
     def _load_query(self, query_name: str) -> str:
         """ Load a query from the queries directory
@@ -38,94 +70,140 @@ class DataExchangeAPI(Borg):
         Args:
             query_name (str): the name of the query to load
         """
-        with open(os.path.join(os.path.dirname(__file__), 'graphql', 'DataExchange' f'{query_name}.gql'), 'r') as f:
+        with open(os.path.join(os.path.dirname(__file__), 'graphql', f'{query_name}.graphql'), 'r') as f:
             return f.read()
 
-    def get_project(self, project_id: str):
+    def get_user_info(self, callback: Callable[[RunGQLQueryTask, DEProfile], None]):
+        """ Get the organizations that the user is a part of
+
+        """
+        def _parse_orgs(task: RunGQLQueryTask):
+            profile = None
+            if task.response and not task.error:
+                myId = task.response['data']['profile']['id']
+                myName = task.response['data']['profile']['name']
+                myOrgs = [
+                    MyOrg(**org) for org in task.response['data']['profile']['organizations']['items']
+                ]
+                profile = DEProfile(myId, myName, myOrgs)
+
+            return callback(task, profile)
+
+        # Returns a RunGQLQueryTask(QgsTask) object in case you want to handle or manage it
+        return self.api.run_query(self._load_query('getProfile'), {}, _parse_orgs)
+
+    def get_project(self, project_id: str, callback: Callable[[RunGQLQueryTask, DEProject], None]):
         """ Get the metadata for a project
 
         Args:
             project_id (str): the id of the project to get
         """
-        project = self.api.run_query(self._load_query('getProject'), {'id': project_id})
-        QgsMessageLog.logMessage('get_project success', MESSAGE_CATEGORY)
-        return project['data']['project']
+        def _parse_project(task: RunGQLQueryTask):
+            project = None
+            if task.response and not task.error:
+                project = DEProject(**task.response['data']['project'])
 
-    def get_user_info(self) -> List[MyOrgs]:
-        """ Get the organizations that the user is a part of
+            return callback(task, project)
 
-        """
-        orgs = self.api.run_query(self._load_query('getProfile'), {})
-        QgsMessageLog.logMessage('get_organizations success', MESSAGE_CATEGORY)
-        self.myId = orgs['data']['profile']['id']
-        self.myName = orgs['data']['profile']['name']
-        self.myOrgs = [MyOrgs(**org) for org in orgs['data']['profile']['organizations']['items']]
-
-    def request_upload_project(self, project_id: str):
-        """ Request to upload a project
-
-        Args:
-            project_id (str): the id of the project to upload
-        """
-        response = self.api.run_query(self._load_query('requestUploadProject'), {'id': project_id})
-        QgsMessageLog.logMessage('request_upload_project success', MESSAGE_CATEGORY)
-        return response['data']['requestUploadProject']
-
-    def request_upload_project_files_url(self, project_id: str):
-        """ Request a URL to upload project files to
-
-        Args:
-            project_id (str): the id of the project to upload
-        """
-        response = self.api.run_query(self._load_query('requestUploadProjectFilesUrl'), {'id': project_id})
-        QgsMessageLog.logMessage('request_upload_project_files_url success', MESSAGE_CATEGORY)
-        return response['data']['requestUploadProjectFilesUrl']
-
-    def finalize_project_upload(self, project_id: str):
-        """ Finalize the project upload
-
-        Args:
-            project_id (str): the id of the project to upload
-        """
-        response = self.api.run_query(self._load_query('finalizeProjectUpload'), {'id': project_id})
-        QgsMessageLog.logMessage('finalize_project_upload success', MESSAGE_CATEGORY)
-        return response['data']['finalizeProjectUpload']
-
-    def check_upload(self, project_id: str):
-        """ Check the status of the upload
-
-        Args:
-            project_id (str): the id of the project to upload
-        """
-        response = self.api.run_query(self._load_query('checkUpload'), {'id': project_id})
-        QgsMessageLog.logMessage('check_upload success', MESSAGE_CATEGORY)
-        return response['data']['checkUpload']
-
-    def download_file(self, project_id: str):
-        """ Download the project file
-
-        Args:
-            project_id (str): the id of the project to download
-        """
-        response = self.api.run_query(self._load_query('downloadFile'), {'id': project_id})
-        QgsMessageLog.logMessage('download_file success', MESSAGE_CATEGORY)
-        return response['data']['downloadFile']
+        return self.api.run_query(self._load_query('getProject'), {'id': project_id}, _parse_project)
 
 
-"""
-# Validate the project file to see if there are any errors
-validateProject
-        requestUploadProject
+#     def validate_project(self, project_id: str, callback=None):
+#         """ Validate a project
 
-# Request a URL to upload the files to the S3 bucket
-        requestUploadProjectFilesUrl
+#         Args:
+#             project_id (str): the id of the project to validate
+#         """
+#         def _validate_project(response):
+#             QgsMessageLog.logMessage('validate_project success', MESSAGE_CATEGORY)
+#             return callback(response['data']['validateProject'])
 
-# Finalize meaning that all files are uploaded and the upload copy is good to start
-finalizeProjectUpload
+#         return self.api.run_query(self._load_query('validateProject'), {'id': project_id}, callback)
 
-# Check to see if the upload is complete on a while loop
-checkUpload
+#     def request_upload_project(self, project_id: str, callback=None):
+#         """ Request to upload a project
 
-Then download the new project file here:
-downloadFile
-        """
+#         Args:
+#             project_id (str): the id of the project to upload
+#         """
+#         response = self.api.run_query(self._load_query('requestUploadProject'), {'id': project_id}, callback)
+#         QgsMessageLog.logMessage('request_upload_project success', MESSAGE_CATEGORY)
+#         return response['data']['requestUploadProject']
+
+#     def request_upload_project_files_url(self, project_id: str, callback=None):
+#         """ Request a URL to upload project files to
+
+#         Args:
+#             project_id (str): the id of the project to upload
+#         """
+#         response = self.api.run_query(self._load_query('requestUploadProjectFilesUrl'), {'id': project_id}, callback)
+#         QgsMessageLog.logMessage('request_upload_project_files_url success', MESSAGE_CATEGORY)
+#         return response['data']['requestUploadProjectFilesUrl']
+
+#     def finalize_project_upload(self, project_id: str, callback=None):
+#         """ Finalize the project upload
+
+#         Args:
+#             project_id (str): the id of the project to upload
+#         """
+#         response = self.api.run_query(self._load_query('finalizeProjectUpload'), {'id': project_id}, callback)
+#         QgsMessageLog.logMessage('finalize_project_upload success', MESSAGE_CATEGORY)
+#         return response['data']['finalizeProjectUpload']
+
+#     def check_upload(self, project_id: str, callback=None):
+#         """ Check the status of the upload
+
+#         Args:
+#             project_id (str): the id of the project to upload
+#         """
+#         response = self.api.run_query(self._load_query('checkUpload'), {'id': project_id}, callback)
+#         QgsMessageLog.logMessage('check_upload success', MESSAGE_CATEGORY)
+#         return response['data']['checkUpload']
+
+#     def download_file(self, project_id: str, callback=None):
+#         """ Download the project file
+
+#         Args:
+#             project_id (str): the id of the project to download
+#         """
+#         response = self.api.run_query(self._load_query('downloadFile'), {'id': project_id}, callback)
+#         QgsMessageLog.logMessage('download_file success', MESSAGE_CATEGORY)
+#         return response['data']['downloadFile']
+
+#     def upload_project(self, project_id: str, callback=None):
+#         """ Upload a project
+
+#         Args:
+#             project_id (str): the id of the project to upload
+#         """
+#         self.validate_project(project_id, callback)
+
+#         self.request_upload_project(project_id, callback)
+#         upload_url = self.request_upload_project_files_url(project_id, callback)
+#         # Upload the files to the S3 bucket
+#         # ...
+#         # Finalize the upload
+#         self.finalize_project_upload(project_id, callback)
+#         # Check the status of the upload
+#         self.check_upload(project_id, callback)
+#         # Download the project file
+#         self.download_file(project_id, callback)
+
+
+# """
+# # Validate the project file to see if there are any errors
+# validateProject
+#         requestUploadProject
+
+# # Request a URL to upload the files to the S3 bucket
+#         requestUploadProjectFilesUrl
+
+# # Finalize meaning that all files are uploaded and the upload copy is good to start
+# finalizeProjectUpload
+
+# # Check to see if the upload is complete on a while loop
+# checkUpload
+
+# Then download the new project file here:
+# downloadFile
+#         """
