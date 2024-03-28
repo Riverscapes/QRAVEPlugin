@@ -1,0 +1,13 @@
+query getProfile {
+    profile {
+        id
+        name
+        organizations(limit: 500, offset: 0) {
+            items {
+                id
+                name
+                myRole
+            }
+        }
+    }
+}
