@@ -3,7 +3,7 @@ import os
 import time
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtCore import QUrl, QUrlQuery
-from qgis.core import QgsMessageLog, Qgis, QgsTask
+from qgis.core import QgsMessageLog, Qgis, QgsTask, QgsApplication
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlencode, urlparse, urlunparse
 import json
@@ -33,6 +33,48 @@ class GraphQLAPIException(Exception):
     def __init__(self, message="GraphQLAPI encountered an error"):
         self.message = message
         super().__init__(self.message)
+
+
+class RunGQLQueryTask(QgsTask):
+    def __init__(self, api, query, variables):
+        super().__init__('RunGQLQueryTask', QgsTask.CanCancel)
+        self.api = api
+        self.query = query
+        self.variables = variables
+        self.error = None
+
+    def run(self):
+        try:
+            headers = {"authorization": "Bearer " +
+                       self.api.access_token} if self.api.access_token else {}
+
+            request = requests.post(self.api.uri, json={
+                'query': self.query,
+                'variables': self.variables
+            }, headers=headers, timeout=30)
+
+            if request.status_code == 200:
+                resp_json = request.json()
+                if 'errors' in resp_json and len(resp_json['errors']) > 0:
+                    # Authentication timeout: re-login and retry the query
+                    if len(list(filter(lambda err: 'You must be authenticated' in err['message'], resp_json['errors']))) > 0:
+                        self.log("Authentication timed out. Fetching new token...")
+                        self.api.refresh_token()
+                        self.log("   done. Re-trying query...")
+                        return self.run()
+                    raise GraphQLAPIException(f"Query failed to run by returning code of {request.status_code}. ERRORS: {json.dumps(resp_json, indent=4, sort_keys=True)}")
+                else:
+                    return request.json()
+            else:
+                raise GraphQLAPIException(f"Query failed to run by returning code of {request.status_code}. {self.query} {json.dumps(self.variables)}")
+        except GraphQLAPIException as e:
+            self.error = e
+            self.setException(e)
+            return False
+        except Exception as e:
+            self.error = e
+            self.setException(e)
+            return False
 
 
 class GraphQLAPIConfig():
@@ -298,8 +340,11 @@ class GraphQLAPI():
         self.log("   done." + auth_code)
         return auth_code
 
-    def run_query(self, query, variables):
-        """ A simple function to use requests.post to make the API call. Note the json= section.
+    def run_query(self, query, variables, callback=None):
+        """ Run a query against the GraphQL API
+
+        Note that if callback is specified then the query will be run asynchronously
+        otherwise it will be run synchronously.
 
         Args:
             query (_type_): _description_
@@ -311,27 +356,13 @@ class GraphQLAPI():
         Returns:
             _type_: _description_
         """
-        headers = {"authorization": "Bearer " +
-                   self.access_token} if self.access_token else {}
 
-        request = requests.post(self.uri, json={
-            'query': query,
-            'variables': variables
-        }, headers=headers, timeout=30)
+        task = RunGQLQueryTask(self, query, variables)
 
-        if request.status_code == 200:
-            resp_json = request.json()
-            if 'errors' in resp_json and len(resp_json['errors']) > 0:
-                # Authentication timeout: re-login and retry the query
-                if len(list(filter(lambda err: 'You must be authenticated' in err['message'], resp_json['errors']))) > 0:
-                    self.log("Authentication timed out. Fetching new token...")
-                    self.refresh_token()
-                    self.log("   done. Re-trying query...")
-                    return self.run_query(query, variables)
-                raise GraphQLAPIException(f"Query failed to run by returning code of {request.status_code}. ERRORS: {json.dumps(resp_json, indent=4, sort_keys=True)}")
-            else:
-                # self.last_pass = True
-                # self.retry = 0
-                return request.json()
+        # For Async usage
+        if callback:
+            task.taskCompleted.connect(callback)
+            QgsApplication.taskManager().addTask(task)
+            return task
         else:
-            raise GraphQLAPIException(f"Query failed to run by returning code of {request.status_code}. {query} {json.dumps(variables)}")
+            return task.run()

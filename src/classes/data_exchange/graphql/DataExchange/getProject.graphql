@@ -1,0 +1,17 @@
+query getProject($id: ID!) {
+    project(id: $id) {
+        id
+        name
+        description
+        tags
+        owner {
+            id
+            name
+        }
+        organization {
+            id
+            name
+        }
+        access
+    }
+}
