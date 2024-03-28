@@ -15,7 +15,7 @@ class ContextMenu(QMenu):
         ),
         'UPLOAD_PROJECT': (
             "Upload Project to Data Exchange",
-            ':/plugins/qrave_toolbar/upload_project.png',
+            ':/plugins/qrave_toolbar/upload_project.svg',
         ),
         'ADD_ALL_TO_MAP': (
             "Add All Layers To The Map",

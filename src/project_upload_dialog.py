@@ -1,9 +1,12 @@
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot
+from qgis.PyQt.QtWidgets import QErrorMessage
 from qgis.core import Qgis, QgsMessageLog
 
-from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
+from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, DEProject
+from .classes.GraphQLAPI import RunGQLQueryTask, RefreshTokenTask
 from .classes.settings import CONSTANTS
+from .classes.project import Project
 
 # DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
 #     os.path.dirname(__file__), 'ui', 'options_dialog.ui'))
@@ -15,10 +18,9 @@ from .ui.project_upload_dialog import Ui_Dialog
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 
-class State:
-    ERROR = -1
+class ProjectUploadDialogStateFlow:
     INITIALIZING = 0
-    LOGING_IN = 1
+    LOGGING_IN = 1
     FETCHING_PROFILE = 2
     FETCHING_EXISTING_PROJECT = 3
     USER_ACTION = 4
@@ -28,26 +30,35 @@ class State:
     COMPLETED = 8
 
 
+class ProjectUploadDialogError():
+    def __init__(self, summary: str, detail: str) -> None:
+        self.summary = summary
+        self.detail = detail
+
+
 class ProjectUploadDialog(QDialog, Ui_Dialog):
 
     closingPlugin = pyqtSignal()
     stateChange = pyqtSignal()
-    dataChange = pyqtSignal()
 
-    def __init__(self, parent=None, project=None):
+    def __init__(self, parent=None, project: Project = None):
         """Constructor."""
         QDialog.__init__(self, parent)
+
+        self.error: ProjectUploadDialogError = None
+        self.stateChange.connect(self.state_change_handler)
         self.setupUi(self)
         self.project_xml = project
-        self.flow_state = State.INITIALIZING
-        self.stateChange.connect(self.state_change_handler)
+        self.flow_state = ProjectUploadDialogStateFlow.INITIALIZING
+        warehouse_tag = self.project_xml.warehouse_meta
 
-        self.api = DataExchangeAPI()
+        # when clicking self.errorMoreBtn pop open a QErrorMessage dialog
+        self.errorMoreBtn.clicked.connect(self.show_error_message)
 
-        #   <Warehouse id="00000000-0000-0000-0000-000000000000" apiUrl="https://api.data.riverscapes.net"/>
-        self.warehouse_id = None
-        self.apiUrl = None
-        warehouse_tag = self.project_xml.project.find('Warehouse')
+        self.api = DataExchangeAPI(on_login=self.handle_login)
+        self.flow_state = ProjectUploadDialogStateFlow.LOGGING_IN
+        self.loginStatusValue.setText('Logging in...')
+
         if warehouse_tag is not None:
             self.warehouse_id = warehouse_tag.get('id')
             self.apiUrl = warehouse_tag.get('apiUrl')
@@ -66,20 +77,87 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         self.stateChange.emit()
 
-    def set_error(self, message):
-        self.flow_state = State.ERROR
+    def handle_login(self, task: RefreshTokenTask):
+        if not task.success:
+            self.error = ProjectUploadDialogError('Could not log in to the data exchange API', task.error)
+        else:
+            self.flow_state = ProjectUploadDialogStateFlow.FETCHING_PROFILE
+            self.loginStatusValue.setText('Logged in. Fetching Profile...')
+            self.api.get_user_info(self.handle_profile_change)
         self.stateChange.emit()
-        QgsMessageLog.logMessage(message, MESSAGE_CATEGORY, Qgis.Error)
+
+    def handle_profile_change(self, task: RunGQLQueryTask, profile: DEProfile):
+        if profile is None:
+            self.error = ProjectUploadDialogError('Could not fetch user profile', task.error)
+        else:
+            self.profile = profile
+            self.loginStatusValue.setText('Logged in as: ' + profile.name + ' (' + profile.id + ')')
+            if self.project_xml.warehouse_meta is not None:
+                project_api = self.project_xml.warehouse_meta.get('apiUrl', [None])[0]
+                project_id = self.project_xml.warehouse_meta.get('id', [None])[0]
+                if project_api is None or len(project_api.strip()) == 0:
+                    self.error = ProjectUploadDialogError('The project is not associated with the current warehouse',
+                                                          'Missing API URL in the project')
+                    self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+                    self.existingProject = None
+                    
+                elif project_id is None or len(project_id.strip()) == 0:
+                    self.error = ProjectUploadDialogError('The project is not associated with the current warehouse',
+                                                          'Missing ID in the project')
+                    self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION                
+                    self.existingProject = None
+
+                elif project_api != self.api.api.uri:
+                    self.error = ProjectUploadDialogError('The project is not associated with the current warehouse',
+                                                          f"Project API: {project_api} \nWarehouse API: {self.api.api.uri}")
+                    self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+                    self.existingProject = None
+
+                else:
+                    self.flow_state = ProjectUploadDialogStateFlow.FETCHING_EXISTING_PROJECT
+                    self.api.get_project(project_id, self.handle_existing_project)
+            else:
+                self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+        self.stateChange.emit()
+
+    def handle_existing_project(self, task: RunGQLQueryTask, project: DEProject):
+        if project is None:
+            self.error = ProjectUploadDialogError('Could not fetch existing project', task.error)
+            self.existingProject = None
+        else:
+            self.existingProject = project
+
+        # Regardless if the outcome we're going to allow the user to continue
+        # Since they can still create a new project
+        self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+        self.stateChange.emit()
+
+    def show_error_message(self):
+        if self.error is None:
+            return
+        emsg = QErrorMessage(self)
+        emsg.setMinimumWidth(600)
+        emsg.setMinimumHeight(600)
+        emsg.setWindowTitle('Error Details')
+
+        emsg.showMessage(f"""
+            <h2>ERROR: {self.error.summary}</h2>
+            <pre>
+                <code>{self.error.detail}</code>
+            </pre>
+            """)
 
     @pyqtSlot()
     def state_change_handler(self):
         """ Control the state of the controls in the dialog
         """
-        allow_user_action = self.flow_state in [State.USER_ACTION]
+        self._handle_error_state()
+
+        allow_user_action = self.flow_state in [ProjectUploadDialogStateFlow.USER_ACTION]
         # QtWidgets.QDialogButtonBox
         # set the ok button text to "Start"
         self.actionBtnBox.button(QDialogButtonBox.Ok).setText("Start")
-        self.actionBtnBox.button(QDialogButtonBox.Cancel).setText(self.flow_state == State.USER_ACTION and "Cancel" or "Stop")
+        self.actionBtnBox.button(QDialogButtonBox.Cancel).setText(self.flow_state == ProjectUploadDialogStateFlow.USER_ACTION and "Cancel" or "Stop")
         # Disabled the ok button
         self.actionBtnBox.button(QDialogButtonBox.Ok).setEnabled(allow_user_action)
 
@@ -98,9 +176,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.loginBtn.setVisible(False)
         self.loginResetBtn.setVisible(allow_user_action)
 
-        self.progressBar.setEnabled(self.flow_state in [State.UPLOADING])
+        self.progressBar.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
         self.progressBar.setValue(0)
-        self.progressSubLabel.setEnabled(self.flow_state in [State.UPLOADING])
+        self.progressSubLabel.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
         self.progressSubLabel.setText('...')
 
         # Set things enabled at the group level to save time
@@ -109,70 +187,22 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.tagGroup.setEnabled(allow_user_action)
         self.accessGroup.setEnabled(allow_user_action)
 
-    def check_login(self):
-        # 1. Check the secure settings for a valid token
-        # 2. Ping the API with the token to see if it's still valid
-        if (self.token is None):
-            self.login_reset()
-        pass
+    def _handle_error_state(self):
+        if (self.error):
+            self.errorLayout.setEnabled(True)
 
-    def login_reset(self):
-        self.api = None
-        self.api = DataExchangeAPI()
-        self.stateChange.emit()
+            # Make self.errorSummaryLable red with a red border
+            self.errorMoreBtn.setVisible(True)
+            self.errorSummaryLable.setText("ERROR: " + self.error.summary)
+            self.errorSummaryLable.setStyleSheet("QLabel { color : red; border: 1px solid red; }")
 
-    def init_values_async(self):
-        # 0. Verify logged-in status and bail if not (if any of the following fail then also reset the login status)
-        # 1. Read the <Warehouse> tag of the current project and decide if we need to fetch metadata
-        #     a. If not then disable "view in exchange" btn and "modify existing" option.
-        # 2. Make a graphql query to get the user's organizations
-        # 3. If this project has a warehouse tag fetch the metadata
-        pass
+            self.error = ProjectUploadDialogError(self.error.summary, self.error.detail)
+            QgsMessageLog.logMessage(self.error.summary + self.error.detail, MESSAGE_CATEGORY, Qgis.Error)
+        else:
+            # Set the whole group disabled
+            self.errorLayout.setEnabled(False)
 
-    def new_or_old_change(self):
-        """ If the user selects "new" or "old" we need to check some things
-        """
-        pass
-
-    def project_ownership_change(self):
-        """ IF the user selects "new" then reset self.selectedOrg. 
-        """
-        pass
-
-    def set_values(self):
-        # Set the combo box
-        pass
-
-    def tag_add(self, tag: str):
-        pass
-
-    def tag_remove(self, tag: str):
-        pass
-
-    def login(self):
-        pass
-
-    def open_project_in_browser(self):
-        pass
-
-    def cancel_btn_press(self):
-        pass
-
-    def ok_btn_press(self):
-        pass
-
-    def help_btn_press(self):
-        pass
-
-    def confirm_overwrite(self):
-        """ Ask the user if they want to overwrite the destination project (always show if not new)
-        """
-        pass
-
-    def confirm_dest_newer(self):
-        """If the destination project is newer than the source project, ask the user if they want to overwrite the destination project.
-        """
-        pass
-
-    def commit_settings(self, btn):
-        pass
+            self.errorMoreBtn.setVisible(False)
+            self.errorSummaryLable.setText('')
+            self.errorSummaryLable.setStyleSheet("QLabel { color : black; border: 0px; }")
+            self.error = None
