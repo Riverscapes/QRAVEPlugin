@@ -112,7 +112,8 @@ class Project:
         meta = {}
         meta['id'] = (node.attrib['id'], 'string')
         meta['apiUrl'] = (node.attrib['apiUrl'], 'string')
-        meta['ref'] = (node.attrib['ref'], 'string')
+        if 'ref' in node.attrib:
+            meta['ref'] = (node.attrib['ref'], 'string')
         return meta
 
     def _load_businesslogic(self):
