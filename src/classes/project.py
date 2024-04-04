@@ -73,9 +73,9 @@ class Project:
                 if self.load_errs is False:
                     self.settings.msg_bar('Project Loaded', self.project_xml_path, Qgis.Success)
                 else:
-                    self.settings.msg_bar('Project Loaded with errors', "(See QRAVE logs for details)", Qgis.Critical)
+                    self.settings.msg_bar('Project Loaded with errors', "(See Riverscapes Viewer logs for details)", Qgis.Critical)
             except Exception as e:
-                self.settings.msg_bar("Error loading project", "Project: {}\n (See QRAVE logs for specifics)".format(self.project_xml_path),
+                self.settings.msg_bar("Error loading project", "Project: {}\n (See Riverscapes Viewer logs for specifics)".format(self.project_xml_path),
                                       Qgis.Critical)
                 self.settings.log("Exception {}\n\nTrace: {}".format(e, traceback.format_exc()), Qgis.Critical)
         else:
@@ -87,7 +87,12 @@ class Project:
             self.project = lxml.etree.parse(self.project_xml_path).getroot()
 
             self.meta = self.extract_meta(self.project.findall('MetaData/Meta'))
-            self.warehouse_meta = self.extract_meta(self.project.findall('Warehouse/Meta'))
+            if self.version == 'V1':
+                self.warehouse_meta = self.extract_meta(self.project.findall('Warehouse/Meta')) 
+            else:
+                # Version 2 has a different warehouse structure
+                self.warehouse_meta = self.extract_warehouse(self.project.find('Warehouse'))
+
             self.project_type = self.project.find('ProjectType').text
 
             realizations = self.project.find('Realizations')
@@ -101,6 +106,14 @@ class Project:
             value = meta_node.text
             type = meta_node.attrib['type'] if 'type' in meta_node.attrib else None
             meta[key] = (value, type)
+        return meta
+    
+    def extract_warehouse(self, node):
+        meta = {}
+        meta['id'] = (node.attrib['id'], 'string')
+        meta['apiUrl'] = (node.attrib['apiUrl'], 'string')
+        if 'ref' in node.attrib:
+            meta['ref'] = (node.attrib['ref'], 'string')
         return meta
 
     def _load_businesslogic(self):
