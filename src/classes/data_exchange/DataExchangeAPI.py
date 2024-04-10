@@ -27,6 +27,19 @@ class DEProject:
         self.permissions = permissions
 
 
+class DEValidation:
+    def __init__(self, valid, errors):
+        self.valid = valid
+        self.errors = []
+        for error in errors:
+            del error['__typename']
+            self.errors.append(ValidationErrorTuple(**error))
+
+
+class ValidationErrorTuple(namedtuple('ValidationErrorTuple', ['code', 'message', 'severity'])):
+    pass
+
+
 class OwnerInputTuple(namedtuple('OwnerInputTuple', ['id', 'type'])):
     pass
 
@@ -130,65 +143,113 @@ class DataExchangeAPI(QObject):
         """ Validate a project
 
         Args:
-            project_id (str): the id of the project to validate
+            xml_str (str): the xml string of the project
+            owner_obj (OwnerInputTuple): the owner of the project
+            files (List[str]): the list of files in the project (relative paths only)
+            callback (Callable[[RunGQLQueryTask, Dict], None]): the callback function to call
         """
-        def _validate_project(response):
-            QgsMessageLog.logMessage('validate_project success', MESSAGE_CATEGORY)
-            return callback(response['data']['validateProject'])
+        def _validate_project(task: RunGQLQueryTask):
+            validation = None
+            if task.response and not task.error:
+                validation = DEValidation(**task.response['data']['validateProject'])
+
+            return callback(task, validation)
 
         return self.api.run_query(self._load_query('validateProject'), {'xml': xml_str, 'owner': owner_obj, 'files': files}, _validate_project)
 
-#         return self.api.run_query(self._load_query('validateProject'), {'id': project_id}, callback)
+    def request_upload_project(self,
+                               files: List[str], file_etags: List[str], file_sizes: List[int],
+                               tags: List[str],
+                               owner_obj: OwnerInputTuple,
+                               project_id: str = None, project_token: str = None,
+                               no_delete=False,
+                               visibility: str = 'PUBLIC',
+                               callback: Callable[[RunGQLQueryTask, Dict], None] = None):
+        """ Request to upload a project
 
-#     def request_upload_project(self, project_id: str, callback=None):
-#         """ Request to upload a project
+        Args:
+            files (List[str]): _description_
+            file_etags (List[str]): _description_
+            file_sizes (List[int]): _description_
+            tags (List[str]): _description_
+            owner_obj (OwnerInputTuple): _description_
+            project_id (str, optional): _description_. Defaults to None.
+            project_token (str, optional): _description_. Defaults to None.
+            no_delete (bool, optional): _description_. Defaults to False.
+            visibility (str, optional): _description_. Defaults to 'PUBLIC'.
+            callback (Callable[[RunGQLQueryTask, Dict], None], optional): _description_. Defaults to None.
+        """
+        def _request_upload_project(task: RunGQLQueryTask):
+            ret_obj = None
+            if task.response and not task.error:
+                ret_obj = task.response['data']['requestUploadProject']
 
-#         Args:
-#             project_id (str): the id of the project to upload
-#         """
-#         response = self.api.run_query(self._load_query('requestUploadProject'), {'id': project_id}, callback)
-#         QgsMessageLog.logMessage('request_upload_project success', MESSAGE_CATEGORY)
-#         return response['data']['requestUploadProject']
+            return callback(task, ret_obj)
 
-#     def request_upload_project_files_url(self, project_id: str, callback=None):
-#         """ Request a URL to upload project files to
+        return self.api.run_query(self._load_query('requestUploadProject'), {'xml': xml_str, 'owner': owner_obj, 'files': files}, _request_upload_project)
 
-#         Args:
-#             project_id (str): the id of the project to upload
-#         """
-#         response = self.api.run_query(self._load_query('requestUploadProjectFilesUrl'), {'id': project_id}, callback)
-#         QgsMessageLog.logMessage('request_upload_project_files_url success', MESSAGE_CATEGORY)
-#         return response['data']['requestUploadProjectFilesUrl']
+    def request_upload_project_files_url(self, files: List[str], project_upload_token: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
+        """ Request a URL to upload project files to
 
-#     def finalize_project_upload(self, project_id: str, callback=None):
-#         """ Finalize the project upload
+        Args:
+            files (List[str]): _description_
+            project_upload_token (str): _description_
+            callback (Callable[[RunGQLQueryTask, Dict], None]): _description_
+        """
+        def _request_upload_project_files_url(task: RunGQLQueryTask):
+            ret_obj = None
+            if task.response and not task.error:
+                ret_obj = task.response['data']['requestUploadProjectFilesUrl']
 
-#         Args:
-#             project_id (str): the id of the project to upload
-#         """
-#         response = self.api.run_query(self._load_query('finalizeProjectUpload'), {'id': project_id}, callback)
-#         QgsMessageLog.logMessage('finalize_project_upload success', MESSAGE_CATEGORY)
-#         return response['data']['finalizeProjectUpload']
+            return callback(task, ret_obj)
 
-#     def check_upload(self, project_id: str, callback=None):
-#         """ Check the status of the upload
+        return self.api.run_query(self._load_query('requestUploadProjectFilesUrl'), {'files': files, 'token': project_upload_token}, _request_upload_project_files_url)
 
-#         Args:
-#             project_id (str): the id of the project to upload
-#         """
-#         response = self.api.run_query(self._load_query('checkUpload'), {'id': project_id}, callback)
-#         QgsMessageLog.logMessage('check_upload success', MESSAGE_CATEGORY)
-#         return response['data']['checkUpload']
+    def finalize_project_upload(self, project_upload_token: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
+        """ Finalize the project upload
 
-#     def download_file(self, project_id: str, callback=None):
-#         """ Download the project file
+        Args:
+            project_id (str): the id of the project to upload
+        """
+        def _finalize_project_upload(task: RunGQLQueryTask):
+            ret_obj = None
+            if task.response and not task.error:
+                ret_obj = task.response['data']['finalizeProjectUpload']
 
-#         Args:
-#             project_id (str): the id of the project to download
-#         """
-#         response = self.api.run_query(self._load_query('downloadFile'), {'id': project_id}, callback)
-#         QgsMessageLog.logMessage('download_file success', MESSAGE_CATEGORY)
-#         return response['data']['downloadFile']
+            return callback(task, ret_obj)
+
+        return self.api.run_query(self._load_query('finalizeProjectUpload'), {'token': project_upload_token}, _finalize_project_upload)
+
+    def check_upload(self, project_upload_token: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
+        """ Check the status of the upload
+
+        Args:
+            project_id (str): the id of the project to upload
+        """
+        def _check_upload(task: RunGQLQueryTask):
+            ret_obj = None
+            if task.response and not task.error:
+                ret_obj = task.response['data']['checkUpload']
+
+            return callback(task, ret_obj)
+
+        return self.api.run_query(self._load_query('checkUpload'), {'token': project_upload_token}, _check_upload)
+
+    def download_file(self, project_id: str, remote_path: str, local_path: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
+        """ Download the project file
+
+        Args:
+            project_id (str): the id of the project to download
+        """
+        def _download_file(task: RunGQLQueryTask):
+            ret_obj = None
+            if task.response and not task.error:
+                ret_obj = task.response['data']['downloadFile']
+
+            return callback(task, ret_obj)
+
+        return self.api.run_query(self._load_query('downloadFile'), {'id': project_id, 'filePath': remote_path}, _download_file)
+
 
 #     def upload_project(self, project_id: str, callback=None):
 #         """ Upload a project

@@ -1,11 +1,14 @@
+import os
 import json
+import lxml.etree
+
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QButtonGroup, QMessageBox
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QUrl
 from qgis.PyQt.QtWidgets import QErrorMessage
 from qgis.core import Qgis, QgsMessageLog
 
-from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, DEProject, OwnerInputTuple
+from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, DEProject, DEValidation, OwnerInputTuple
 from .classes.GraphQLAPI import RunGQLQueryTask, RefreshTokenTask
 from .classes.settings import CONSTANTS, Settings
 from .classes.project import Project
@@ -29,6 +32,7 @@ class ProjectUploadDialogStateFlow:
     UPLOADING = 5
     WAITING_FOR_COMPLETION = 6
     COMPLETED = 7
+    ERROR = 8
 
 
 class ProjectUploadDialogError():
@@ -151,16 +155,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         if len(tag) > 0 and tag not in self.tags:
             self.tags.append(tag)
             self.stateChange.emit()
-
-    def handle_project_validation(self, task: RunGQLQueryTask, validation_obj):
-        print('handle_project_validation', json.dumps(validation_obj, indent=2))
-        pass
-        # if not valid:
-        #     self.error = ProjectUploadDialogError(
-        #         'The project is not valid', task.error)
-        # else:
-        #     self.error = None
-        # self.stateChange.emit()
 
     def handle_profile_change(self, task: RunGQLQueryTask, profile: DEProfile):
         if profile is None:
@@ -447,6 +441,44 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         qm.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         response = qm.exec_()
         if response == QMessageBox.Yes:
-            self.close()
+            # New let's kick off project validation. We need 3 things to do this: 1. The XML, 2. The files, 3. The owner
+
+            # 1. Files - we need relative paths to the files
+            rel_files = []
+            for root, dirs, files in os.walk(self.project_xml.project_dir):
+                for file in files:
+                    rel_files.append(os.path.relpath(os.path.join(root, file), self.project_xml.project_dir))
+
+            if self.org_id is not None:
+                owner_obj = OwnerInputTuple(id=self.org_id, type='ORGANIZATION')
+            else:
+                owner_obj = OwnerInputTuple(id=self.profile.id, type='USER')
+
+            with open(self.project_xml.project_xml_path, 'r') as f:
+                xml = lxml.etree.parse(self.project_xml.project_xml_path).getroot()
+                if self.new_project:
+                    # We need to remove the <Warehouse> tag from the XML
+                    warehouse_tag = xml.find('Warehouse')
+                    if warehouse_tag is not None:
+                        xml.remove(warehouse_tag)
+                # Now transform back to a string
+                xml = lxml.etree.tostring(xml, pretty_print=True).decode('utf-8')
+                    
+                self.dataExchangeAPI.validate_project(xml, owner_obj, rel_files, self.handle_project_validation)
         else:
             return
+
+    def handle_project_validation(self, task: RunGQLQueryTask, validation_obj: DEValidation):
+        if validation_obj is None:
+            self.error = ProjectUploadDialogError('Could not validate project for an unknown reason', task.error)
+            self.flow_state = ProjectUploadDialogStateFlow.ERROR
+        else:
+            if validation_obj.valid is True:
+                # NOW WE KICK OFF THE OTHER CALLS
+                pass
+            else:
+                detail_text = [f"[{err.severity}][{err.code}] {err.message}" for err in validation_obj.errors]
+                self.error = ProjectUploadDialogError('Project is not valid', detail_text)
+                self.flow_state = ProjectUploadDialogStateFlow.ERROR
+
+        self.stateChange.emit()
