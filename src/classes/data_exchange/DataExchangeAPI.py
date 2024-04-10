@@ -1,6 +1,7 @@
-from typing import List, Callable
+from typing import List, Callable, Dict
 import os
 from collections import namedtuple
+from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
 from qgis.core import QgsMessageLog, Qgis
 
 from ..GraphQLAPI import GraphQLAPI, GraphQLAPIConfig, RunGQLQueryTask, RefreshTokenTask
@@ -26,18 +27,24 @@ class DEProject:
         self.permissions = permissions
 
 
+class OwnerInputTuple(namedtuple('OwnerInputTuple', ['id', 'type'])):
+    pass
+
+
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 
-class DataExchangeAPI():
+class DataExchangeAPI(QObject):
     # This will mean that all instances of this class will share the same state
     _shared_state = {}
+    stateChange = pyqtSignal()
 
     """ Class to handle data exchange between the different components of the system
     """
 
     def __init__(self, on_login=Callable[[bool], None]):
+        super().__init__()
         # Make sure the Borg pattern is initialized
         self.__dict__ = self._shared_state
         if not hasattr(self, 'initialized'):
@@ -50,13 +57,25 @@ class DataExchangeAPI():
                 apiUrl=CONSTANTS['DE_API_Url'],
                 config=GraphQLAPIConfig(**CONSTANTS['DE_API_Auth'])
             )
+            # Tie the state change signal to the state change handler inside self.api
+            self.api.stateChange.connect(self.stateChange.emit)
+
             self.initialized = self.api.access_token is not None
         # Regardless of outcome we should check the token status
         self.api.refresh_token(self._handle_refresh_token)
 
+    def login(self):
+        self.myId = None
+        self.myName = None
+        self.myOrgs = []
+        self.initialized = False
+        self.api.refresh_token(self._handle_refresh_token)
+        self.stateChange.emit()
+
     def _handle_refresh_token(self, task: RefreshTokenTask):
         if task.error:
-            QgsMessageLog.logMessage('Error refreshing token', MESSAGE_CATEGORY, Qgis.Error)
+            QgsMessageLog.logMessage(
+                'Error refreshing token', MESSAGE_CATEGORY, Qgis.Critical)
             QgsMessageLog.logMessage(task.error, MESSAGE_CATEGORY, Qgis.Error)
             self.initialized = False
             self.on_login(task)
@@ -107,16 +126,17 @@ class DataExchangeAPI():
 
         return self.api.run_query(self._load_query('getProject'), {'id': project_id}, _parse_project)
 
+    def validate_project(self, xml_str: str, owner_obj: OwnerInputTuple, files: List[str], callback: Callable[[RunGQLQueryTask, Dict], None]):
+        """ Validate a project
 
-#     def validate_project(self, project_id: str, callback=None):
-#         """ Validate a project
+        Args:
+            project_id (str): the id of the project to validate
+        """
+        def _validate_project(response):
+            QgsMessageLog.logMessage('validate_project success', MESSAGE_CATEGORY)
+            return callback(response['data']['validateProject'])
 
-#         Args:
-#             project_id (str): the id of the project to validate
-#         """
-#         def _validate_project(response):
-#             QgsMessageLog.logMessage('validate_project success', MESSAGE_CATEGORY)
-#             return callback(response['data']['validateProject'])
+        return self.api.run_query(self._load_query('validateProject'), {'xml': xml_str, 'owner': owner_obj, 'files': files}, _validate_project)
 
 #         return self.api.run_query(self._load_query('validateProject'), {'id': project_id}, callback)
 

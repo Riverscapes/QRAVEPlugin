@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>411</width>
-    <height>750</height>
+    <width>343</width>
+    <height>810</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -120,13 +120,6 @@
         </size>
        </property>
       </spacer>
-     </item>
-     <item>
-      <widget class="QToolButton" name="loginBtn">
-       <property name="text">
-        <string>Login</string>
-       </property>
-      </widget>
      </item>
      <item>
       <widget class="QToolButton" name="loginResetBtn">
@@ -323,33 +316,52 @@
     </spacer>
    </item>
    <item>
-    <widget class="QLabel" name="progressLabel">
-     <property name="text">
-      <string>Progress</string>
+    <widget class="QGroupBox" name="uploadGroup">
+     <property name="title">
+      <string>Upload</string>
      </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QProgressBar" name="progressBar">
-     <property name="value">
-      <number>24</number>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QLabel" name="progressSubLabel">
-     <property name="font">
-      <font>
-       <pointsize>11</pointsize>
-       <italic>true</italic>
-      </font>
-     </property>
-     <property name="text">
-      <string>Uploading vbet.gpkg</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignCenter</set>
-     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_6">
+      <item>
+       <widget class="QLabel" name="todoLabel">
+        <property name="font">
+         <font>
+          <pointsize>11</pointsize>
+          <italic>true</italic>
+          <underline>false</underline>
+         </font>
+        </property>
+        <property name="text">
+         <string>...</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QProgressBar" name="progressBar">
+        <property name="value">
+         <number>24</number>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="progressSubLabel">
+        <property name="font">
+         <font>
+          <pointsize>11</pointsize>
+          <italic>true</italic>
+         </font>
+        </property>
+        <property name="text">
+         <string>Uploading vbet.gpkg</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
    <item>

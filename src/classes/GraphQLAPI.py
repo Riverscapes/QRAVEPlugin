@@ -3,6 +3,7 @@ import os
 import time
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtCore import QUrl, QUrlQuery
+from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
 from qgis.core import QgsMessageLog, Qgis, QgsTask, QgsApplication
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlencode, urlparse, urlunparse
@@ -18,6 +19,7 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("urllib3").propagate = False
 
 CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
+MAX_RETRIES = 5
 
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
@@ -44,7 +46,7 @@ class RunGQLQueryTask(QgsTask):
         self.error = None
         self.response = None
 
-    def run(self):
+    def run(self, retries=0):
         try:
             headers = {"authorization": "Bearer " +
                        self.api.access_token} if self.api.access_token else {}
@@ -59,16 +61,27 @@ class RunGQLQueryTask(QgsTask):
                 if 'errors' in resp_json and len(resp_json['errors']) > 0:
                     # Authentication timeout: re-login and retry the query
                     if len(list(filter(lambda err: 'You must be authenticated' in err['message'], resp_json['errors']))) > 0:
-                        self.log("Authentication timed out. Fetching new token...")
-                        self.api._refresh_token()
-                        self.log("   done. Re-trying query...")
-                        return self.run()
-                    raise GraphQLAPIException(f"Query failed to run by returning code of {request.status_code}. ERRORS: {json.dumps(resp_json, indent=4, sort_keys=True)}")
+                        if retries < MAX_RETRIES:
+                            self.log("Authentication timed out. Fetching new token...")
+                            try:
+                                self.api._refresh_token()
+                            except Exception as e:
+                                self.log(f"Failed to refresh token: {e}")
+                                return  # or handle the error in some other way
+
+                            self.log("   done. Re-trying query...")
+                            return self.run(retries=retries+1)
+                        else:
+                            self.log("Failed to authenticate after multiple attempts.")
+                            return  # or handle the error in some other way
+                    raise GraphQLAPIException(
+                        f"Query failed to run by returning code of {request.status_code}. ERRORS: {json.dumps(resp_json, indent=4, sort_keys=True)}")
                 else:
                     self.response = request.json()
-                    return self.response
+                    return True
             else:
-                raise GraphQLAPIException(f"Query failed to run by returning code of {request.status_code}. {self.query} {json.dumps(self.variables)}")
+                raise GraphQLAPIException(
+                    f"Query failed to run by returning code of {request.status_code}. {self.query} {json.dumps(self.variables)}")
         except GraphQLAPIException as e:
             self.error = e
             return False
@@ -119,7 +132,10 @@ class RefreshTokenTask(QgsTask):
             return False
 
 
-class GraphQLAPI():
+class GraphQLAPI(QObject):
+
+    stateChange = pyqtSignal()
+
     """This class is a wrapper around the GraphQL API. It handles authentication and provides a 
     simple interface for making queries.
 
@@ -128,10 +144,13 @@ class GraphQLAPI():
     """
 
     def __init__(self, apiUrl: str, config: GraphQLAPIConfig, dev_headers: Dict[str, str] = None):
+        super().__init__()
+
         self.config = config
         self.dev_headers = dev_headers
         self.access_token = None
         self.token_timeout = None
+        self.loading = False
 
         self.uri = apiUrl
 
@@ -244,6 +263,9 @@ class GraphQLAPI():
         }
         login_url = login_url._replace(query=urlencode(query_params))
 
+        self.loading = True
+        self.stateChange.emit()
+
         # Now open the browser so we can authenticate
         QDesktopServices.openUrl(QUrl(urlunparse(login_url)))
 
@@ -267,6 +289,8 @@ class GraphQLAPI():
         self.token_timeout.start()
         self.access_token = res["access_token"]
         self.log("SUCCESSFUL Browser Authentication", Qgis.Success)
+        self.loading = False
+        self.stateChange.emit()
 
     def _wait_for_auth_code(self):
         """ Wait for the auth code to come back from the server using a simple HTTP server
@@ -327,12 +351,14 @@ class GraphQLAPI():
                 self.send_response(200)
                 self.send_header("Content-type", "text/html")
                 self.end_headers()
-                self.wfile.write(success_html_body.encode() if success else failed_html_body.encode())
+                self.wfile.write(success_html_body.encode()
+                                 if success else failed_html_body.encode())
 
                 # Now shut down the server and return
                 self.server.shutdown()
 
-        server = ThreadingHTTPServer(("localhost", self.config.port), lambda *args, **kwargs: AuthHandler(self.config, *args, **kwargs))
+        server = ThreadingHTTPServer(("localhost", self.config.port),
+                                     lambda *args, **kwargs: AuthHandler(self.config, *args, **kwargs))
         # Keep the server running until it is manually stopped
         try:
             self.log("Starting server to wait for auth code...")
@@ -362,11 +388,13 @@ class GraphQLAPI():
 
         auth_code = None
         if not hasattr(server, "query_resp"):
-            raise GraphQLAPIException("Authentication failed with unknown return")
+            raise GraphQLAPIException(
+                "Authentication failed with unknown return")
         else:
             query_resp = server.query_resp
             if 'error' in query_resp or 'code' not in query_resp:
-                raise GraphQLAPIException(f"Authentication failed: {json.dumps(query_resp, indent=4, sort_keys=True)}")
+                raise GraphQLAPIException(
+                    f"Authentication failed: {json.dumps(query_resp, indent=4, sort_keys=True)}")
 
             auth_code = query_resp['code']
 
@@ -383,11 +411,18 @@ class GraphQLAPI():
         Returns:
             _type_: _description_
         """
+        self.loading = True
+        self.stateChange.emit()
         task = RunGQLQueryTask(self, query, variables)
 
+        def completion_callback(task):
+            self.loading = False
+            callback(task)
+            self.stateChange.emit()
+
         # For Async usage
-        task.taskCompleted.connect(lambda: callback(task))
-        task.taskTerminated.connect(lambda: callback(task))
+        task.taskCompleted.connect(lambda: completion_callback(task))
+        task.taskTerminated.connect(lambda: completion_callback(task))
 
         QgsApplication.taskManager().addTask(task)
         return task
@@ -407,8 +442,12 @@ class GraphQLAPI():
         Returns:
             _type_: _description_
         """
-
+        self.loading = True
+        self.stateChange.emit()
         task = RunGQLQueryTask(self, query, variables)
 
         # For Async usage
-        return task.run()
+        response = task.run()
+        self.loading = False
+        self.stateChange.emit()
+        return response
