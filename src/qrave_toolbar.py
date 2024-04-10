@@ -12,9 +12,11 @@
         email                : info@northarrowresearch.com
  ***************************************************************************/
 """
+import sys
 import os.path
 from time import time
 from functools import partial
+from pathlib import Path
 import requests
 
 from qgis.utils import showPluginHelp
@@ -45,6 +47,7 @@ RESOURCES_DIR = os.path.join(os.path.dirname(__file__), '..', 'resources')
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
+
 class QRAVE:
     """QGIS Plugin Implementation."""
 
@@ -60,6 +63,7 @@ class QRAVE:
         self.iface = iface
         self.tm = QgsApplication.taskManager()
         self.qproject = QgsProject.instance()
+        self.settings = Settings(iface=self.iface)
 
         self.pluginIsActive = False
 
@@ -77,7 +81,6 @@ class QRAVE:
             self.plugin_dir,
             'i18n',
             'QRAVE_{}.qm'.format(locale))
-        self.settings = Settings(iface=self.iface)
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -91,6 +94,48 @@ class QRAVE:
         # TODO: We are going to let the user set this up in a future iteration
         self.toolbar = self.iface.addToolBar(u'Riverscapes Viewer')
         self.toolbar.setObjectName(u'Riverscapes Viewer')
+
+        self.debugpy = None
+        self._enable_debug()
+
+    def _enable_debug(self):
+        debug_port = 5678
+        debug_host = "localhost"
+        DEBUG_ON = os.environ.get("RS_DEBUG", "False").lower() == "true"
+        if not DEBUG_ON:
+            return
+
+        if self.debugpy is None:
+            try:
+                import debugpy
+                self.debugpy = debugpy
+            except:
+                self.settings.log("Need install debugpy: pip3 install debugpy", Qgis.Warning)
+                pass
+
+        if self.debugpy is None:
+            return
+        else:
+            try:
+                python_path = os.path.join(Path(os.__file__).parents[2], 'bin', Path(os.__file__).parent.name)
+                self.settings.log(f"debugpy imported and attached to: {python_path}", Qgis.Success)
+                debugpy.configure(python=python_path)
+            except Exception as e:
+                self.settings.log("Error initializing debugpy: {}".format(e), Qgis.Critical)
+                raise e
+
+        msgPort = f'"request": "attach", "Port": {debug_port}, "host": "{debug_host}"'
+        if self.debugpy.is_client_connected():
+            self.settings.log(f"ALREADY ACTIVE: Remote Debug for Visual Studio is active({debug_port})", Qgis.Warning)
+            return
+        else:
+            try:
+                t_, new_port = self.debugpy.listen((debug_host, debug_port))
+            except Exception as e:
+                self.settings.log(f"Error starting debugpy: {e}", Qgis.Critical)
+                return
+            msgPort = f'"request": "enable_attach", "Port": {new_port}, "host": "{debug_host}"'
+            self.settings.log(f"Remote Debug for Visual Studio is running({msgPort})", Qgis.Success)
 
     def tr(self, message):
         """Get the translation for a string using Qt translation API.

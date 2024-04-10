@@ -1,18 +1,18 @@
 query getProject($id: ID!) {
-    project(id: $id) {
-        id
-        name
-        tags
-        ownedBy {
-          ...dbobjSm
-        }
-        visibility
-        permissions {
-          delete
-          update
-          view
-        }
+  project(id: $id) {
+    id
+    name
+    tags
+    ownedBy {
+      ...dbobjSm
     }
+    visibility
+    permissions {
+      delete
+      update
+      view
+    }
+  }
 }
 fragment dbobjSm on DBObj {
   id
