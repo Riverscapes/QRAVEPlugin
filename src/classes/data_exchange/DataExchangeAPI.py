@@ -54,8 +54,8 @@ class DataExchangeAPI(QObject):
             self.initialized = False
             self.on_login = on_login
             self.api = GraphQLAPI(
-                apiUrl=CONSTANTS['DE_API_Url'],
-                config=GraphQLAPIConfig(**CONSTANTS['DE_API_Auth'])
+                apiUrl=os.environ.get('DE_API_URL', CONSTANTS['DE_API_URL']),
+                config=GraphQLAPIConfig(**CONSTANTS['DE_API_AUTH'])
             )
             # Tie the state change signal to the state change handler inside self.api
             self.api.stateChange.connect(self.stateChange.emit)

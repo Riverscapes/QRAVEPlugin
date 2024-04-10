@@ -139,7 +139,7 @@
       <item>
        <widget class="QRadioButton" name="optModifyProject">
         <property name="text">
-         <string>Upload as new project</string>
+         <string>Modify existing project</string>
         </property>
         <property name="checked">
          <bool>true</bool>
@@ -149,7 +149,7 @@
       <item>
        <widget class="QRadioButton" name="optNewProject">
         <property name="text">
-         <string>Modify existing project</string>
+         <string>Upload as new project</string>
         </property>
        </widget>
       </item>
@@ -181,13 +181,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QComboBox" name="orgSelect">
-          <item>
-           <property name="text">
-            <string>USU Et Al</string>
-           </property>
-          </item>
-         </widget>
+         <widget class="QComboBox" name="orgSelect"/>
         </item>
        </layout>
       </item>
@@ -205,13 +199,13 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="accessGroup">
+    <widget class="QGroupBox" name="visibilityGroup">
      <property name="title">
-      <string>Access</string>
+      <string>Project Visibility</string>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_4">
       <item>
-       <widget class="QComboBox" name="comboBox_2">
+       <widget class="QComboBox" name="visibilitySelect">
         <item>
          <property name="text">
           <string>PUBLIC</string>
@@ -239,20 +233,13 @@
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_5">
       <item>
-       <widget class="QListWidget" name="listWidget">
+       <widget class="QListWidget" name="tagList">
         <property name="horizontalScrollBarPolicy">
          <enum>Qt::ScrollBarAlwaysOff</enum>
         </property>
-        <item>
-         <property name="text">
-          <string>tag1</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>tag2</string>
-         </property>
-        </item>
+        <property name="selectionMode">
+         <enum>QAbstractItemView::SingleSelection</enum>
+        </property>
        </widget>
       </item>
       <item>
@@ -278,7 +265,14 @@
          </spacer>
         </item>
         <item>
-         <widget class="QToolButton" name="RemoveTagButton">
+         <widget class="QToolButton" name="addTagButton">
+          <property name="text">
+           <string>add</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="removeTagButton">
           <property name="text">
            <string>remove</string>
           </property>
