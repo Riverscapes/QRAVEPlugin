@@ -1,20 +1,34 @@
 from typing import List, Callable, Dict
 import os
+import re
 from collections import namedtuple
 from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
 from qgis.core import QgsMessageLog, Qgis
 
 from ..GraphQLAPI import GraphQLAPI, GraphQLAPIConfig, RunGQLQueryTask, RefreshTokenTask
 from ..settings import CONSTANTS
+from ..util import calculate_etag
 
-MyOrg = namedtuple('MyOrg', ['id', 'name', 'myRole'])
+FILE_EXCLUDE_RE = [
+    r'^\.git',
+    r'^\.DS_Store',
+    r'^\.gitignore',
+    r'^\.gitattributes',
+    r'^\.gitmodules',
+    # Anything ending with .gpkg-journal
+    r'.*\.gpkg-[a-z]+$',
+    # Any file called 'RiverscapesViewer*.log'
+    r'^RiverscapesViewer.*\.log$',
+]
 
 
 class DEProfile:
     def __init__(self, id, name, organizations):
         self.id = id
         self.name = name
-        self.organizations: List[MyOrg] = organizations
+        self.organizations: List[MyOrg] = []
+        for org in organizations:
+            self.organizations.append(MyOrg(**org))
 
 
 class DEProject:
@@ -34,6 +48,79 @@ class DEValidation:
         for error in errors:
             del error['__typename']
             self.errors.append(ValidationErrorTuple(**error))
+
+
+class UploadFile(namedtuple('UploadFile', ['rel_path', 'size', 'etag'])):
+    rel_path: str
+    size: int
+    etag: str
+
+
+class UploadUrl(namedtuple('UploadUrl', ['rel_path', 'urls'])):
+    rel_path: str
+    urls: List[str]
+
+
+class UploadFileList():
+    token: str = None
+    files: List[UploadFile] = []
+    urls: List[UploadUrl] = []
+
+    def __init__(self, files=[]):
+        self.files: List[UploadFile] = []
+        for file in files:
+            self.files.append(UploadFile(**file))
+
+    def fetch_local_files(self, project_dir: str, project_type: str):
+        """Scrape through the project folder and add all files to the upload digest
+        except if they are a business logic file or match the exclusion list
+
+        Args:
+            project_dir (str): _description_
+            project_type (str): _description_
+
+        Raises:
+            ValueError: _description_
+        """
+        if not self.files:
+            self.files = []
+        # Search for a file called '{project_type}.xml' in the project directory (case insensitive  )
+        bl_file_check = re.compile(f'{project_type}\.xml$', re.IGNORECASE)
+
+        if not os.path.isdir(project_dir):
+            raise ValueError(f"Project directory {project_dir} does not exist")
+
+        for root, _dirs, files in os.walk(project_dir):
+            for file in files:
+                # make sure this isn't a proj_type file or
+                # isn't in the exclusion list (case insensitive)
+                if bl_file_check.match(file) or any([re.match(exclude_re, file, re.IGNORECASE) for exclude_re in FILE_EXCLUDE_RE]):
+                    continue
+                abs_path = os.path.join(root, file)
+                rel_path = os.path.relpath(abs_path, project_dir)
+                etag_obj = calculate_etag(abs_path)
+                file_size = etag_obj['size']
+                file_etag = etag_obj['etag']
+                self.add_file(rel_path, file_size, file_etag)
+
+    def add_url(self, rel_path: str, urls: List[str]):
+        self.urls.append(UploadUrl(rel_path, urls))
+
+    def add_file(self, rel_path: str, size: int, etag: str):
+        self.files.append(UploadFile(rel_path, size, etag))
+
+    def get_rel_paths(self):
+        return [file.rel_path for file in self.files]
+
+    def get_etags(self):
+        return [file.etag for file in self.files]
+
+    def get_sizes(self):
+        return [file.size for file in self.files]
+
+
+class MyOrg(namedtuple('MyOrg', ['id', 'name', 'myRole'])):
+    pass
 
 
 class ValidationErrorTuple(namedtuple('ValidationErrorTuple', ['code', 'message', 'severity'])):
@@ -72,6 +159,7 @@ class DataExchangeAPI(QObject):
             )
             # Tie the state change signal to the state change handler inside self.api
             self.api.stateChange.connect(self.stateChange.emit)
+            self.stateChange.connect(self._handle_state_change)
 
             self.initialized = self.api.access_token is not None
         # Regardless of outcome we should check the token status
@@ -85,14 +173,18 @@ class DataExchangeAPI(QObject):
         self.api.refresh_token(self._handle_refresh_token)
         self.stateChange.emit()
 
+    @pyqtSlot()
+    def _handle_state_change(self):
+        pass
+
     def _handle_refresh_token(self, task: RefreshTokenTask):
         if task.error:
-            QgsMessageLog.logMessage(
-                'Error refreshing token', MESSAGE_CATEGORY, Qgis.Critical)
+            QgsMessageLog.logMessage('Error refreshing token', MESSAGE_CATEGORY, Qgis.Critical)
             QgsMessageLog.logMessage(task.error, MESSAGE_CATEGORY, Qgis.Error)
             self.initialized = False
             self.on_login(task)
         else:
+            QgsMessageLog.logMessage('Token refreshed', MESSAGE_CATEGORY, Qgis.Info)
             self.initialized = True
             self.on_login(task)
 
@@ -114,9 +206,8 @@ class DataExchangeAPI(QObject):
             if task.response and not task.error:
                 myId = task.response['data']['profile']['id']
                 myName = task.response['data']['profile']['name']
-                myOrgs = [
-                    MyOrg(**org) for org in task.response['data']['profile']['organizations']['items']
-                ]
+                myOrgs = task.response['data']['profile']['organizations']['items']
+
                 profile = DEProfile(myId, myName, myOrgs)
 
             return callback(task, profile)
@@ -139,7 +230,7 @@ class DataExchangeAPI(QObject):
 
         return self.api.run_query(self._load_query('getProject'), {'id': project_id}, _parse_project)
 
-    def validate_project(self, xml_str: str, owner_obj: OwnerInputTuple, files: List[str], callback: Callable[[RunGQLQueryTask, Dict], None]):
+    def validate_project(self, xml_str: str, owner_obj: OwnerInputTuple, files: UploadFileList, callback: Callable[[RunGQLQueryTask, Dict], None]):
         """ Validate a project
 
         Args:
@@ -155,10 +246,10 @@ class DataExchangeAPI(QObject):
 
             return callback(task, validation)
 
-        return self.api.run_query(self._load_query('validateProject'), {'xml': xml_str, 'owner': owner_obj, 'files': files}, _validate_project)
+        return self.api.run_query(self._load_query('validateProject'), {'xml': xml_str, 'owner': owner_obj, 'files': files.get_rel_paths()}, _validate_project)
 
     def request_upload_project(self,
-                               files: List[str], file_etags: List[str], file_sizes: List[int],
+                               files: UploadFileList,
                                tags: List[str],
                                owner_obj: OwnerInputTuple,
                                project_id: str = None, project_token: str = None,
@@ -183,12 +274,24 @@ class DataExchangeAPI(QObject):
             ret_obj = None
             if task.response and not task.error:
                 ret_obj = task.response['data']['requestUploadProject']
+                # Add the token to the upload digest in place
+                files.token = ret_obj['token']
 
             return callback(task, ret_obj)
 
-        return self.api.run_query(self._load_query('requestUploadProject'), {'xml': xml_str, 'owner': owner_obj, 'files': files}, _request_upload_project)
+        return self.api.run_query(self._load_query('requestUploadProject'), {
+            'projectId': project_id,
+            'token': project_token,
+            'files': files.get_rel_paths(),
+            'etags': files.get_etags(),
+            'sizes': files.get_sizes(),
+            'noDelete': no_delete,
+            'owner': owner_obj,
+            'tags': tags,
+            'visibility': visibility
+        }, _request_upload_project)
 
-    def request_upload_project_files_url(self, files: List[str], project_upload_token: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
+    def request_upload_project_files_url(self, files: UploadFileList, callback: Callable[[RunGQLQueryTask, Dict], None]):
         """ Request a URL to upload project files to
 
         Args:
@@ -200,10 +303,17 @@ class DataExchangeAPI(QObject):
             ret_obj = None
             if task.response and not task.error:
                 ret_obj = task.response['data']['requestUploadProjectFilesUrl']
+                for url in ret_obj:
+                    files.add_url(url['relPath'], url['urls'])
 
             return callback(task, ret_obj)
 
-        return self.api.run_query(self._load_query('requestUploadProjectFilesUrl'), {'files': files, 'token': project_upload_token}, _request_upload_project_files_url)
+        return self.api.run_query(self._load_query('requestUploadProjectFilesUrl'), {
+            'files': files.get_rel_paths(),
+            'token': files.token
+        },
+            _request_upload_project_files_url
+        )
 
     def finalize_project_upload(self, project_upload_token: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
         """ Finalize the project upload

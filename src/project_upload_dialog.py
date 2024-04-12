@@ -8,19 +8,22 @@ from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QUrl
 from qgis.PyQt.QtWidgets import QErrorMessage
 from qgis.core import Qgis, QgsMessageLog
 
-from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, DEProject, DEValidation, OwnerInputTuple
+from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, DEProject, DEValidation, OwnerInputTuple, UploadFileList
 from .classes.GraphQLAPI import RunGQLQueryTask, RefreshTokenTask
 from .classes.settings import CONSTANTS, Settings
 from .classes.project import Project
+from .classes.util import error_level_to_str
 
 # DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
 #     os.path.dirname(__file__), 'ui', 'options_dialog.ui'))
 from .ui.project_upload_dialog import Ui_Dialog
 
-# Here are the states we're going to pass through
 
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
+LOG_FILE = 'RiverscapesViewer-Upload.log'
+
+# Here are the states we're going to pass through
 
 
 class ProjectUploadDialogStateFlow:
@@ -29,10 +32,11 @@ class ProjectUploadDialogStateFlow:
     FETCHING_CONTEXT = 2
     USER_ACTION = 3
     VALIDATING = 4
-    UPLOADING = 5
-    WAITING_FOR_COMPLETION = 6
-    COMPLETED = 7
-    ERROR = 8
+    REQUESTING_UPLOAD = 5
+    UPLOADING = 6
+    WAITING_FOR_COMPLETION = 7
+    COMPLETED = 8
+    ERROR = 9
 
 
 class ProjectUploadDialogError():
@@ -53,6 +57,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.error: ProjectUploadDialogError = None
         self.setupUi(self)
         self.project_xml = project
+        self.upload_log_path = os.path.join(project.project_dir, LOG_FILE)
         self.flow_state = ProjectUploadDialogStateFlow.INITIALIZING
         warehouse_tag = self.project_xml.warehouse_meta
         self.settings = Settings()
@@ -68,6 +73,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.org_id = None
         self.tags = []
         self.selected_tag = []
+        self.upload_digest = UploadFileList()
         self.api_url = None
         ########################################################
 
@@ -88,6 +94,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Create a button group
         self.optNewProject.setChecked(True)
         self.optModifyProject.setChecked(False)
+        self.viewExistingBtn.clicked.connect(lambda: self.open_web_project(self.existing_project.id))
         self.new_or_update_group = QButtonGroup(self)
         self.new_or_update_group.addButton(self.optNewProject, 1)  # NEW === 1
         self.new_or_update_group.addButton(self.optModifyProject, 2)  # MODIFY === 2
@@ -107,7 +114,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.orgSelect.currentIndexChanged.connect(self.handle_org_select_change)
 
         # on clicking the web project upen the existing project in the browser
-        self.openWebProjectBtn.clicked.connect(self.open_web_project)
+        self.openWebProjectBtn.clicked.connect(lambda: self.open_web_project(self.existing_project.id))
 
         # Connect
         self.loginResetBtn.clicked.connect(self.dataExchangeAPI.login)
@@ -115,9 +122,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.flow_state = ProjectUploadDialogStateFlow.LOGGING_IN
         self.loginStatusValue.setText('Logging in...')
 
-        self.actionBtnBox.button(QDialogButtonBox.Ok).setText("Start")
-        self.actionBtnBox.accepted.disconnect(self.accept)
-        self.actionBtnBox.button(QDialogButtonBox.Ok).clicked.connect(self.handle_start_click)
+        self.startBtn.clicked.connect(self.handle_start_click)
 
         self.projectNameValue.setText(self.project_xml.project.find('Name').text)
         # The text should fill the label with ellipses if it's too long
@@ -127,6 +132,15 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         self.stateChange.connect(self.state_change_handler)
         self.stateChange.emit()
+
+    def get_owner_obj(self) -> OwnerInputTuple:
+        if not self.org_id and not self.profile:
+            return None
+        if self.org_id is not None:
+            owner_obj = OwnerInputTuple(id=self.org_id, type='ORGANIZATION')
+        else:
+            owner_obj = OwnerInputTuple(id=self.profile.id, type='USER')
+        return owner_obj
 
     def handle_login(self, task: RefreshTokenTask):
         print('handle_login')
@@ -159,12 +173,10 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
     def handle_profile_change(self, task: RunGQLQueryTask, profile: DEProfile):
         if profile is None:
             self.profile = None
-            self.error = ProjectUploadDialogError(
-                'Could not fetch user profile', task.error)
+            self.error = ProjectUploadDialogError('Could not fetch user profile', task.error)
         else:
             self.profile = profile
-            self.loginStatusValue.setText(
-                'Logged in as: ' + profile.name + ' (' + profile.id + ')')
+            self.loginStatusValue.setText('Logged in as: ' + profile.name + ' (' + profile.id + ')')
             if self.project_xml.warehouse_meta is not None:
                 project_api = self.project_xml.warehouse_meta.get('apiUrl', [None])[0]
                 project_id = self.project_xml.warehouse_meta.get('id', [None])[0]
@@ -320,17 +332,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         emsg.setMinimumHeight(600)
         emsg.setWindowTitle('Error Details')
 
-        emsg.showMessage(f"""
-            <h2>ERROR: {self.error.summary}</h2>
-            <pre>
-                <code>{self.error.detail}</code>
-            </pre>
-            """)
+        emsg.showMessage(f"""<h2>ERROR: {self.error.summary}</h2>
+                            <pre><code>{self.error.detail}</code></pre>""")
 
-    def open_web_project(self):
-        if self.existing_project is not None:
-            # parse the url from CONSTANTS['warehouseUrl'] + /p/b046757c-d1ae-48db-9525-bde2960a58f0/
-            url = CONSTANTS['warehouseUrl'] + '/p/' + self.existing_project.id
+    def open_web_project(self, id: str):
+        if id is not None:
+            url = CONSTANTS['warehouseUrl'] + '/p/' + id
             QDesktopServices.openUrl(QUrl(url))
 
     @pyqtSlot()
@@ -357,10 +364,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             if self.optModifyProject.isChecked():
                 self.optNewProject.setChecked(True)
             self.optModifyProject.setEnabled(False)
+            self.viewExistingBtn.setEnabled(False)
             self.selectUpdate = False
         # Only if the warehouse_id exists AND the project retieval is successful AND the acccess is correct can we enable the modify option
         else:
             self.optModifyProject.setEnabled(allow_user_action)
+            self.viewExistingBtn.setEnabled(allow_user_action)
 
         # Project Ownership
         ########################################################################
@@ -394,16 +403,15 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.progressSubLabel.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
         self.progressSubLabel.setText('...')
 
-        self.openWebProjectBtn.setEnabled(self.existing_project is not None)
+        self.openWebProjectBtn.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.COMPLETED])
 
         # Action buttons at the bottom of the screen
         ########################################################################
 
         # set the ok button text to "Start"
-        self.actionBtnBox.button(QDialogButtonBox.Ok).setEnabled(not self.loading)
+        self.startBtn.setEnabled(allow_user_action)
+
         self.actionBtnBox.button(QDialogButtonBox.Cancel).setText(self.flow_state == ProjectUploadDialogStateFlow.USER_ACTION and "Cancel" or "Stop")
-        # Disabled the ok button
-        self.actionBtnBox.button(QDialogButtonBox.Ok).setEnabled(allow_user_action)
 
     def _handle_error_state(self):
         if (self.error):
@@ -426,6 +434,32 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.errorSummaryLable.setStyleSheet("QLabel { color : black; border: 0px; }")
             self.error = None
 
+    def upload_log(self, message: str, level: int, context_obj=None):
+        """ Logging here should go to the QGIS log and to a file we can check later
+
+        Args:
+            message (str): _description_
+            level (int): _description_
+            context_obj (_type_, optional): _description_. Defaults to None.
+        """
+        self.settings.log(message, level)
+        level_name = error_level_to_str(level)
+        with open(self.upload_log_path, 'a') as f:
+            f.write(f"[{level_name}] {message}{os.linesep}")
+            if context_obj is not None:
+                if isinstance(context_obj, (dict, list)):
+                    try:
+                        f.write(json.dumps(context_obj, indent=2) + os.linesep)
+                    except Exception as e:
+                        f.write(f"Could not serialize context object: {str(e)}{os.linesep}")
+                elif isinstance(context_obj, RunGQLQueryTask):
+                    f.write(f"Task: {context_obj.debug_log()}{os.linesep}")
+                else:
+                    try:
+                        f.write(str(context_obj) + os.linesep)
+                    except Exception as e:
+                        f.write(f"Could not convert context object to string: {str(e)}{os.linesep}")
+
     def handle_start_click(self):
         # First pop open a confirmation dialog to make sure this is something we want to do
         # Then we can start the upload process
@@ -439,20 +473,17 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             text += ' as an update to the existing project.'
         qm.setText(text + ' Are you sure?')
         qm.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+
+        if self.upload_log_path is not None and os.path.isfile(self.upload_log_path):
+            os.remove(self.upload_log_path)
+
         response = qm.exec_()
         if response == QMessageBox.Yes:
             # New let's kick off project validation. We need 3 things to do this: 1. The XML, 2. The files, 3. The owner
 
             # 1. Files - we need relative paths to the files
-            rel_files = []
-            for root, dirs, files in os.walk(self.project_xml.project_dir):
-                for file in files:
-                    rel_files.append(os.path.relpath(os.path.join(root, file), self.project_xml.project_dir))
-
-            if self.org_id is not None:
-                owner_obj = OwnerInputTuple(id=self.org_id, type='ORGANIZATION')
-            else:
-                owner_obj = OwnerInputTuple(id=self.profile.id, type='USER')
+            self.upload_digest = UploadFileList()
+            self.upload_digest.fetch_local_files(self.project_xml.project_dir, self.project_xml.project_type)
 
             with open(self.project_xml.project_xml_path, 'r') as f:
                 xml = lxml.etree.parse(self.project_xml.project_xml_path).getroot()
@@ -463,22 +494,60 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                         xml.remove(warehouse_tag)
                 # Now transform back to a string
                 xml = lxml.etree.tostring(xml, pretty_print=True).decode('utf-8')
-                    
-                self.dataExchangeAPI.validate_project(xml, owner_obj, rel_files, self.handle_project_validation)
+                owner_obj = self.get_owner_obj()
+                self.dataExchangeAPI.validate_project(xml, owner_obj, self.upload_digest, self.handle_project_validation)
         else:
             return
 
     def handle_project_validation(self, task: RunGQLQueryTask, validation_obj: DEValidation):
         if validation_obj is None:
             self.error = ProjectUploadDialogError('Could not validate project for an unknown reason', task.error)
+            self.upload_log('Project validation failed to run', Qgis.Critical, task)
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
         else:
             if validation_obj.valid is True:
-                # NOW WE KICK OFF THE OTHER CALLS
-                pass
+                # Validation done. Now request upload
+                owner_obj = self.get_owner_obj()
+                self.upload_log('Project is valid.', Qgis.Info)
+                self.upload_log('Requesting upload...', Qgis.Info)
+                self.dataExchangeAPI.request_upload_project(
+                    files=self.upload_digest,
+                    tags=self.tags,
+                    owner_obj=owner_obj,
+                    visibility=self.visibilitySelect.currentText(),
+                    callback=self.handle_request_upload_project
+                )
+                self.flow_state = ProjectUploadDialogStateFlow.REQUESTING_UPLOAD
             else:
+                self.upload_log('Project is not valid', Qgis.Critical, task)
                 detail_text = [f"[{err.severity}][{err.code}] {err.message}" for err in validation_obj.errors]
                 self.error = ProjectUploadDialogError('Project is not valid', detail_text)
                 self.flow_state = ProjectUploadDialogStateFlow.ERROR
 
+        self.stateChange.emit()
+
+    def handle_request_upload_project(self, task: RunGQLQueryTask, upload_obj: DEProject):
+        if upload_obj is None:
+            self.upload_log('Could not upload project', Qgis.Critical, task)
+            self.error = ProjectUploadDialogError('Could not upload project', task.error)
+            self.flow_state = ProjectUploadDialogStateFlow.ERROR
+        else:
+            self.upload_log('Got project upload token', Qgis.Info)
+            self.dataExchangeAPI.request_upload_project_files_url(self.upload_digest, self.handle_request_upload_project_files_url)
+
+        self.stateChange.emit()
+
+    def handle_request_upload_project_files_url(self, task: RunGQLQueryTask, project: DEProject):
+        if project is None:
+            self.upload_log('Could not get the file upload URLs', Qgis.Critical, task)
+            self.error = ProjectUploadDialogError('Could not upload project', task.error)
+            self.flow_state = ProjectUploadDialogStateFlow.ERROR
+        else:
+            self.upload_log('Got the file upload URLs', Qgis.Info)
+            self.handle_upload_start()
+        self.stateChange.emit()
+
+    def handle_upload_start(self):
+        self.upload_log('Starting upload...', Qgis.Info)
+        self.flow_state = ProjectUploadDialogStateFlow.UPLOADING
         self.stateChange.emit()

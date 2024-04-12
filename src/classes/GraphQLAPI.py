@@ -46,6 +46,18 @@ class RunGQLQueryTask(QgsTask):
         self.error = None
         self.response = None
 
+    def debug_log(self) -> str:
+        debug_obj = {
+            'url': self.api.uri,
+            'query': self.query,
+            'variables': self.variables,
+            'response': self.response
+        }
+        json_str = json.dumps(debug_obj, indent=4, sort_keys=True)
+        # Replace all \n line breaks with a newline character
+        json_str = json_str.replace('\\n', '\n                ')
+        return json_str
+
     def run(self, retries=0):
         try:
             headers = {"authorization": "Bearer " +
