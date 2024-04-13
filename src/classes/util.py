@@ -154,8 +154,8 @@ def calculate_etag(
 
     if file_size_in_bytes < chunk_thresh_bytes:
         with open(file_path, 'rb') as f:
-            bytes = f.read()
-        etag = hashlib.md5(bytes).hexdigest()
+            fbytes_read = f.read()
+        etag = hashlib.md5(fbytes_read).hexdigest()
     else:
         parts = file_size_in_bytes // chunk_size_bytes
         if file_size_in_bytes % chunk_size_bytes > 0:
@@ -169,7 +169,7 @@ def calculate_etag(
                 file.seek(skip_bytes)
                 buffer = file.read(bytes_to_read)
                 total_md5 += hashlib.md5(buffer).hexdigest()
-        combined_hash = md5(bytes.fromhex(total_md5))
+        combined_hash = hashlib.md5(bytes.fromhex(total_md5)).hexdigest()
         etag = f'{combined_hash}-{parts}'
 
     return {
