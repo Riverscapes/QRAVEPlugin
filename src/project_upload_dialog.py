@@ -1,6 +1,8 @@
 import os
 import json
 import lxml.etree
+import datetime
+from typing import Tuple
 
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QButtonGroup, QMessageBox
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices
@@ -13,7 +15,7 @@ from .classes.GraphQLAPI import RunGQLQueryTask, RefreshTokenTask
 from .classes.settings import CONSTANTS, Settings
 from .classes.project import Project
 from .classes.util import error_level_to_str
-
+from .classes.data_exchange.uploader import UploadQueue, UploadMultiPartFileTask
 # DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
 #     os.path.dirname(__file__), 'ui', 'options_dialog.ui'))
 from .ui.project_upload_dialog import Ui_Dialog
@@ -75,6 +77,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.selected_tag = []
         self.upload_digest = UploadFileList()
         self.api_url = None
+        self.queue = UploadQueue()
         ########################################################
 
         if warehouse_tag is not None:
@@ -101,6 +104,10 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.new_or_update_group.buttonToggled.connect(self.handle_new_or_update_change)
         self.new_or_update_group.setExclusive(True)
 
+        # Add a "View Log" button to the QtWidgets.QDialogButtonBox
+        self.viewLogsButton = self.actionBtnBox.addButton('View Log', QDialogButtonBox.ActionRole)
+        self.viewLogsButton.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(self.upload_log_path)))
+
         self.mine_group = QButtonGroup(self)
         self.mine_group.addButton(self.optOwnerMe, 1)  # ME === 1
         self.mine_group.addButton(self.optOwnerOrg, 2)  # ORG === 2
@@ -115,6 +122,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         # on clicking the web project upen the existing project in the browser
         self.openWebProjectBtn.clicked.connect(lambda: self.open_web_project(self.existing_project.id))
+        self.progressBar.setValue(0)
+        self.progressBar.setMaximum(100)
 
         # Connect
         self.loginResetBtn.clicked.connect(self.dataExchangeAPI.login)
@@ -143,12 +152,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         return owner_obj
 
     def handle_login(self, task: RefreshTokenTask):
-        print('handle_login')
         if not task.success:
             self.error = ProjectUploadDialogError('Could not log in to the data exchange API', task.error)
         else:
             self.flow_state = ProjectUploadDialogStateFlow.FETCHING_CONTEXT
             self.loginStatusValue.setText('Logged in. Fetching Profile...')
+            self.profile = None
             self.dataExchangeAPI.get_user_info(self.handle_profile_change)
         self.stateChange.emit()
 
@@ -242,6 +251,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         if self.warehouse_id is None:
             self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
         else:
+            self.existing_project = None
             self.dataExchangeAPI.get_project(self.warehouse_id, self.handle_existing_project)
 
         self.stateChange.emit()
@@ -399,19 +409,37 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Upload Progress and summary
         ########################################################################
         self.progressBar.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
-        self.progressBar.setValue(0)
         self.progressSubLabel.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
-        self.progressSubLabel.setText('...')
 
         self.openWebProjectBtn.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.COMPLETED])
+
+        todo_text = ''
+        if self.flow_state == ProjectUploadDialogStateFlow.LOGGING_IN:
+            todo_text = 'Logging in...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.FETCHING_CONTEXT:
+            todo_text = 'Fetching user context...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.USER_ACTION:
+            todo_text = 'Ready to upload'
+        elif self.flow_state == ProjectUploadDialogStateFlow.VALIDATING:
+            todo_text = 'Validating project...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.REQUESTING_UPLOAD:
+            todo_text = 'Requesting upload...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.UPLOADING:
+            todo_text = 'Uploading...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.WAITING_FOR_COMPLETION:
+            todo_text = 'Waiting for upload completion...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.COMPLETED:
+            todo_text = 'Upload complete'
+        self.todoLabel.setText(todo_text)
 
         # Action buttons at the bottom of the screen
         ########################################################################
 
         # set the ok button text to "Start"
         self.startBtn.setEnabled(allow_user_action)
-
         self.actionBtnBox.button(QDialogButtonBox.Cancel).setText(self.flow_state == ProjectUploadDialogStateFlow.USER_ACTION and "Cancel" or "Stop")
+
+        self.viewLogsButton.setEnabled(os.path.isfile(self.upload_log_path))
 
     def _handle_error_state(self):
         if (self.error):
@@ -434,7 +462,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.errorSummaryLable.setStyleSheet("QLabel { color : black; border: 0px; }")
             self.error = None
 
-    def upload_log(self, message: str, level: int, context_obj=None):
+    def upload_log(self, message: str, level: int = Qgis.Info, context_obj=None):
         """ Logging here should go to the QGIS log and to a file we can check later
 
         Args:
@@ -445,7 +473,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.settings.log(message, level)
         level_name = error_level_to_str(level)
         with open(self.upload_log_path, 'a') as f:
-            f.write(f"[{level_name}] {message}{os.linesep}")
+            # Get an iso timestamp to prepend the message
+            timestamp = datetime.datetime.now().isoformat()
+            f.write(f"[{timestamp}][{level_name}] {message}{os.linesep}")
             if context_obj is not None:
                 if isinstance(context_obj, (dict, list)):
                     try:
@@ -454,6 +484,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                         f.write(f"Could not serialize context object: {str(e)}{os.linesep}")
                 elif isinstance(context_obj, RunGQLQueryTask):
                     f.write(f"Task: {context_obj.debug_log()}{os.linesep}")
+                elif isinstance(context_obj, UploadMultiPartFileTask):
+                    f.write(f"UploadFile: {context_obj.debug_log()}{os.linesep}")
                 else:
                     try:
                         f.write(str(context_obj) + os.linesep)
@@ -549,5 +581,38 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
     def handle_upload_start(self):
         self.upload_log('Starting upload...', Qgis.Info)
+        self.queue = UploadQueue(log_callback=self.upload_log,
+                                 complete_callback=self.uploads_complete,
+                                 progress_callback=self.upload_progress
+                                 )
+        idx = 0
+        for rel_path, size, etag in self.upload_digest.files:
+            urls = self.upload_digest.urls[idx]
+            abs_path = os.path.join(self.project_xml.project_dir, rel_path)
+            self.queue.enqueue(abs_path, upload_urls=urls.urls)
+            idx += 1
+
         self.flow_state = ProjectUploadDialogStateFlow.UPLOADING
+        self.stateChange.emit()
+
+    def upload_progress(self, biggest_file: UploadMultiPartFileTask, progress: int):
+        if progress > 100:
+            progress = 100
+        elif progress < 0:
+            progress = 0
+        else:
+            progress = 0
+
+        self.progressBar.setValue(progress)
+        if biggest_file is not None:
+            print(f"Uploading: {biggest_file.file_path} {progress}%")
+            self.progressSubLabel.setText(f"Uploading: {biggest_file.file_path}")
+        else:
+            self.progressSubLabel.setText('...')
+
+    def uploads_complete(self):
+        print('Uploads complete')
+        self.progressBar.setValue(100)
+        self.progressSubLabel.setText('...')
+        self.flow_state = ProjectUploadDialogStateFlow.COMPLETED
         self.stateChange.emit()
