@@ -24,6 +24,11 @@ class UploadMultiPartFileTask(QgsTask):
         self.error = None
 
     def debug_log(self) -> str:
+        """ Useful helper function for printing task state to a log file
+
+        Returns:
+            str: _description_
+        """
         debug_obj = {
             'urls': self.urls,
             'uploaded_size': self.uploaded_size,
@@ -40,11 +45,23 @@ class UploadMultiPartFileTask(QgsTask):
         return json_str
 
     def _progress_callback(self, uploaded: int):
+        """ When we get a progress update from the task, we update the total uploaded size
+        """
         self.uploaded_size += uploaded
         if self.ext_prog_callback:
             self.ext_prog_callback()
 
     def upload_file_part(self, url: str, start: int, end: int) -> bool:
+        """ This is the actual upload code that will physically send all or part of a local file to a single remote URL
+
+        Args:
+            url (str): _description_
+            start (int): 0 for single file or the first chunk of a multipart upload
+            end (int): The last byte of the chunk to upload. End of file for single file or the last byte of the chunk for multipart
+
+        Returns:
+            bool: _description_
+        """
         original_size = self.uploaded_size
         for _ in range(self.allowed_retries):
             try:
@@ -66,9 +83,18 @@ class UploadMultiPartFileTask(QgsTask):
         return False
 
     def run(self):
+        """ Implements the QgsTask run method. This is where the actual work is done
+
+        Returns:
+            _type_: _description_
+        """
+
+        # Quick check to make sure our chunk math is right
         if self.chunks != len(self.urls):
             self.error = f"Number of URLs ({len(self.urls)}) does not match number of chunks ({self.chunks})"
             return False
+
+        # For each URL (1 for single file, many for multipart) upload the chunk
         for idx, url in enumerate(self.urls):
             print(f"--------START: Uploading chunk {idx + 1} of {self.chunks}")
             start = idx * self.chunk_size
@@ -166,7 +192,7 @@ class UploadQueue(Borg):
             return None
 
     def process_queue(self):
-        """ _summary_
+        """ Here we process the queue and start tasks as slots become available
         """
         while self.active is True and len(self.active_tasks) < self.MAX_CONCURRENT_UPLOADS:
             # There are things to queue and slots open
@@ -205,11 +231,16 @@ class UploadQueue(Borg):
         """ _summary_
         """
         self.queue_logger(f"Canceling all uploads", Qgis.Info)
+        # Shut down the queue processor
         self.active = False
+
+        # Cancel all the active tasks
         for task in self.active_tasks:
             task.cancel()
             self.queue_logger(f"Cancelled upload of {task.file_path}", Qgis.Info, task)
             self.active_tasks.remove(task)
             self.cancelled_tasks.append(task)
-            if self.complete_callback:
-                self.complete_callback()
+
+        # Now signal that we're done
+        if self.complete_callback:
+            self.complete_callback()
