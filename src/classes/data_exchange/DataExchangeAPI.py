@@ -4,9 +4,10 @@ import re
 from collections import namedtuple
 from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
 from qgis.core import QgsMessageLog, Qgis
+import requests
 
 from ..GraphQLAPI import GraphQLAPI, GraphQLAPIConfig, RunGQLQueryTask, RefreshTokenTask
-from ..settings import CONSTANTS
+from ..settings import CONSTANTS, Settings
 from ..util import calculate_etag
 
 FILE_EXCLUDE_RE = [
@@ -145,6 +146,8 @@ class DataExchangeAPI(QObject):
 
     def __init__(self, on_login=Callable[[bool], None]):
         super().__init__()
+        self.settings = Settings()
+        self.log = self.settings.log
         # Make sure the Borg pattern is initialized
         self.__dict__ = self._shared_state
         if not hasattr(self, 'initialized'):
@@ -355,46 +358,15 @@ class DataExchangeAPI(QObject):
             ret_obj = None
             if task.response and not task.error:
                 ret_obj = task.response['data']['downloadFile']
+                download_url = ret_obj['downloadUrl']
+                try:
+                    with open(local_path, 'wb') as f:
+                        f.write(requests.get(download_url).content)
+                except Exception as e:
+                    self.log(f"Error downloading file: {local_path}", Qgis.Critical)
+                    self.log(f"Error: {e}", Qgis.Critical)
+                    ret_obj = None
 
             return callback(task, ret_obj)
 
         return self.api.run_query(self._load_query('downloadFile'), {'id': project_id, 'filePath': remote_path}, _download_file)
-
-
-#     def upload_project(self, project_id: str, callback=None):
-#         """ Upload a project
-
-#         Args:
-#             project_id (str): the id of the project to upload
-#         """
-#         self.validate_project(project_id, callback)
-
-#         self.request_upload_project(project_id, callback)
-#         upload_url = self.request_upload_project_files_url(project_id, callback)
-#         # Upload the files to the S3 bucket
-#         # ...
-#         # Finalize the upload
-#         self.finalize_project_upload(project_id, callback)
-#         # Check the status of the upload
-#         self.check_upload(project_id, callback)
-#         # Download the project file
-#         self.download_file(project_id, callback)
-
-
-# """
-# # Validate the project file to see if there are any errors
-# validateProject
-#         requestUploadProject
-
-# # Request a URL to upload the files to the S3 bucket
-#         requestUploadProjectFilesUrl
-
-# # Finalize meaning that all files are uploaded and the upload copy is good to start
-# finalizeProjectUpload
-
-# # Check to see if the upload is complete on a while loop
-# checkUpload
-
-# Then download the new project file here:
-# downloadFile
-#         """
