@@ -13,6 +13,11 @@ MULTIPART_CHUNK_SIZE = 50 * pow(1024, 2)
 # On the S3 client the threshold can be different than the chnk size.
 MULTIPART_THRESHOLD = 50 * pow(1024, 2)
 
+# for uploading files to S3, we need to upload in chunks
+# This has nothing to do with multipart uploads but rather how often we send a progress signal
+# Back to the UI. We set thgis as 1Mb
+UPLOAD_PROGESS_CHUNK_SIZE = 1 * pow(1024, 2)
+
 
 def md5(fname: str) -> str:
     """ Calculate the MD5 hash of a file. Used to check downloaded files against a known hash.

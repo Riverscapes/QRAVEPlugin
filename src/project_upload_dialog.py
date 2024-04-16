@@ -646,24 +646,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.handle_upload_start()
         self.stateChange.emit()
 
-    def handle_upload_start(self):
-        """Here is where we initialize our UploadQueue and start the upload process
-        """
-        self.upload_log('Starting upload...', Qgis.Info)
-        self.queue = UploadQueue(log_callback=self.upload_log,
-                                 complete_callback=self.handle_uploads_complete,
-                                 progress_callback=self.upload_progress
-                                 )
-        idx = 0
-        for rel_path, size, etag in self.upload_digest.files:
-            urls = self.upload_digest.urls[idx]
-            abs_path = os.path.join(self.project_xml.project_dir, rel_path)
-            self.queue.enqueue(abs_path, upload_urls=urls.urls)
-            idx += 1
-
-        self.flow_state = ProjectUploadDialogStateFlow.UPLOADING
-        self.stateChange.emit()
-
     def upload_progress(self, biggest_file: UploadMultiPartFileTask, progress: int):
         """ Reporting on file uploads
 
@@ -701,6 +683,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             abs_path = os.path.join(self.project_xml.project_dir, rel_path)
             self.queue.enqueue(abs_path, upload_urls=urls.urls)
             idx += 1
+            break
 
         self.flow_state = ProjectUploadDialogStateFlow.UPLOADING
         self.stateChange.emit()
@@ -715,7 +698,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         self.flow_state = ProjectUploadDialogStateFlow.COMPLETED
         self.stateChange.emit()
-
 
     def handle_wait_for_upload_completion(self, response: Dict[str, any], start_time: datetime.datetime):
         """ Handle the response from the API when waiting for the upload to complete
