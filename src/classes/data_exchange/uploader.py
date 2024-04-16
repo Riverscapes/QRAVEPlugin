@@ -6,56 +6,45 @@ import math
 from qgis.core import QgsTask, QgsApplication, Qgis
 from PyQt5.QtCore import QByteArray, QUrl, QIODevice, QFile, QEventLoop, pyqtSlot, pyqtSignal
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
-import requests
 from ..borg import Borg
 from ..util import MULTIPART_CHUNK_SIZE
 
-MAX_PROGRESS_INTERVAL = 1  # seconds
-UPLOAD_PROGESS_CHUNK_SIZE = 1024
+MAX_PROGRESS_INTERVAL = 3  # seconds
 
 
-class PartialFile(QIODevice):
+class PartialFile(QFile):
+    progress = pyqtSignal(int, int)
+
     def __init__(self, filepath: str, start: int, end: int, log_callback=None):
-        super().__init__()
-        self.filepath = filepath
-        self.file = QFile(filepath)
+        super().__init__(filepath)
         self.log = log_callback
         self.start = start
         self.end = end
         self.current_pos = start
 
     def open(self, mode: QIODevice.OpenMode) -> bool:
-        fileopen = self.file.open(mode)
-        partial_open = super().open(mode)
-        self.log(f"                         PartialFile: Opening and seeking to ({self.current_pos}) fileopen: {fileopen} partial_open: {partial_open}", Qgis.Info)
-        return partial_open
+        fileopen = super().open(mode)
+        self.log(f"                         PartialFile: Opening  fileopen: {fileopen} partial_open: {fileopen} to position: {self.start}", Qgis.Info)
+        self.seek(self.start)
+        return fileopen
 
     def close(self) -> None:
         self.log(f"                         PartialFile: Closing", Qgis.Info)
-        closed = super().close()
-        self.file.close()
-        return closed
+        return super().close()
 
-    def read(self, maxlen: int) -> bytes:
-        self.log(f"                         PartialFile: Reading(read) {maxlen}", Qgis.Info)
-        return self.readData(maxlen)
+    def readData(self, maxlen) -> bytes:
+        actual_len = maxlen
 
-    def readyRead(self) -> None:
-        self.log(f"                         PartialFile: Reading(readyRead)", Qgis.Info)
-        return super().readyRead()
-
-    def readData(self, maxlen):
-        self.log(f"                         PartialFile: Reading(readData) {maxlen}", Qgis.Info)
-        self.file.seek(self.current_pos)
         if self.current_pos + maxlen > self.end:
-            maxlen = self.end - self.current_pos
-        data = self.file.read(maxlen)
-        self.current_pos += len(data)
-        self.log(f"                         PartialFile: Read {len(data)} bytes from {self.current_pos} of {self.end}")
-        return data
+            actual_len = self.end - self.current_pos
 
-    def isSequential(self):
-        return False
+        if actual_len <= 0:
+            return QByteArray()
+
+        self.log(f"                         PartialFile: ReadData {actual_len} bytes from {self.current_pos}-{self.current_pos+actual_len}", Qgis.Info)
+        self.current_pos += actual_len
+        # self.progress.emit(self.current_pos - self.start, self.end - self.start)
+        return super().readData(actual_len)  # Call read method of superclass
 
 
 class UploadMultiPartFileTask(QgsTask):
@@ -130,13 +119,17 @@ class UploadMultiPartFileTask(QgsTask):
             try:
                 loop = QEventLoop()
                 part_size = end - start
-                self.log(f"      Uploading chunk {start}-{end} for file: {self.file_path} Retry: {self.retry_count} to url: {url}", Qgis.Info)
+                # only want the first 100 characters of the url
+                self.log(f"      Uploading chunk {start}-{end} for file: {self.file_path} Retry: {self.retry_count} to url: {url[:200]}", Qgis.Info)
 
                 request = QNetworkRequest(QUrl(url))
                 request.setHeader(QNetworkRequest.ContentLengthHeader, part_size)
 
                 partial_file = PartialFile(self.file_path, start, end, self.log)
+                seq = partial_file.isSequential()
                 partial_file.open(QIODevice.ReadOnly)
+                # partial_file.progress.connect(self._progress_callback)
+                partial_file.progress.connect(lambda bytesSent, bytesTotal: self._progress_callback(bytesSent, bytesTotal))
 
                 # Start the actual Call
                 self.reply = self.nam.put(request, partial_file)
@@ -161,10 +154,6 @@ class UploadMultiPartFileTask(QgsTask):
                     partial_file.close()
                     loop.quit()
 
-                # Connect the readyRead signal to read chunks of data and write to the network reply
-                # self.reply.readyRead.connect(stream_file_chunk)
-
-                self.reply.uploadProgress.connect(self._progress_callback)
                 # If the task is cancelled, abort the upload
                 self.cancelled.connect(handle_cancelled)
                 self.reply.finished.connect(handle_done)
@@ -269,6 +258,7 @@ class UploadQueue(Borg):
         """
         if not force and self.last_progress is not None and (time.time() - self.last_progress) < MAX_PROGRESS_INTERVAL:
             return
+        self.last_progress = time.time()
 
         total_size = 0
         uploaded_size = 0
