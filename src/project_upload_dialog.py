@@ -6,7 +6,7 @@ from typing import Tuple, Dict
 
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QButtonGroup, QMessageBox
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices
-from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QUrl
+from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QUrl, QTimer
 from qgis.PyQt.QtWidgets import QErrorMessage
 from qgis.core import Qgis, QgsMessageLog
 
@@ -85,7 +85,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         # Here are the state variables we depend on
         ########################################################
-        self.warehouse_id = None
+        self.warehouse_id = None  # This is the existing project ID from the XML file (if there is one)
         self.profile: DEProfile = None
         self.existing_project: DEProject = None
         self.visibility = "PUBLIC"
@@ -97,6 +97,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.upload_digest = UploadFileList()
         self.api_url = None
         self.queue = UploadQueue()
+        self.new_project_id = None  # this is the returned project id from requestUploadProject. May be the same as warehouse_id
+        self.first_upload_check: datetime.datetime = None
+        self.last_upload_check: datetime.datetime = None
         ########################################################
 
         if warehouse_tag is not None:
@@ -612,7 +615,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         self.stateChange.emit()
 
-    def handle_request_upload_project(self, task: RunGQLQueryTask, upload_obj: DEProject):
+    def handle_request_upload_project(self, task: RunGQLQueryTask, upload_obj: Dict[str, any]):
         """ We formally request permission from the API to upload a project.
         When we get the response we can then request URLs for all the files in the project
 
@@ -626,6 +629,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
         else:
             self.upload_log('Got project upload token', Qgis.Info)
+            self.new_project_id = upload_obj['newId']
             self.dataExchangeAPI.request_upload_project_files_url(self.upload_digest, self.handle_request_upload_project_files_url)
 
         self.stateChange.emit()
@@ -683,56 +687,75 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             abs_path = os.path.join(self.project_xml.project_dir, rel_path)
             self.queue.enqueue(abs_path, upload_urls=urls.urls)
             idx += 1
-            break
 
         self.flow_state = ProjectUploadDialogStateFlow.UPLOADING
         self.stateChange.emit()
 
     def handle_uploads_complete(self):
-        print('Uploads complete')
+        self.upload_log('Upload Queue Completed. Calling the finalize endpoint', Qgis.Info)
         self.progressBar.setValue(100)
         self.progressSubLabel.setText('...')
 
         # If this succeeds we should call the finalize endpoint
-        # self.dataExchangeAPI.finalize_project_upload(self.upload_digest.token, self.handle_wait_for_upload_completion)
-
-        self.flow_state = ProjectUploadDialogStateFlow.COMPLETED
+        self.dataExchangeAPI.finalize_project_upload(self.upload_digest.token, self.handle_wait_for_upload_completion)
         self.stateChange.emit()
 
-    def handle_wait_for_upload_completion(self, response: Dict[str, any], start_time: datetime.datetime):
+    def handle_wait_for_upload_completion(self, task: RunGQLQueryTask, job_status_obj: Dict[str, any]):
         """ Handle the response from the API when waiting for the upload to complete
         NOTE: This is a looping callback that will loop for 5 minutes waiting for the upload copier to finalize
+
+        Note that both finalize and check_upload return {'__typename': 'JobStatusObj'} so this should work in both cases.
+
+        Possible Statuses:
+            SUCCESS
+            FAILED
+
+            UNKNOWN
+            READY
+            PROCESSING
 
         Args:
             response (Dict[str, any]): _description_
             start_time (datetime.datetime): _description_
         """
-        # TODO: This entire code block is wrong
-        self.upload_log('Waiting for upload completion...', Qgis.Info)
         self.flow_state = ProjectUploadDialogStateFlow.WAITING_FOR_COMPLETION
 
-        # if this is the first run or it hasn't been 5 minutes yet, we're going to wait for a minute and then check again
-        if (datetime.datetime.now() - start_time).total_seconds() < 300:
-            self.dataExchangeAPI.check_upload(self.upload_digest.token, self.handle_wait_for_upload_completion)
+        if self.first_upload_check is None:
+            self.first_upload_check = datetime.datetime.now()
+
+        self.last_upload_check = datetime.datetime.now()
+        total_duration_s = (self.last_upload_check - self.first_upload_check).total_seconds()
+
+        # TODO: This entire code block is wrong
+        status = job_status_obj.get('status', 'UNKNOWN')
+
         # Uploader Fail case
-        elif response is None and (datetime.datetime.now() - start_time).total_seconds() >= 300:
-            self.upload_log('Upload failed', Qgis.Critical)
-            self.error = ProjectUploadDialogError('Upload failed', 'The upload took too long to complete')
+        if status == 'FAILED':
+            self.upload_log('Upload failed: ' + json.dumps(job_status_obj, indent=2), Qgis.Critical)
+            self.error = ProjectUploadDialogError('Upload failed', 'The upload failed. Check the logs to see the reason')
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
-        # Timeout case
-        elif response is None:
-            # If it failed we need to handle that
-            self.upload_log('Upload failed', Qgis.Critical)
-            self.error = ProjectUploadDialogError('Upload failed', 'The upload took too long to complete')
-            self.flow_state = ProjectUploadDialogStateFlow.ERROR
+
         # Success case
-        else:
+        elif status == 'SUCCESS':
             self.upload_log('Upload complete', Qgis.Info)
-            self.flow_state = ProjectUploadDialogStateFlow.COMPLETED
             # Downlod the project.rs.xml file back to the local folder
-            self.dataExchangeAPI.download_file(response['downloadUrl'],
+            self.dataExchangeAPI.download_file(self.new_project_id,
+                                               'project.rs.xml',
                                                os.path.join(self.project_xml.project_dir, 'project.rs.xml'),
-                                               self.handle_all_done)
+                                               self.handle_all_done
+                                               )
+        # Timeout case
+        elif total_duration_s >= 300:
+            # If it failed we need to handle that
+            self.upload_log('Upload Timed Out after 300 seconnds (5min)', Qgis.Critical)
+            self.error = ProjectUploadDialogError('Upload failed', 'The upload took too long to complete. It\'s possible the upload failed. Check the logs to see the reason.')
+            self.flow_state = ProjectUploadDialogStateFlow.ERROR
+
+        else:
+            # Wait 10 seconds and then check again
+            self.upload_log(f"Waiting for upload completion... Waited so far: {total_duration_s}", Qgis.Info)
+            # Wait 10 seconds and then check again
+            QTimer.singleShot(10000, lambda: self.dataExchangeAPI.check_upload(self.upload_digest.token, self.handle_wait_for_upload_completion))
 
         self.stateChange.emit()
 
