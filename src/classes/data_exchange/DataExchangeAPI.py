@@ -1,7 +1,7 @@
-from typing import List, Callable, Dict
+from typing import List, Callable, Dict, OrderedDict
 import os
 import re
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
 from qgis.core import QgsMessageLog, Qgis
 import requests
@@ -51,26 +51,37 @@ class DEValidation:
             self.errors.append(ValidationErrorTuple(**error))
 
 
-class UploadFile(namedtuple('UploadFile', ['rel_path', 'size', 'etag'])):
+class UploadFile():
+    class FileOp:
+        CREATE = 'create'
+        UPDATE = 'update'
+        DELETE = 'delete'
+
     rel_path: str
     size: int
     etag: str
+    op: str = FileOp
+    urls: List[str] = []
 
-
-class UploadUrl(namedtuple('UploadUrl', ['rel_path', 'urls'])):
-    rel_path: str
-    urls: List[str]
+    def __init__(self, rel_path: str, size: int, etag: str):
+        self.rel_path = rel_path
+        self.size = size
+        self.etag = etag
+        self.op = None
+        urls = []
 
 
 class UploadFileList():
     token: str = None
-    files: List[UploadFile] = []
-    urls: List[UploadUrl] = []
+    # It should be an ordered dictionary
+    files: OrderedDict[str, UploadFile] = OrderedDict()
 
-    def __init__(self, files=[]):
-        self.files: List[UploadFile] = []
-        for file in files:
-            self.files.append(UploadFile(**file))
+    def reset(self):
+        self.token = None
+        self.files = OrderedDict()
+
+    def add_file(self, rel_path: str, size: int, etag: str):
+        self.files[rel_path] = UploadFile(rel_path, size, etag)
 
     def fetch_local_files(self, project_dir: str, project_type: str):
         """Scrape through the project folder and add all files to the upload digest
@@ -84,7 +95,7 @@ class UploadFileList():
             ValueError: _description_
         """
         if not self.files:
-            self.files = []
+            self.files = OrderedDict()
         # Search for a file called '{project_type}.xml' in the project directory (case insensitive  )
         bl_file_check = re.compile(f'{project_type}\.xml$', re.IGNORECASE)
 
@@ -104,20 +115,14 @@ class UploadFileList():
                 file_etag = etag_obj['etag']
                 self.add_file(rel_path, file_size, file_etag)
 
-    def add_url(self, rel_path: str, urls: List[str]):
-        self.urls.append(UploadUrl(rel_path, urls))
-
-    def add_file(self, rel_path: str, size: int, etag: str):
-        self.files.append(UploadFile(rel_path, size, etag))
-
     def get_rel_paths(self):
-        return [file.rel_path for file in self.files]
+        return [file.rel_path for file in self.files.values()]
 
     def get_etags(self):
-        return [file.etag for file in self.files]
+        return [file.etag for file in self.files.values()]
 
     def get_sizes(self):
-        return [file.size for file in self.files]
+        return [file.size for file in self.files.values()]
 
 
 class MyOrg(namedtuple('MyOrg', ['id', 'name', 'myRole'])):
@@ -249,7 +254,12 @@ class DataExchangeAPI(QObject):
 
             return callback(task, validation)
 
-        return self.api.run_query(self._load_query('validateProject'), {'xml': xml_str, 'owner': owner_obj, 'files': files.get_rel_paths()}, _validate_project)
+        return self.api.run_query(self._load_query('validateProject'), {
+            'xml': xml_str, 'owner': owner_obj,
+            'files': files.get_rel_paths()
+        },
+            _validate_project
+        )
 
     def request_upload_project(self,
                                files: UploadFileList,
@@ -280,6 +290,15 @@ class DataExchangeAPI(QObject):
                 # Add the token to the upload digest in place
                 files.token = ret_obj['token']
 
+                # Make sure we update the file operations to make sure that
+                for file in files.files.values():
+                    if file.rel_path in ret_obj['create']:
+                        file.op = UploadFile.FileOp.CREATE
+                    elif file.rel_path in ret_obj['update']:
+                        file.op = UploadFile.FileOp.UPDATE
+                    elif file.rel_path in ret_obj['delete']:
+                        file.op = UploadFile.FileOp.DELETE
+
             return callback(task, ret_obj)
 
         return self.api.run_query(self._load_query('requestUploadProject'), {
@@ -306,8 +325,8 @@ class DataExchangeAPI(QObject):
             ret_obj = None
             if task.response and not task.error:
                 ret_obj = task.response['data']['requestUploadProjectFilesUrl']
-                for url in ret_obj:
-                    files.add_url(url['relPath'], url['urls'])
+                for f_resp in ret_obj:
+                    files.files[f_resp['relPath']].urls = f_resp['urls']
 
             return callback(task, ret_obj)
 

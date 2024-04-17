@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>343</width>
-    <height>810</height>
+    <width>477</width>
+    <height>845</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -149,9 +149,19 @@
          </widget>
         </item>
         <item>
+         <widget class="QCheckBox" name="noDeleteChk">
+          <property name="toolTip">
+           <string>Do not delete remote files even if they are not present locally</string>
+          </property>
+          <property name="text">
+           <string>No Remote Delete</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QToolButton" name="viewExistingBtn">
           <property name="text">
-           <string>View</string>
+           <string>Visit</string>
           </property>
          </widget>
         </item>

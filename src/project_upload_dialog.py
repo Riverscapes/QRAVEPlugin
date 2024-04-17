@@ -10,7 +10,7 @@ from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QUrl, QTimer
 from qgis.PyQt.QtWidgets import QErrorMessage
 from qgis.core import Qgis, QgsMessageLog
 
-from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, DEProject, DEValidation, OwnerInputTuple, UploadFileList
+from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, DEProject, DEValidation, OwnerInputTuple, UploadFileList, UploadFile
 from .classes.GraphQLAPI import RunGQLQueryTask, RefreshTokenTask
 from .classes.settings import CONSTANTS, Settings
 from .classes.project import Project
@@ -39,6 +39,7 @@ class ProjectUploadDialogStateFlow:
     WAITING_FOR_COMPLETION = 7
     COMPLETED = 8
     ERROR = 9
+    NO_ACTION = 10
 
 # Once we click the start upload button there is going to be a chain of callbacks:
 
@@ -145,7 +146,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.orgSelect.currentIndexChanged.connect(self.handle_org_select_change)
 
         # on clicking the web project upen the existing project in the browser
-        self.openWebProjectBtn.clicked.connect(lambda: self.open_web_project(self.existing_project.id))
+        self.openWebProjectBtn.clicked.connect(lambda: self.open_web_project(self.new_project_id))
         self.progressBar.setValue(0)
         self.progressBar.setMaximum(100)
 
@@ -426,10 +427,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.optModifyProject.setEnabled(False)
             self.viewExistingBtn.setEnabled(False)
             self.selectUpdate = False
+            self.noDeleteChk.setEnabled(False)
         # Only if the warehouse_id exists AND the project retieval is successful AND the acccess is correct can we enable the modify option
         else:
             self.optModifyProject.setEnabled(allow_user_action)
             self.viewExistingBtn.setEnabled(allow_user_action)
+            self.noDeleteChk.setEnabled(allow_user_action and self.optModifyProject.isChecked())
 
         # Project Ownership
         ########################################################################
@@ -460,6 +463,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         ########################################################################
         self.progressBar.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
         self.progressSubLabel.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
+        if self.flow_state != ProjectUploadDialogStateFlow.UPLOADING:
+            self.progressSubLabel.setText('...')
 
         self.openWebProjectBtn.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.COMPLETED])
 
@@ -480,6 +485,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             todo_text = 'Waiting for upload completion...'
         elif self.flow_state == ProjectUploadDialogStateFlow.COMPLETED:
             todo_text = 'Upload complete'
+        elif self.flow_state == ProjectUploadDialogStateFlow.NO_ACTION:
+            todo_text = 'No differences between local and remote. Nothing to upload'
         self.todoLabel.setText(todo_text)
 
         # Action buttons at the bottom of the screen
@@ -560,13 +567,17 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         if self.upload_log_path is not None and os.path.isfile(self.upload_log_path):
             os.remove(self.upload_log_path)
+        self.upload_log('Starting upload', Qgis.Info)
+
+        # Reset in anticipation of the impending upload
+        self.queue.clear()
+        self.upload_digest.reset()
 
         response = qm.exec_()
         if response == QMessageBox.Yes:
             # New let's kick off project validation. We need 3 things to do this: 1. The XML, 2. The files, 3. The owner
 
             # 1. Files - we need relative paths to the files
-            self.upload_digest = UploadFileList()
             self.upload_digest.fetch_local_files(self.project_xml.project_dir, self.project_xml.project_type)
 
             with open(self.project_xml.project_xml_path, 'r') as f:
@@ -604,6 +615,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 self.dataExchangeAPI.request_upload_project(
                     files=self.upload_digest,
                     tags=self.tags,
+                    no_delete=self.noDeleteChk.isEnabled() and self.noDeleteChk.isChecked(),
                     owner_obj=owner_obj,
                     visibility=self.visibilitySelect.currentText(),
                     callback=self.handle_request_upload_project
@@ -632,6 +644,17 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         else:
             self.upload_log('Got project upload token', Qgis.Info)
             self.new_project_id = upload_obj['newId']
+
+            changes = 0
+            for file in self.upload_digest.files.values():
+                if file.op == UploadFile.FileOp.CREATE:
+                    changes += 1
+                self.upload_log(f"    File: {file.rel_path} size: {file.size:,} etag: {file.etag} op: {file.op}", Qgis.Info)
+
+            if changes == 0:
+                self.upload_log('No files to upload. Skipping upload step', Qgis.Info)
+                self.handle_uploads_complete()
+
             self.dataExchangeAPI.request_upload_project_files_url(self.upload_digest, self.handle_request_upload_project_files_url)
 
         self.stateChange.emit()
@@ -679,15 +702,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         After all files are uploaded we will call the finalize endpoint
         """
         self.upload_log('Starting upload...', Qgis.Info)
-        # Reset in anticipation of the impending upload
-        self.queue.clear()
 
-        idx = 0
-        for rel_path, size, etag in self.upload_digest.files:
-            urls = self.upload_digest.urls[idx]
-            abs_path = os.path.join(self.project_xml.project_dir, rel_path)
-            self.queue.enqueue(abs_path, upload_urls=urls.urls)
-            idx += 1
+        for upFile in self.upload_digest.files.values():
+            if upFile.op == UploadFile.FileOp.CREATE:
+                abs_path = os.path.join(self.project_xml.project_dir, upFile.rel_path)
+                self.queue.enqueue(abs_path, upload_urls=upFile.urls)
 
         self.flow_state = ProjectUploadDialogStateFlow.UPLOADING
         self.stateChange.emit()
