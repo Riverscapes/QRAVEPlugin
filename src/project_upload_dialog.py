@@ -96,11 +96,13 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.selected_tag = []
         self.upload_digest = UploadFileList()
         self.api_url = None
-        self.queue = UploadQueue()
+        self.queue = UploadQueue(log_callback=self.upload_log)
         self.new_project_id = None  # this is the returned project id from requestUploadProject. May be the same as warehouse_id
         self.first_upload_check: datetime.datetime = None
         self.last_upload_check: datetime.datetime = None
         ########################################################
+        self.queue.progress_signal.connect(self.upload_progress)
+        self.queue.complete_signal.connect(self.handle_uploads_complete)
 
         if warehouse_tag is not None:
             self.warehouse_id = warehouse_tag.get('id')[0]
@@ -650,7 +652,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.handle_upload_start()
         self.stateChange.emit()
 
-    def upload_progress(self, biggest_file: UploadMultiPartFileTask, progress: int):
+    @pyqtSlot(str, int)
+    def upload_progress(self, biggest_file: str, progress: int):
         """ Reporting on file uploads
 
         Args:
@@ -661,13 +664,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             progress = 100
         elif progress < 0:
             progress = 0
-        else:
-            progress = 0
 
         self.progressBar.setValue(progress)
+
         if biggest_file is not None:
-            print(f"Uploading: {biggest_file.file_path} {progress}%")
-            self.progressSubLabel.setText(f"Uploading: {biggest_file.file_path}")
+            print(f"Uploading: {biggest_file} {progress}%")
+            self.progressSubLabel.setText(f"Uploading: {biggest_file}")
         else:
             self.progressSubLabel.setText('...')
 
@@ -677,10 +679,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         After all files are uploaded we will call the finalize endpoint
         """
         self.upload_log('Starting upload...', Qgis.Info)
-        self.queue = UploadQueue(log_callback=self.upload_log,
-                                 complete_callback=self.handle_uploads_complete,
-                                 progress_callback=self.upload_progress
-                                 )
+        # Reset in anticipation of the impending upload
+        self.queue.clear()
+
         idx = 0
         for rel_path, size, etag in self.upload_digest.files:
             urls = self.upload_digest.urls[idx]
@@ -691,6 +692,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.flow_state = ProjectUploadDialogStateFlow.UPLOADING
         self.stateChange.emit()
 
+    @pyqtSlot()
     def handle_uploads_complete(self):
         self.upload_log('Upload Queue Completed. Calling the finalize endpoint', Qgis.Info)
         self.progressBar.setValue(100)
@@ -753,13 +755,13 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         else:
             # Wait 10 seconds and then check again
-            self.upload_log(f"Waiting for upload completion... Waited so far: {total_duration_s}", Qgis.Info)
+            self.upload_log(f"Waiting 10 sconds then trying again... Waited so far: {total_duration_s}", Qgis.Info)
             # Wait 10 seconds and then check again
             QTimer.singleShot(10000, lambda: self.dataExchangeAPI.check_upload(self.upload_digest.token, self.handle_wait_for_upload_completion))
 
         self.stateChange.emit()
 
-    def handle_all_done(self):
+    def handle_all_done(self, task: RunGQLQueryTask, download_file_obj: Dict[str, any]):
         """After the last callback is complete we report success
         """
         self.flow_state = ProjectUploadDialogStateFlow.COMPLETED
