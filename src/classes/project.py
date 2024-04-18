@@ -88,10 +88,12 @@ class Project:
 
             self.meta = self.extract_meta(self.project.findall('MetaData/Meta'))
             if self.version == 'V1':
-                self.warehouse_meta = self.extract_meta(self.project.findall('Warehouse/Meta')) 
+                self.warehouse_meta = self.extract_meta(self.project.findall('Warehouse/Meta'))
             else:
                 # Version 2 has a different warehouse structure
-                self.warehouse_meta = self.extract_warehouse(self.project.find('Warehouse'))
+                wh_tag = self.project.find('Warehouse')
+                if wh_tag is not None:
+                    self.warehouse_meta = self.extract_warehouse(wh_tag)
 
             self.project_type = self.project.find('ProjectType').text
 
@@ -107,7 +109,7 @@ class Project:
             type = meta_node.attrib['type'] if 'type' in meta_node.attrib else None
             meta[key] = (value, type)
         return meta
-    
+
     def extract_warehouse(self, node):
         meta = {}
         meta['id'] = (node.attrib['id'], 'string')

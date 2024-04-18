@@ -3,22 +3,22 @@
 ### Authentication
 
 - [X] Pre-authed used opens form
-- [ ] Unauthed users opens form
-- [ ] Authentication fails
-- [ ] Authentication times-out (1 minute)
+- [X] Unauthed users opens form
+- [X] Authentication fails
+- [X] Authentication times-out (1 minute)
 - [X] Authed user resets auth with "reset" button
 
 ###  New Project Upload
 
-- [ ] SUCCESS: New Project is uploaded to ORG as PUBLIC
-  - [ ] Uploaded project can be viewed in Data exchange
-- [ ] SUCCESS: Exisiting project is uploaded as new
+- [X] SUCCESS: New Project is uploaded to ORG as PUBLIC
+  - [X] Uploaded project can be viewed in Data exchange
+- [X] SUCCESS: Exisiting project is uploaded as new
 - [ ] SUCCESS: New Project is uploaded to USER 
 - [X] SUCCESS: New Project is uploaded PRIVATE
-- [ ] SUCCESS: New Project is uploaded SECRET
+- [X] SUCCESS: New Project is uploaded SECRET
 - [ ] SUCCESS: New Project is uploaded with TAGS
 - [ ] FAIL: Project fails validation
-  - [ ] Broken XML, Malformed XML
+  - [X] Broken XML, Malformed XML
   - [ ] Missing files
   - [ ] Permissions issues
 
