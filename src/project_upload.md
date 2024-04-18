@@ -1,18 +1,20 @@
 ### All of these should be tested on windows and OSX:
 
-### Authentication
+### Form load and Authentication
 
 - [X] Pre-authed used opens form
 - [X] Unauthed users opens form
 - [X] Authentication fails
 - [X] Authentication times-out (1 minute)
+- [ ] When multiple projects open in viewer dialog shows the correct one.
+- [ ] When multiple projects open in viewer cancelling and re-opening another shows the right one
 - [X] Authed user resets auth with "reset" button
 
 ###  New Project Upload
 
-- [X] SUCCESS: New Project is uploaded to ORG as PUBLIC
-  - [X] Uploaded project can be viewed in Data exchange
-- [X] SUCCESS: Exisiting project is uploaded as new
+- [X] SUCCESS: New Project (No Warehouse tag) is uploaded to ORG as PUBLIC
+- [X] SUCCESS: Uploaded project can be viewed in Data exchange
+- [X] SUCCESS: Exisiting project (with Warehouse tag) is uploaded as new
 - [X] SUCCESS: New Project is uploaded to USER 
 - [X] SUCCESS: New Project is uploaded PRIVATE
 - [X] SUCCESS: New Project is uploaded SECRET

@@ -712,28 +712,20 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     # Project-level context menu
     def project_context_menu(self, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
         self.menu.clear()
-        self.menu.addAction(
-            'COLLAPSE_ALL', lambda: self.toggleSubtree(None, False))
-        self.menu.addAction(
-            'EXPAND_ALL', lambda: self.toggleSubtree(None, True))
+        self.menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(None, False))
+        self.menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(None, True))
         self.menu.addSeparator()
-        self.menu.addAction(
-            'UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
+        self.menu.addAction('UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
         self.menu.addSeparator()
-        self.menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(
-            data.project.project_xml_path))
-        self.menu.addAction('VIEW_PROJECT_META',
-                            lambda: self.change_meta(item, data, True))
-        self.menu.addAction('WAREHOUSE_VIEW', lambda: self.project_warehouse_view(
-            data.project), enabled=bool(self.get_warehouse_url(data.project.warehouse_meta)))
-        self.menu.addAction(
-            'ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
+        self.menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(data.project.project_xml_path))
+        self.menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
+        self.menu.addAction('WAREHOUSE_VIEW', lambda: self.project_warehouse_view(data.project), enabled=bool(self.get_warehouse_url(data.project.warehouse_meta)))
+        self.menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
         self.menu.addSeparator()
         self.menu.addAction('REFRESH_PROJECT_HIERARCHY', self.reload_tree)
         self.menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY', enabled=False)
         self.menu.addSeparator()
-        self.menu.addAction('CLOSE_PROJECT', lambda: self.close_project(
-            data.project), enabled=bool(data.project))
+        self.menu.addAction('CLOSE_PROJECT', lambda: self.close_project(data.project), enabled=bool(data.project))
 
     def project_upload_load(self, project):
         """
@@ -741,6 +733,4 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         """
 
         dialog = ProjectUploadDialog(None, project)
-        # if self.dockwidget:
-        #     dialog.dataChange.connect(self.dockwidget.dataChange)
         dialog.exec_()
