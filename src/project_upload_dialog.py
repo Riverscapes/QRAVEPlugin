@@ -84,11 +84,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         warehouse_tag = self.project_xml.warehouse_meta
         self.settings = Settings()
 
-        # Remove the log file if it exists. All the logging in logs will be wiped when the used clicks start
-        if self.upload_log_path is not None and os.path.isfile(self.upload_log_path):
-            os.remove(self.upload_log_path)
-        self.upload_log('Logging in... (waiting for browser)', Qgis.Info)
-
         # Here are the state variables we depend on
         ########################################################
         self.warehouse_id = None  # This is the existing project ID from the XML file (if there is one)
@@ -118,6 +113,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.errorMoreBtn.clicked.connect(self.show_error_message)
 
         self.OrgModel = QStandardItemModel(self.orgSelect)
+
+        # Remove the log file if it exists. All the logging in logs will be wiped when the used clicks start
+        if self.upload_log_path is not None and os.path.isfile(self.upload_log_path):
+            os.remove(self.upload_log_path)
+        self.upload_log('Logging in... (waiting for browser)', Qgis.Info)
+
         self.dataExchangeAPI = DataExchangeAPI(on_login=self.handle_login)
         self.loading = self.dataExchangeAPI.api.loading
 
@@ -198,8 +199,10 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.upload_log('Could not log in to the data exchange API', Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Could not log in to the data exchange API', task.error)
         else:
+            self.upload_log('  - SUCCESS: Logged in to the data exchange API', Qgis.Success)
+            self.upload_log('Fetching User profile...', Qgis.Success)
             self.flow_state = ProjectUploadDialogStateFlow.FETCHING_CONTEXT
-            self.loginStatusValue.setText('Logged in. Fetching Profile...')
+            self.loginStatusValue.setText('Fetching Profile...')
             self.profile = None
             self.dataExchangeAPI.get_user_info(self.handle_profile_change)
         self.stateChange.emit()
@@ -239,27 +242,37 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             profile (DEProfile): _description_
         """
         if profile is None:
+            self.upload_log('Could not fetch user profile', Qgis.Critical, task)
             self.profile = None
             self.error = ProjectUploadDialogError('Could not fetch user profile', task.error)
         else:
+            self.upload_log('  - SUCCESS: Fetched user profile', Qgis.Success)
             self.profile = profile
+            self.upload_log(f'Logged in as {profile.name} ({profile.id})', Qgis.Info)
             self.loginStatusValue.setText('Logged in as: ' + profile.name + ' (' + profile.id + ')')
             if self.project_xml.warehouse_meta is not None:
+                self.upload_log('Found a <Warehouse> tag. Checking project association with the current warehouse', Qgis.Info)
                 project_api = self.project_xml.warehouse_meta.get('apiUrl', [None])[0]
                 project_id = self.project_xml.warehouse_meta.get('id', [None])[0]
+
                 # Handle Errors. these will all still allow you to upload as a new project
                 if project_api is None or len(project_api.strip()) == 0:
-                    self.error = ProjectUploadDialogError('The project is not associated with the current warehouse', 'Missing API URL in the project')
+                    self.upload_log('ERROR: Missing or invalid "apiUrl" in the <Warehouse> tag', Qgis.Critical)
+                    self.error = ProjectUploadDialogError('Warehouse lookup error', 'Missing API URL in the project')
                     self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
                     self.existingProject = None
 
                 elif project_id is None or len(project_id.strip()) == 0:
-                    self.error = ProjectUploadDialogError('The project is not associated with the current warehouse', 'Missing ID in the project')
+                    self.upload_log('ERROR: Missing "id" attribute in the <Warehouse> tag', Qgis.Critical)
+                    self.error = ProjectUploadDialogError('Warehouse lookup error', 'Missing ID in the project')
                     self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
                     self.existingProject = None
 
                 elif project_api != self.dataExchangeAPI.api.uri:
-                    self.error = ProjectUploadDialogError('The project is not associated with the current warehouse', f"Project API: {project_api} \nWarehouse API: {self.dataExchangeAPI.api.uri}")
+                    err_title = 'The project is not associated with the current warehouse',
+                    err_str = f"Project API: {project_api} \nWarehouse API: {self.dataExchangeAPI.api.uri}"
+                    self.upload_log(err_title, Qgis.Critical, err_str)
+                    self.error = ProjectUploadDialogError(err_title, err_str)
                     self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
                     self.existingProject = None
             else:
@@ -270,10 +283,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         if self.profile is not None and len(self.profile.organizations) > 0:
             first_usable_idx = -1
             count_idx = 0
+            self.upload_log('  - Found organizations in the user profile:', Qgis.Info)
             for org in self.profile.organizations:
                 item_name = f"{org.name} ({org.myRole.lower().capitalize()})"
                 item = QStandardItem(item_name)
                 item.setData(org.id)
+                self.upload_log(f'    - {item_name}: [{org.myRole}]({org.id})', Qgis.Info)
 
                 # Disable the item if org.myRole meets your condition
                 # cannot be invited to an owner.
@@ -296,19 +311,24 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 for i in range(self.orgSelect.count()):
                     org_id = self.orgSelect.itemData(i)
                     if self.orgSelect.itemData(i) == self.org_id:
+                        self.upload_log(f'  - Setting the previously selected organization: {self.org_id}', Qgis.Info)
                         self.orgSelect.setCurrentIndex(i)
                         org_index_set = True
                         break
             if not org_index_set:
                 if first_usable_idx > -1:
+                    self.upload_log(f'  - Setting the first usable organization active: {self.orgSelect.itemData(first_usable_idx)}', Qgis.Info)
                     self.orgSelect.setCurrentIndex(first_usable_idx)
         else:
+            self.upload_log('  - No organizations found in the user profile.', Qgis.Warning)
             self.orgSelect.addItem('No Organizations', None)
 
         # If there's no project to look up we can go straight to the user action state
         if self.warehouse_id is None:
+            self.upload_log('No existing project found in the warehouse, proceeding to user action', Qgis.Info)
             self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
         else:
+            self.upload_log('Fetching existing project from the warehouse...', Qgis.Info)
             self.existing_project = None
             self.dataExchangeAPI.get_project(self.warehouse_id, self.handle_existing_project)
 
@@ -383,12 +403,14 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             project (DEProject): _description_
         """
         if project is None:
-            if self.warehouse_id is not None:
-                self.error = ProjectUploadDialogError('Could not fetch existing project', task.error)
+            self.upload_log('  - ERROR: Could not fetch existing project', Qgis.Critical, task)
+            self.error = ProjectUploadDialogError('Could not fetch existing project', task.error)
             self.existing_project = None
         else:
+            self.upload_log('  - SUCCESS: Fetched existing project', Qgis.Success)
             self.existing_project = project
 
+        self.upload_log('Waiting for user input...', Qgis.Info)
         self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
         self.stateChange.emit()
 
@@ -583,7 +605,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         qm = QMessageBox()
         qm.setWindowTitle('Start Upload?')
         qm.setDefaultButton(qm.No)
-        text = f"This will upload the project {self.project_xml.project.find('Name').text} to the Data Exchange API"
+        text = f'This will upload the project "{self.project_xml.project.find('Name').text}" to the Data Exchange API'
         if self.new_project:
             text += ' as a new project.'
         else:
@@ -594,7 +616,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Remove the log file if it exists and create a new one
         if self.upload_log_path is not None and os.path.isfile(self.upload_log_path):
             os.remove(self.upload_log_path)
-        self.upload_log('Starting upload', Qgis.Info)
+        self.upload_log('Initiate project upload process', Qgis.Info)
 
         # Reset in anticipation of the impending upload
         self.queue.clear()
@@ -617,6 +639,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 # Now transform back to a string
                 xml = lxml.etree.tostring(xml, pretty_print=True).decode('utf-8')
                 owner_obj = self.get_owner_obj()
+                self.upload_log('Validating project using the API validation endpoint...', Qgis.Info)
                 self.dataExchangeAPI.validate_project(xml, owner_obj, self.upload_digest, self.handle_project_validation)
         else:
             return
@@ -636,14 +659,14 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """
         if validation_obj is None:
             self.error = ProjectUploadDialogError('Could not validate project for an unknown reason', task.error)
-            self.upload_log('Project validation failed to run', Qgis.Critical, task)
+            self.upload_log('  - ERROR: Project validation failed to run', Qgis.Critical, task)
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
         else:
             if validation_obj.valid is True:
                 # Validation done. Now request upload
                 owner_obj = self.get_owner_obj()
-                self.upload_log('Validation: Project is valid.', Qgis.Info)
-                self.upload_log('Requesting upload...', Qgis.Info)
+                self.upload_log('  - SUCCESS: Validation: Project is valid.', Qgis.Success)
+                self.upload_log('Requesting new upload from the API...', Qgis.Info)
                 self.dataExchangeAPI.request_upload_project(
                     files=self.upload_digest,
                     tags=self.tags,
@@ -654,7 +677,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 )
                 self.flow_state = ProjectUploadDialogStateFlow.REQUESTING_UPLOAD
             else:
-                self.upload_log('Validation: Project is not valid', Qgis.Critical, task)
+                self.upload_log('  - ERROR: Project is not valid', Qgis.Critical, task)
                 detail_text = [f"[{err.severity}][{err.code}] {err.message}" for err in validation_obj.errors]
                 self.error = ProjectUploadDialogError('Project is not valid', detail_text)
                 self.flow_state = ProjectUploadDialogStateFlow.ERROR
@@ -670,25 +693,27 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             upload_obj (DEProject): _description_
         """
         if upload_obj is None:
-            self.upload_log('Could not upload project', Qgis.Critical, task)
+            self.upload_log('  - FAILED: Could not upload project', Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Could not upload project', task.error)
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
         else:
-            self.upload_log('Got project upload token', Qgis.Info)
+            self.upload_log('  - SUCCESS: Got project upload token', Qgis.Success)
             self.new_project_id = upload_obj['newId']
-            self.upload_log(f"New Project ID: {self.new_project_id}", Qgis.Info)
-            self.upload_log(f'         When completed this project will be available at: {CONSTANTS["warehouseUrl"]}/p/{self.new_project_id}', Qgis.Info)
+            self.upload_log(f"  - New Project ID: {self.new_project_id}", Qgis.Info)
+            self.upload_log(f'  - NOTE: When completed this project will be available at: {CONSTANTS["warehouseUrl"]}/p/{self.new_project_id}', Qgis.Info)
 
             changes = 0
+            self.upload_log('Summary of files and operations:', Qgis.Info)
             for file in self.upload_digest.files.values():
                 if file.op == UploadFile.FileOp.CREATE:
                     changes += 1
-                self.upload_log(f"    File: {file.rel_path} size: {file.size:,} etag: {file.etag} op: {file.op}", Qgis.Info)
+                self.upload_log(f"  - [{file.op}] {file.rel_path} size: {file.size:,} etag: {file.etag}", Qgis.Info)
 
             if changes == 0:
                 self.upload_log('No files to upload. Skipping upload step', Qgis.Info)
                 self.handle_uploads_complete()
 
+            self.upload_log('Requesting upload URLs...', Qgis.Info)
             self.dataExchangeAPI.request_upload_project_files_url(self.upload_digest, self.handle_request_upload_project_files_url)
 
         self.stateChange.emit()
@@ -701,11 +726,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             project (DEProject): _description_
         """
         if project is None:
-            self.upload_log('Could not get the file upload URLs', Qgis.Critical, task)
+            self.upload_log('  - ERROR: Could not get the file upload URLs', Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Could not upload project', task.error)
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
         else:
-            self.upload_log('Got the file upload URLs', Qgis.Info)
+            self.upload_log('  - SUCCESS: Got the file upload URLs', Qgis.Success)
             self.handle_upload_start()
         self.stateChange.emit()
 
@@ -729,6 +754,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 # Truncate the file path if it's too long, keeping only the last 50 characters
                 biggest_file_relpath = biggest_file_relpath[:50] + '...'
 
+            # This would be too busy for the log files. Just dump it to the console
             print(f"Uploading: {biggest_file_relpath} {progress}%")
             self.progressSubLabel.setText(f"Uploading: {biggest_file_relpath}")
         else:
@@ -739,7 +765,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         This kicks off our asynchronous upload queue process
         After all files are uploaded we will call the finalize endpoint
         """
-        self.upload_log('Starting upload...', Qgis.Info)
+        self.upload_log('Starting the ACTUAL file upload process...', Qgis.Info)
 
         for upFile in self.upload_digest.files.values():
             if upFile.op == UploadFile.FileOp.CREATE:
@@ -751,13 +777,29 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
     @pyqtSlot()
     def handle_uploads_complete(self):
-        self.upload_log('Upload Queue Completed. Calling the finalize endpoint', Qgis.Info)
+        self.upload_log('Upload Queue Completed. Calling the finalize endpoint...', Qgis.Success)
         self.progressBar.setValue(100)
         self.progressSubLabel.setText('...')
 
         # If this succeeds we should call the finalize endpoint
         self.dataExchangeAPI.finalize_project_upload(self.upload_digest.token, self.handle_wait_for_upload_completion)
         self.stateChange.emit()
+
+    def handle_finalize(self, task: RunGQLQueryTask, job_status_obj: Dict[str, any]):
+        """ This is kind of a non-operation that serves just to print a single log file and kick off the recursive check_upload
+
+        Args:
+            task (RunGQLQueryTask): _description_
+            job_status_obj (Dict[str, any]): _description_
+        """
+        if task.error is not None:
+            self.upload_log('  - ERROR: Finalize failed', Qgis.Critical, task)
+            self.error = ProjectUploadDialogError('Finalize failed', 'The finalize call failed. Check the logs to see the reason')
+            self.flow_state = ProjectUploadDialogStateFlow.ERROR
+        else:
+            self.upload_log('  - SUCCESS: API Finalize complete.', Qgis.Success)
+            self.upload_log('Starting process to wait for upload completion...', Qgis.Info)
+            self.dataExchangeAPI.check_upload(self.upload_digest.token, self.handle_wait_for_upload_completion)
 
     def handle_wait_for_upload_completion(self, task: RunGQLQueryTask, job_status_obj: Dict[str, any]):
         """ Handle the response from the API when waiting for the upload to complete
@@ -784,20 +826,19 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         self.last_upload_check = datetime.datetime.now()
         total_duration_s = (self.last_upload_check - self.first_upload_check).total_seconds()
-
-        # TODO: This entire code block is wrong
         status = job_status_obj.get('status', 'UNKNOWN')
 
         # Uploader Fail case
         if status == 'FAILED':
-            self.upload_log('Upload failed: ' + json.dumps(job_status_obj, indent=2), Qgis.Critical)
+            self.upload_log('Upload failed: ' + json.dumps(job_status_obj, indent=2), Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Upload failed', 'The upload failed. Check the logs to see the reason')
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
 
         # Success case
         elif status == 'SUCCESS':
-            self.upload_log('Upload complete', Qgis.Info)
+            self.upload_log(f'Upload succeeded and is now present on the Warehouse at {CONSTANTS["warehouseUrl"]}/p/{self.new_project_id}', Qgis.Success)
             # Downlod the project.rs.xml file back to the local folder
+            self.upload_log('Downloading the project.rs.xml file back to the local project folder...', Qgis.Info)
             self.dataExchangeAPI.download_file(self.new_project_id,
                                                'project.rs.xml',
                                                os.path.join(self.project_xml.project_dir, 'project.rs.xml'),
@@ -806,13 +847,13 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Timeout case
         elif total_duration_s >= 300:
             # If it failed we need to handle that
-            self.upload_log('Upload Timed Out after 300 seconnds (5min)', Qgis.Critical)
+            self.upload_log('Upload Timed-Out after 300 seconnds (5min)', Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Upload failed', 'The upload took too long to complete. It\'s possible the upload failed. Check the logs to see the reason.')
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
 
         else:
             # Wait 10 seconds and then check again
-            self.upload_log(f"Waiting 10 sconds then trying again... Waited so far: {total_duration_s}", Qgis.Info)
+            self.upload_log(f"Waiting 10 seconds then trying again... Waited so far: {total_duration_s:,} seconds", Qgis.Info)
             # Wait 10 seconds and then check again
             QTimer.singleShot(10000, lambda: self.dataExchangeAPI.check_upload(self.upload_digest.token, self.handle_wait_for_upload_completion))
 
@@ -821,5 +862,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
     def handle_all_done(self, task: RunGQLQueryTask, download_file_obj: Dict[str, any]):
         """After the last callback is complete we report success
         """
-        self.flow_state = ProjectUploadDialogStateFlow.COMPLETED
-        self.stateChange.emit()
+        if task.error is not None:
+            self.upload_log('  - ERROR: Could not download the project.rs.xml file back to the local project folder', Qgis.Critical, task)
+            self.error = ProjectUploadDialogError('Download failed', 'The download of the project.rs.xml file failed. Check the logs to see the reason')
+            self.flow_state = ProjectUploadDialogStateFlow.ERROR
+        else:
+            self.upload_log('  - SUCCESS: Downloaded the project.rs.xml file back to the local project folder', Qgis.Success)
+            self.upload_log('Upload process complete. Shutting down.', Qgis.Success)
+            self.flow_state = ProjectUploadDialogStateFlow.COMPLETED
+            self.stateChange.emit()
