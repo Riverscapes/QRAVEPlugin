@@ -214,7 +214,7 @@ class Ui_Dialog(object):
         self.projectNameValue.setText(_translate("Dialog", "Riverscapes Context for HUC 1604020108"))
         self.projectPathLable.setText(_translate("Dialog", "Path:"))
         self.projectPathValue.setText(_translate("Dialog", "..."))
-        self.loginStatusLable.setText(_translate("Dialog", "Status:"))
+        self.loginStatusLable.setText(_translate("Dialog", "Login:"))
         self.loginStatusValue.setText(_translate("Dialog", "Logged In"))
         self.loginResetBtn.setText(_translate("Dialog", "Reset"))
         self.newOrUpdateLayout.setTitle(_translate("Dialog", "New Or Update"))

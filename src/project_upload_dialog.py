@@ -98,12 +98,16 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.upload_digest = UploadFileList()
         self.api_url = None
         self.queue = UploadQueue(log_callback=self.upload_log)
-        self.new_project_id = None  # this is the returned project id from requestUploadProject. May be the same as warehouse_id
+        # This state gets set AFTER The user clicks start
+        self.new_project_id: str = None  # this is the returned project id from requestUploadProject. May be the same as warehouse_id
         self.first_upload_check: datetime.datetime = None
         self.last_upload_check: datetime.datetime = None
+        self.progress: int = 0
+        self.upload_start_time: datetime.datetime = None
         ########################################################
         self.queue.progress_signal.connect(self.upload_progress)
         self.queue.complete_signal.connect(self.handle_uploads_complete)
+        self.queue.cancelled_signal.connect(self.handle_uploads_cancelled)
 
         if warehouse_tag is not None:
             self.warehouse_id = warehouse_tag.get('id')[0]
@@ -173,6 +177,155 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         self.stateChange.connect(self.state_change_handler)
         self.stateChange.emit()
+
+    @pyqtSlot()
+    def state_change_handler(self):
+        """ We have one BIG method to deal with all the state on the form. It gets run when state changes and the stateChange signal is emitted
+        """
+        self.loading = self.dataExchangeAPI.api.loading
+
+        allow_user_action = not self.loading and self.flow_state in [ProjectUploadDialogStateFlow.USER_ACTION]
+
+        can_update_project = self.warehouse_id is not None \
+            and self.existing_project is not None \
+            and self.existing_project.permissions.get('update', False) is True
+
+        # Top of the form
+        ########################################################################
+        self.loginResetBtn.setVisible(allow_user_action)
+
+        # New Or Update Choice
+        ########################################################################
+        self.newOrUpdateLayout.setEnabled(allow_user_action)
+        # If the self.warehouse_id is not set then we're going to disable the "new" option
+        if not can_update_project:
+            if self.optModifyProject.isChecked():
+                self.optNewProject.setChecked(True)
+            self.optModifyProject.setEnabled(False)
+            self.viewExistingBtn.setEnabled(False)
+            self.selectUpdate = False
+            self.noDeleteChk.setEnabled(False)
+        # Only if the warehouse_id exists AND the project retieval is successful AND the acccess is correct can we enable the modify option
+        else:
+            self.optModifyProject.setEnabled(allow_user_action)
+            self.viewExistingBtn.setEnabled(allow_user_action)
+            self.noDeleteChk.setEnabled(allow_user_action and self.optModifyProject.isChecked())
+
+        # Project Ownership
+        ########################################################################
+        # Set things enabled at the group level to save time
+        # If the modify option is set then we lock this whole thing down
+        self.ownershipGroup.setEnabled(allow_user_action and self.new_project)
+
+        # The org select is only enabled if the project has previously been uploaded (and has a warehouse id)
+        # AND if the user has selected ""
+        self.orgSelect.setEnabled(self.optOwnerOrg.isChecked() and self.profile is not None and len(self.profile.organizations) > 0)
+
+        # visibility
+        ########################################################################
+        self.visibilityGroup.setEnabled(allow_user_action and self.new_project is True)
+
+        # Tags
+        ########################################################################
+        self.tagGroup.setEnabled(allow_user_action)
+        self.tagList.clear()
+        for tag in self.tags:
+            self.tagList.addItem(tag)
+
+        # Error Control
+        ########################################################################
+        self._handle_error_state()
+
+        # Upload Progress and summary
+        ########################################################################
+
+        if self.flow_state not in [ProjectUploadDialogStateFlow.UPLOADING]:
+            self.progressBar.setValue(0)
+            self.progressSubLabel.setText('...')
+            self.progressBar.setEnabled(False)
+            self.progressSubLabel.setEnabled(False)
+        else:
+            self.progressBar.setEnabled(True)
+            self.progressSubLabel.setEnabled(True)
+
+        # We only show the "View in Data Exchange" button if we're sure the upload has succeeded
+        self.openWebProjectBtn.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.COMPLETED])
+
+        todo_text = ''
+        if self.flow_state == ProjectUploadDialogStateFlow.LOGGING_IN:
+            todo_text = 'Logging in... (check your browser)'
+        elif self.flow_state == ProjectUploadDialogStateFlow.FETCHING_CONTEXT:
+            todo_text = 'Fetching user context...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.USER_ACTION:
+            todo_text = 'Ready to upload'
+        elif self.flow_state == ProjectUploadDialogStateFlow.VALIDATING:
+            todo_text = 'Validating project...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.REQUESTING_UPLOAD:
+            todo_text = 'Requesting upload...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.UPLOADING:
+            todo_text = 'Uploading...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.WAITING_FOR_COMPLETION:
+            todo_text = 'Waiting for upload completion...'
+        elif self.flow_state == ProjectUploadDialogStateFlow.COMPLETED:
+            todo_text = 'Upload complete'
+        elif self.flow_state == ProjectUploadDialogStateFlow.NO_ACTION:
+            todo_text = 'No differences between local and remote. Nothing to upload'
+        self.todoLabel.setText(todo_text)
+
+        # Action buttons at the bottom of the screen
+        ########################################################################
+
+        # set the ok button text to "Start"
+        self.startBtn.setEnabled(allow_user_action)
+        # We swap the start button with the stop button when we're uploading
+        self.startBtn.setVisible(self.flow_state not in [ProjectUploadDialogStateFlow.UPLOADING])
+        self.stopBtn.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
+        self.stopBtn.setVisible(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
+
+        # User cannot cancel the dialog if uploading is happening. They must first stop the upload
+        self.actionBtnBox.button(QDialogButtonBox.Cancel).setEnabled(self.flow_state not in [
+            ProjectUploadDialogStateFlow.UPLOADING
+        ])
+
+        self.viewLogsButton.setEnabled(os.path.isfile(self.upload_log_path))
+
+    def reset_upload_state(self):
+        # Make sure the state is clear to behin with
+        self.new_project_id = None
+        self.first_upload_check = None
+        self.last_upload_check = None
+        self.progress = 0
+        self.upload_start_time = None
+        # Reset the queue and the upload digest
+        self.queue.reset()
+        self.upload_digest.reset()
+
+    def calculate_end_time(self):
+        """ Calculate the estimated end time of the upload
+        """
+        if self.upload_start_time is None:
+            return None, ''
+        if self.progress == 0:
+            return None, ''
+        elapsed = datetime.datetime.now() - self.upload_start_time
+        total_seconds = elapsed.total_seconds()
+        remaining_seconds = (total_seconds / self.progress) * (100 - self.progress)
+
+        days, remaining_seconds = divmod(remaining_seconds, 86400)
+        hours, remainder_seconds = divmod(remaining_seconds, 3600)
+        minutes, seconds = divmod(remainder_seconds, 60)
+        if days > 0:
+            duration_str = f" ETA: {int(days)}d {int(hours)}h {int(minutes)}m"
+        elif hours > 0:
+            duration_str = f" ETA: {int(hours)}h {int(minutes)}m"
+        elif minutes > 0:
+            duration_str = f" ETA: {int(minutes)}m {int(seconds)}s"
+        elif seconds > 0:
+            duration_str = f" ETA: {int(seconds)}s"
+        else:
+            duration_str = ""
+
+        return datetime.datetime.now() + datetime.timedelta(seconds=remaining_seconds), duration_str
 
     def get_owner_obj(self) -> OwnerInputTuple:
         """ Helper function to get the owner object for the project
@@ -430,111 +583,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             url = CONSTANTS['warehouseUrl'] + '/p/' + id
             QDesktopServices.openUrl(QUrl(url))
 
-    @pyqtSlot()
-    def state_change_handler(self):
-        """ Control the state of the controls in the dialog
-        """
-        self.loading = self.dataExchangeAPI.api.loading
-
-        allow_user_action = not self.loading and self.flow_state in [ProjectUploadDialogStateFlow.USER_ACTION]
-
-        can_update_project = self.warehouse_id is not None \
-            and self.existing_project is not None \
-            and self.existing_project.permissions.get('update', False) is True
-
-        # Top of the form
-        ########################################################################
-        self.loginResetBtn.setVisible(allow_user_action)
-
-        # New Or Update Choice
-        ########################################################################
-        self.newOrUpdateLayout.setEnabled(allow_user_action)
-        # If the self.warehouse_id is not set then we're going to disable the "new" option
-        if not can_update_project:
-            if self.optModifyProject.isChecked():
-                self.optNewProject.setChecked(True)
-            self.optModifyProject.setEnabled(False)
-            self.viewExistingBtn.setEnabled(False)
-            self.selectUpdate = False
-            self.noDeleteChk.setEnabled(False)
-        # Only if the warehouse_id exists AND the project retieval is successful AND the acccess is correct can we enable the modify option
-        else:
-            self.optModifyProject.setEnabled(allow_user_action)
-            self.viewExistingBtn.setEnabled(allow_user_action)
-            self.noDeleteChk.setEnabled(allow_user_action and self.optModifyProject.isChecked())
-
-        # Project Ownership
-        ########################################################################
-        # Set things enabled at the group level to save time
-        # If the modify option is set then we lock this whole thing down
-        self.ownershipGroup.setEnabled(allow_user_action and self.new_project)
-
-        # The org select is only enabled if the project has previously been uploaded (and has a warehouse id)
-        # AND if the user has selected ""
-        self.orgSelect.setEnabled(self.optOwnerOrg.isChecked() and self.profile is not None and len(self.profile.organizations) > 0)
-
-        # visibility
-        ########################################################################
-        self.visibilityGroup.setEnabled(allow_user_action and self.new_project is True)
-
-        # Tags
-        ########################################################################
-        self.tagGroup.setEnabled(allow_user_action)
-        self.tagList.clear()
-        for tag in self.tags:
-            self.tagList.addItem(tag)
-
-        # Error Control
-        ########################################################################
-        self._handle_error_state()
-
-        # Upload Progress and summary
-        ########################################################################
-        self.progressBar.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
-        self.progressSubLabel.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
-        if self.flow_state != ProjectUploadDialogStateFlow.UPLOADING:
-            self.progressSubLabel.setText('...')
-
-        self.openWebProjectBtn.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.COMPLETED])
-
-        todo_text = ''
-        if self.flow_state == ProjectUploadDialogStateFlow.LOGGING_IN:
-            todo_text = 'Logging in... (check your browser)'
-        elif self.flow_state == ProjectUploadDialogStateFlow.FETCHING_CONTEXT:
-            todo_text = 'Fetching user context...'
-        elif self.flow_state == ProjectUploadDialogStateFlow.USER_ACTION:
-            todo_text = 'Ready to upload'
-        elif self.flow_state == ProjectUploadDialogStateFlow.VALIDATING:
-            todo_text = 'Validating project...'
-        elif self.flow_state == ProjectUploadDialogStateFlow.REQUESTING_UPLOAD:
-            todo_text = 'Requesting upload...'
-        elif self.flow_state == ProjectUploadDialogStateFlow.UPLOADING:
-            todo_text = 'Uploading...'
-        elif self.flow_state == ProjectUploadDialogStateFlow.WAITING_FOR_COMPLETION:
-            todo_text = 'Waiting for upload completion...'
-        elif self.flow_state == ProjectUploadDialogStateFlow.COMPLETED:
-            todo_text = 'Upload complete'
-        elif self.flow_state == ProjectUploadDialogStateFlow.NO_ACTION:
-            todo_text = 'No differences between local and remote. Nothing to upload'
-        self.todoLabel.setText(todo_text)
-
-        # Action buttons at the bottom of the screen
-        ########################################################################
-
-        # set the ok button text to "Start"
-        self.startBtn.setEnabled(allow_user_action)
-        # We swap the start button with the stop button when we're uploading
-        self.startBtn.setVisible(self.flow_state not in [ProjectUploadDialogStateFlow.UPLOADING])
-        self.stopBtn.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
-        self.stopBtn.setVisible(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
-
-        # User cannot cancel the dialog if uploading is happening. They must first stop the upload
-        self.actionBtnBox.button(QDialogButtonBox.Cancel).setEnabled(self.flow_state not in [
-            ProjectUploadDialogStateFlow.UPLOADING
-        ])
-
-        self.viewLogsButton.setEnabled(os.path.isfile(self.upload_log_path))
-
     def _handle_error_state(self):
         if (self.error):
             self.errorLayout.setEnabled(True)
@@ -602,6 +650,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         and then we start the process
         """
 
+        # Make sure the state is clear to begin with. This is maybe a little overkill but it can't hurt to be safe
+        self.reset_upload_state()
+
         qm = QMessageBox()
         qm.setWindowTitle('Start Upload?')
         qm.setDefaultButton(qm.No)
@@ -617,10 +668,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         if self.upload_log_path is not None and os.path.isfile(self.upload_log_path):
             os.remove(self.upload_log_path)
         self.upload_log('Initiate project upload process', Qgis.Info)
-
-        # Reset in anticipation of the impending upload
-        self.queue.clear()
-        self.upload_digest.reset()
 
         response = qm.exec_()
         if response == QMessageBox.Yes:
@@ -747,18 +794,28 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         elif progress < 0:
             progress = 0
 
-        self.progressBar.setValue(progress)
+        if self.upload_start_time is None:
+            self.upload_start_time = datetime.datetime.now()
 
+        self.progressBar.setValue(progress)
+        self.progress = progress
+
+        _end_time, end_time_str = self.calculate_end_time()
+
+        file_str = '...'
         if biggest_file_relpath is not None:
+            file_str = "Current File: "
             if len(biggest_file_relpath) > 50:
                 # Truncate the file path if it's too long, keeping only the last 50 characters
-                biggest_file_relpath = biggest_file_relpath[:50] + '...'
+                file_str += f"...{biggest_file_relpath[:50]}"
+            else:
+                file_str += biggest_file_relpath
 
-            # This would be too busy for the log files. Just dump it to the console
-            print(f"Uploading: {biggest_file_relpath} {progress}%")
-            self.progressSubLabel.setText(f"Uploading: {biggest_file_relpath}")
-        else:
-            self.progressSubLabel.setText('Uploading: ...')
+        # This would be too busy for the log files. Just dump it to the console for debug purposes
+        print(f"Uploading: {biggest_file_relpath} {progress}%")
+
+        self.todoLabel.setText(f"Uploading: {progress}% {end_time_str}")
+        self.progressSubLabel.setText(f"Uploading: {biggest_file_relpath}")
 
     def handle_upload_start(self):
         """ Start the upload process
@@ -783,6 +840,15 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         # If this succeeds we should call the finalize endpoint
         self.dataExchangeAPI.finalize_project_upload(self.upload_digest.token, self.handle_wait_for_upload_completion)
+        self.stateChange.emit()
+
+    @pyqtSlot()
+    def handle_uploads_cancelled(self):
+        self.upload_log('Upload Queue Cancelled', Qgis.Warning)
+        # Reset all state back to the beginning so we can click "start" again if we want
+        self.reset_upload_state()
+
+        self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
         self.stateChange.emit()
 
     def handle_finalize(self, task: RunGQLQueryTask, job_status_obj: Dict[str, any]):
