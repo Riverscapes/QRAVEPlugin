@@ -29,17 +29,17 @@ LOG_FILE = 'RiverscapesViewer-Upload.log'
 
 
 class ProjectUploadDialogStateFlow:
-    INITIALIZING = 0
-    LOGGING_IN = 1
-    FETCHING_CONTEXT = 2
-    USER_ACTION = 3
-    VALIDATING = 4
-    REQUESTING_UPLOAD = 5
-    UPLOADING = 6
-    WAITING_FOR_COMPLETION = 7
-    COMPLETED = 8
-    ERROR = 9
-    NO_ACTION = 10
+    INITIALIZING = 'INITIALIZING'
+    LOGGING_IN = 'LOGGING_IN'
+    FETCHING_CONTEXT = 'FETCHING_CONTEXT'
+    USER_ACTION = 'USER_ACTION'
+    VALIDATING = 'VALIDATING'
+    REQUESTING_UPLOAD = 'REQUESTING_UPLOAD'
+    UPLOADING = 'UPLOADING'
+    WAITING_FOR_COMPLETION = 'WAITING_FOR_COMPLETION'
+    COMPLETED = 'COMPLETED'
+    ERROR = 'ERROR'
+    NO_ACTION = 'NO_ACTION'
 
 # Once we click the start upload button there is going to be a chain of callbacks:
 
@@ -70,7 +70,6 @@ class ProjectUploadDialogError():
 class ProjectUploadDialog(QDialog, Ui_Dialog):
 
     closingPlugin = pyqtSignal()
-    stateChange = pyqtSignal()
 
     def __init__(self, parent=None, project: Project = None):
         """Constructor."""
@@ -129,9 +128,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.dataExchangeAPI = DataExchangeAPI(on_login=self.handle_login)
         self.loading = self.dataExchangeAPI.api.loading
 
-        # This will chain the state change signal from the API to the dialog
-        self.dataExchangeAPI.stateChange.connect(self.stateChange.emit)
-
         # Set the initial state of the form
         self.optNewProject.setChecked(True)
         self.optModifyProject.setChecked(False)
@@ -178,21 +174,20 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.projectPathValue.setText(project_path)
         self.projectPathValue.setToolTip(project_path)
 
-        self.stateChange.connect(self.state_change_handler)
-        self.stateChange.emit()
+        self.recalc_state()
 
-    @pyqtSlot()
-    def state_change_handler(self):
-        """ We have one BIG method to deal with all the state on the form. It gets run when state changes and the stateChange signal is emitted
+    def recalc_state(self):
+        """ We have one BIG method to deal with all the state on the form. It gets run whenever we affect the state
         """
-        self.loading = self.dataExchangeAPI.api.loading
+        print(f"Recalculating state: {self.flow_state} for project: {self.project_xml.project.find('Name').text[-50:]}")
 
+        self.loading = self.dataExchangeAPI.api.loading
         allow_user_action = not self.loading and self.flow_state in [ProjectUploadDialogStateFlow.USER_ACTION]
 
         can_update_project = self.warehouse_id is not None \
             and self.existing_project is not None \
             and self.existing_project.permissions.get('update', False) is True
-        
+
         # Top of the form
         ########################################################################
         self.loginResetBtn.setVisible(allow_user_action)
@@ -361,7 +356,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.loginStatusValue.setText('Fetching Profile...')
             self.profile = None
             self.dataExchangeAPI.get_user_info(self.handle_profile_change)
-        self.stateChange.emit()
+
+        self.recalc_state()
 
     def handle_select_tag(self, item):
         """ Handle the user clicking on a tag. This selects it so we can remove it.
@@ -379,7 +375,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             return
         self.tags = [tag for tag in self.tags if tag != self.selected_tag]
         self.selected_tag = None
-        self.stateChange.emit()
+        self.recalc_state()
 
     def add_tag(self):
         """ Add a tag to the list
@@ -388,7 +384,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         tag = self.addTag.text().strip()
         if len(tag) > 0 and tag not in self.tags:
             self.tags.append(tag)
-            self.stateChange.emit()
+            self.recalc_state()
 
     def handle_profile_change(self, task: RunGQLQueryTask, profile: DEProfile):
         """ When the 
@@ -418,6 +414,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                     self.error = ProjectUploadDialogError('Warehouse lookup error', 'Missing API URL in the project')
                     self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
                     self.existingProject = None
+                    self.recalc_state()
                     return
 
                 elif project_id is None or len(project_id.strip()) == 0:
@@ -425,6 +422,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                     self.error = ProjectUploadDialogError('Warehouse lookup error', 'Missing ID in the project')
                     self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
                     self.existingProject = None
+                    self.recalc_state()
                     return
 
                 elif project_api != self.dataExchangeAPI.api.uri:
@@ -434,6 +432,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                     self.error = ProjectUploadDialogError(err_title, err_str)
                     self.flow_state = ProjectUploadDialogStateFlow.ERROR
                     self.existingProject = None
+                    self.recalc_state()
                     return
             else:
                 self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
@@ -492,7 +491,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.existing_project = None
             self.dataExchangeAPI.get_project(self.warehouse_id, self.handle_existing_project)
 
-        self.stateChange.emit()
+        self.recalc_state()
 
     def handle_org_select_change(self, index):
         # Get the current item's data
@@ -544,7 +543,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                     self.optNewProject.setChecked(True)
                     self.new_project = True
 
-            self.stateChange.emit()
+            self.recalc_state()
 
     def handle_owner_change(self, button, checked):
         if checked:
@@ -553,7 +552,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 self.org_id = self.orgSelect.currentData()
             else:
                 self.org_id = None
-        self.stateChange.emit()
+        self.recalc_state()
 
     def handle_existing_project(self, task: RunGQLQueryTask, project: DEProject):
         """ Handle the response from the API when fetching an existing project
@@ -572,7 +571,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         self.upload_log('Waiting for user input...', Qgis.Info)
         self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
-        self.stateChange.emit()
+        self.recalc_state()
 
     def show_error_message(self):
         if self.error is None:
@@ -701,7 +700,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
     def handle_stop_click(self):
         self.queue.cancel_all()
         self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
-        self.stateChange.emit()
+        self.recalc_state()
 
     def handle_project_validation(self, task: RunGQLQueryTask, validation_obj: DEValidation):
         """ Before we can upload a project we need to validate it. This saves a lot of time and effort
@@ -736,7 +735,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 self.error = ProjectUploadDialogError('Project is not valid', detail_text)
                 self.flow_state = ProjectUploadDialogStateFlow.ERROR
 
-        self.stateChange.emit()
+        self.recalc_state()
 
     def handle_request_upload_project(self, task: RunGQLQueryTask, upload_obj: Dict[str, any]):
         """ We formally request permission from the API to upload a project.
@@ -770,7 +769,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.upload_log('Requesting upload URLs...', Qgis.Info)
             self.dataExchangeAPI.request_upload_project_files_url(self.upload_digest, self.handle_request_upload_project_files_url)
 
-        self.stateChange.emit()
+        self.recalc_state()
 
     def handle_request_upload_project_files_url(self, task: RunGQLQueryTask, project: DEProject):
         """ After requesting permission to upload a project we can ask for URLS for all project files
@@ -786,7 +785,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         else:
             self.upload_log('  - SUCCESS: Got the file upload URLs', Qgis.Info)
             self.handle_upload_start()
-        self.stateChange.emit()
+        self.recalc_state()
 
     @pyqtSlot(str, int)
     def upload_progress(self, biggest_file_relpath: str, progress: int):
@@ -837,7 +836,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 self.queue.enqueue(upFile.rel_path, abs_path, upload_urls=upFile.urls)
 
         self.flow_state = ProjectUploadDialogStateFlow.UPLOADING
-        self.stateChange.emit()
+        self.recalc_state()
 
     @pyqtSlot()
     def handle_uploads_complete(self):
@@ -847,7 +846,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         # If this succeeds we should call the finalize endpoint
         self.dataExchangeAPI.finalize_project_upload(self.upload_digest.token, self.handle_wait_for_upload_completion)
-        self.stateChange.emit()
+        self.recalc_state()
 
     @pyqtSlot()
     def handle_uploads_cancelled(self):
@@ -856,7 +855,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.reset_upload_state()
 
         self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
-        self.stateChange.emit()
+        self.recalc_state()
 
     def handle_finalize(self, task: RunGQLQueryTask, job_status_obj: Dict[str, any]):
         """ This is kind of a non-operation that serves just to print a single log file and kick off the recursive check_upload
@@ -930,7 +929,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             # Wait 10 seconds and then check again
             QTimer.singleShot(10000, lambda: self.dataExchangeAPI.check_upload(self.upload_digest.token, self.handle_wait_for_upload_completion))
 
-        self.stateChange.emit()
+        self.recalc_state()
 
     def handle_all_done(self, task: RunGQLQueryTask, download_file_obj: Dict[str, any]):
         """After the last callback is complete we report success
@@ -943,4 +942,4 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.upload_log('  - SUCCESS: Downloaded the project.rs.xml file back to the local project folder', Qgis.Info)
             self.upload_log('Upload process complete. Shutting down.', Qgis.Info)
             self.flow_state = ProjectUploadDialogStateFlow.COMPLETED
-            self.stateChange.emit()
+            self.recalc_state()
