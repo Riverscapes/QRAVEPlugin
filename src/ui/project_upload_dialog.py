@@ -197,6 +197,9 @@ class Ui_Dialog(object):
         self.startBtn = QtWidgets.QPushButton(Dialog)
         self.startBtn.setObjectName("startBtn")
         self.actionBtnLayout.addWidget(self.startBtn)
+        self.stopBtn = QtWidgets.QPushButton(Dialog)
+        self.stopBtn.setObjectName("stopBtn")
+        self.actionBtnLayout.addWidget(self.stopBtn)
         self.verticalLayout.addLayout(self.actionBtnLayout)
 
         self.retranslateUi(Dialog)
@@ -239,3 +242,4 @@ class Ui_Dialog(object):
         self.errorMoreBtn.setToolTip(_translate("Dialog", "Copy error to clipboard"))
         self.errorMoreBtn.setText(_translate("Dialog", "More"))
         self.startBtn.setText(_translate("Dialog", "Start"))
+        self.stopBtn.setText(_translate("Dialog", "Stop"))
