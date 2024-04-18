@@ -105,10 +105,13 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.progress: int = 0
         self.upload_start_time: datetime.datetime = None
         ########################################################
+
+        # The queue processor signals needs to get hooked into the UI slots
         self.queue.progress_signal.connect(self.upload_progress)
         self.queue.complete_signal.connect(self.handle_uploads_complete)
         self.queue.cancelled_signal.connect(self.handle_uploads_cancelled)
 
+        # Read the warehouse tag from the project XML
         if warehouse_tag is not None:
             self.warehouse_id = warehouse_tag.get('id')[0]
             self.apiUrl = warehouse_tag.get('apiUrl')[0]
@@ -129,7 +132,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # This will chain the state change signal from the API to the dialog
         self.dataExchangeAPI.stateChange.connect(self.stateChange.emit)
 
-        # Create a button group
+        # Set the initial state of the form
         self.optNewProject.setChecked(True)
         self.optModifyProject.setChecked(False)
         self.viewExistingBtn.clicked.connect(lambda: self.open_web_project(self.existing_project.id))
@@ -189,7 +192,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         can_update_project = self.warehouse_id is not None \
             and self.existing_project is not None \
             and self.existing_project.permissions.get('update', False) is True
-
+        
         # Top of the form
         ########################################################################
         self.loginResetBtn.setVisible(allow_user_action)
@@ -408,26 +411,30 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 project_api = self.project_xml.warehouse_meta.get('apiUrl', [None])[0]
                 project_id = self.project_xml.warehouse_meta.get('id', [None])[0]
 
-                # Handle Errors. these will all still allow you to upload as a new project
+                # Handle Errors. We fail harshly on these because they should be rare (borderline impossible) for
+                # non-developers to get into these states
                 if project_api is None or len(project_api.strip()) == 0:
                     self.upload_log('ERROR: Missing or invalid "apiUrl" in the <Warehouse> tag', Qgis.Critical)
                     self.error = ProjectUploadDialogError('Warehouse lookup error', 'Missing API URL in the project')
                     self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
                     self.existingProject = None
+                    return
 
                 elif project_id is None or len(project_id.strip()) == 0:
                     self.upload_log('ERROR: Missing "id" attribute in the <Warehouse> tag', Qgis.Critical)
                     self.error = ProjectUploadDialogError('Warehouse lookup error', 'Missing ID in the project')
                     self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
                     self.existingProject = None
+                    return
 
                 elif project_api != self.dataExchangeAPI.api.uri:
-                    err_title = 'The project is not associated with the current warehouse',
+                    err_title = 'The project is not associated with the current warehouse'
                     err_str = f"Project API: {project_api} \nWarehouse API: {self.dataExchangeAPI.api.uri}"
                     self.upload_log(err_title, Qgis.Critical, err_str)
                     self.error = ProjectUploadDialogError(err_title, err_str)
-                    self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+                    self.flow_state = ProjectUploadDialogStateFlow.ERROR
                     self.existingProject = None
+                    return
             else:
                 self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
 
