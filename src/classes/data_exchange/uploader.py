@@ -75,7 +75,8 @@ class UploadMultiPartFileTask(QgsTask):
         if self.log:
             log_str = 'UploadMultiPartFileTask: ' + message
             # indent everuything by 6 spaces
-            log_str = log_str.replace(os.linesep, os.linesep + '    ')
+            spacer = ' ' * 6
+            log_str = spacer + log_str.replace(os.linesep, os.linesep + spacer)
             self.log(log_str, level, context_obj)
 
     def debug_log(self) -> str:
@@ -128,8 +129,8 @@ class UploadMultiPartFileTask(QgsTask):
                 loop = QEventLoop()
                 part_size = end - start
                 # Only the first 100 and last 50 characters of the URL need to be shown
-                url_str = url[100:] + ' ... ' + url[:50] if len(url) > 100 else url
-                self.file_upload_log(f"Uploading chunk {start}-{end} for file: {self.rel_path} Retry: {self.retry_count} to url: {url_str}", Qgis.Info)
+                # url_str = url[:100] + '...'
+                self.file_upload_log(f"Uploading chunk bytes {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Info)
 
                 request = QNetworkRequest(QUrl(url))
                 request.setHeader(QNetworkRequest.ContentLengthHeader, part_size)
@@ -144,7 +145,7 @@ class UploadMultiPartFileTask(QgsTask):
                 def handle_cancelled():
                     """Make sure we clean up and close file handles if the cancel signal has been called
                     """
-                    self.file_upload_log(f"WARNING: Task was cancelled, aborting upload of chunk {start}-{end} for file: {self.rel_path}", Qgis.Warning)
+                    self.file_upload_log(f"WARNING: Task was cancelled, aborting upload of chunk {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Warning)
                     self.reply.abort()
                     partial_file.close()
 
@@ -153,7 +154,7 @@ class UploadMultiPartFileTask(QgsTask):
                     # Detect if the reply was cancelled
                     if self.reply.error() == QNetworkReply.OperationCanceledError:
                         self.error = QNetworkReply.OperationCanceledError
-                        self.file_upload_log(f"WARNING: Upload cancelled for chunk {start}-{end} for file: {self.rel_path}", Qgis.Warning)
+                        self.file_upload_log(f"WARNING: Upload cancelled for chunk {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Warning)
                         loop.quit()
 
                     elif self.reply.error() != QNetworkReply.NoError:
@@ -212,12 +213,12 @@ class UploadMultiPartFileTask(QgsTask):
 
         # For each URL (1 for single file, many for multipart) upload the chunk
         for idx, url in enumerate(self.urls):
-            self.file_upload_log(f"START: Uploading chunk {idx + 1}:{self.chunks} for file: {self.rel_path}", Qgis.Info)
+            # self.file_upload_log(f"START: Uploading chunk {idx + 1}:{self.chunks} for file: {self.rel_path}", Qgis.Info)
             start = idx * self.chunk_size
             end = (idx + 1) * self.chunk_size if idx < len(self.urls) - 1 else self.total_size
             if not self.upload_file_part(url, start, end):
                 return False  # Stop if the upload fails after retries (or is cancelled)
-            self.file_upload_log(f"DONE: Uploaded chunk {idx + 1}:{self.chunks} for file: {self.rel_path}", Qgis.Info)
+            # self.file_upload_log(f"DONE: Uploaded chunk {idx + 1}:{self.chunks} for file: {self.rel_path}", Qgis.Info)
         return True
 
 
@@ -256,7 +257,8 @@ class UploadQueue(QObject):
         if self.log_callback:
             log_str = 'UploadQueue: ' + message
             # indent everuything by 4 spaces
-            log_str = log_str.replace(os.linesep, os.linesep + '    ')
+            spacer = ' ' * 4
+            log_str = spacer + log_str.replace(os.linesep, os.linesep + spacer)
             self.log_callback(log_str, level, context_obj)
 
     def enqueue(self, rel_path, abs_path, upload_urls: List[str], retries=5):
