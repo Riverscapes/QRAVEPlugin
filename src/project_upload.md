@@ -28,24 +28,24 @@
 
 ### Modify Project
 
-- [ ] Existing project can be visited in Data Exchange
+- [X] Existing project can be visited in Data Exchange
 - [ ] SHOULD_FAIL: Project has been deleted remotely
 - [ ] SHOULD_FAIL: Project has been modified remotely since this change
-- [ ] SUCESS: Existing ORG project is modified
-  - [ ] Only new files uploaded
+- [X] SUCESS: Existing ORG project is modified
+  - [X] Only new files uploaded
   - [ ] Deleted files are deleted
   - [ ] Deleted files are not deleted when NoDelete is set
-- [ ] SUCCESS: Existing USER project is modified
+- [X] SUCCESS: Existing USER project is modified
 - [ ] SUCCESS: Uploading files > 50Mb
+- [X] SUCCESS: Unchanged Files < 50Mb are detected as existing and skipped
 - [ ] SUCCESS: Unchanged Files > 50Mb are detected as existing and skipped
 - [ ] SUCCESS: Tags are changed during upload
 
 ### Misc and Edge cases:
 
-- [ ] SUCCESS: Upload multiple projects open in the Viewer. Can the dialog switch between them?
 - [X] View log button works
 - [X] SUCCESS: New project is canceled mid-upload
 - [X] SUCCESS: Cancelled project can be restarted successfully
 - [X] SHOULD_FAIL: Refuse to upload project from different api
 - [X] SHOULD_FAIL: Refuse to upload project with bad project id
-- [ ] Form can be closed and opened again without losing functionality
+- [X] Form can be closed and opened again without losing functionality

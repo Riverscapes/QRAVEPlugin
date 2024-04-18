@@ -53,6 +53,7 @@ class RunGQLQueryTask(QgsTask):
         debug_obj = {
             'url': self.api.uri,
             'query': self.query,
+            'error': str(self.error),
             'variables': self.variables,
             'response': self.response
         }
