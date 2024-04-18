@@ -1,4 +1,4 @@
-from typing import List, Tuple, Callable, Generator
+from typing import List, Tuple, Callable
 import os
 import time
 import json
@@ -6,7 +6,6 @@ import math
 from qgis.core import QgsTask, QgsApplication, Qgis
 from PyQt5.QtCore import QObject, QByteArray, QUrl, QIODevice, QFile, QEventLoop, pyqtSlot, pyqtSignal
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
-from ..borg import Borg
 from ..util import MULTIPART_CHUNK_SIZE
 
 MAX_PROGRESS_INTERVAL = 1  # seconds
@@ -145,7 +144,8 @@ class UploadMultiPartFileTask(QgsTask):
                 def handle_cancelled():
                     """Make sure we clean up and close file handles if the cancel signal has been called
                     """
-                    self.file_upload_log(f"WARNING: Task was cancelled, aborting upload of chunk {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Warning)
+                    # self.file_upload_log(f"WARNING: Task was cancelled, aborting upload of chunk {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Warning)
+                    self.error = QNetworkReply.OperationCanceledError
                     self.reply.abort()
                     partial_file.close()
 
@@ -154,7 +154,7 @@ class UploadMultiPartFileTask(QgsTask):
                     # Detect if the reply was cancelled
                     if self.reply.error() == QNetworkReply.OperationCanceledError:
                         self.error = QNetworkReply.OperationCanceledError
-                        self.file_upload_log(f"WARNING: Upload cancelled for chunk {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Warning)
+                        # self.file_upload_log(f"WARNING: Upload cancelled for chunk {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Warning)
                         loop.quit()
 
                     elif self.reply.error() != QNetworkReply.NoError:
@@ -230,6 +230,7 @@ class UploadQueue(QObject):
     """
     progress_signal = pyqtSignal(str, int)
     complete_signal = pyqtSignal()
+    cancelled_signal = pyqtSignal()
 
     MAX_CONCURRENT_UPLOADS = 4
 
@@ -239,18 +240,20 @@ class UploadQueue(QObject):
         # datetime of last progress update
         self.active = True
         self.last_progress = None
+        self.cancelled = False
 
         self.queue: List[UploadMultiPartFileTask] = []
         self.active_tasks: List[UploadMultiPartFileTask] = []
         self.completed_tasks: List[UploadMultiPartFileTask] = []
         self.cancelled_tasks: List[UploadMultiPartFileTask] = []
 
-    def clear(self):
+    def reset(self):
         self.queue = []
         self.active_tasks = []
         self.completed_tasks = []
         self.cancelled_tasks = []
         self.last_progress = None
+        self.cancelled = False
         self.active = True
 
     def queue_logger(self, message: str, level: int, context_obj=None):
@@ -350,13 +353,19 @@ class UploadQueue(QObject):
         Args:
             task(_type_): _description_
         """
-        if task.error:
+        if task.error == QNetworkReply.OperationCanceledError:
+            self.queue_logger(f"Cancelled upload of {task.rel_path}", Qgis.Warning)
+        elif task.error:
             self.queue_logger(f"Error uploading {task.rel_path}: {task.error}", Qgis.Critical, task)
         else:
             self.queue_logger(f"Finished uploading: {task.rel_path}", Qgis.Info)
-        # Put it on the correct list
-        self.active_tasks.remove(task)
-        self.completed_tasks.append(task)
+            # Put it on the correct list
+            try:
+                self.active_tasks.remove(task)
+                self.completed_tasks.append(task)
+            except Exception as e:
+                print(f"Error removing task: {str(e)}")
+
         # Kick off queue processing again
         self.process_queue()
 
@@ -366,18 +375,36 @@ class UploadQueue(QObject):
         self.queue_logger(f"Canceling all {len(self.active_tasks)} uploads", Qgis.Info)
         # Shut down the queue processor
         self.active = False
+        self.cancelled = True
 
-        # Cancel all the active tasks
-        for task in self.active_tasks:
-            task.cancel()
-
-        for task in list(self.active_tasks):
-            self.queue_logger(f"Cancelled upload of {task.rel_path}", Qgis.Info, task)
-            self.active_tasks.remove(task)
-            self.cancelled_tasks.append(task)
+        # Drain the queue
+        finished_tasks = 0
+        tasks_need_cancel = 0
 
         # Now QLoop wait for all tasks to be finished
+        loop = QEventLoop()
+
+        def on_task_finished():
+            nonlocal finished_tasks
+            nonlocal tasks_need_cancel
+            finished_tasks += 1
+            self.queue_logger(f"Finished cancelling {finished_tasks} of {tasks_need_cancel} uploads", Qgis.Info)
+            if finished_tasks == tasks_need_cancel:
+                self.log_callback(f"ALl uploads cancelled", Qgis.Info)
+                loop.quit()
+
+        for task_list in [self.queue, self.active_tasks]:
+            for task in task_list:
+                if not task.isCanceled():
+                    self.queue_logger(f"Cancelling upload of {task.rel_path}", Qgis.Info)
+                    # We connect it to both signals just in case the task is already finished or finishes in the meantime
+                    task.taskCompleted.connect(on_task_finished)
+                    task.taskTerminated.connect(on_task_finished)
+                    task.cancel()
+                    tasks_need_cancel += 1
+
+        loop.exec_()
 
         # Now signal that we're done
         self.queue_logger(f"Uploads cancelled", Qgis.Info)
-        self.complete_signal.emit()
+        self.cancelled_signal.emit()

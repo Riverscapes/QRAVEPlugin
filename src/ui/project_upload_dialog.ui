@@ -91,7 +91,7 @@
         </font>
        </property>
        <property name="text">
-        <string>Status:</string>
+        <string>Login:</string>
        </property>
       </widget>
      </item>
