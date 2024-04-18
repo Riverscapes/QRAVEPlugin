@@ -568,6 +568,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         else:
             self.upload_log('  - SUCCESS: Fetched existing project', Qgis.Info)
             self.existing_project = project
+            self.new_project = False
+            self.optModifyProject.setChecked(True)
 
         self.upload_log('Waiting for user input...', Qgis.Info)
         self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
@@ -691,7 +693,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                         xml.remove(warehouse_tag)
                 # Now transform back to a string
                 xml = lxml.etree.tostring(xml, pretty_print=True).decode('utf-8')
-                owner_obj = self.get_owner_obj()
+                owner_obj = self.get_owner_obj() if self.new_project else None
                 self.upload_log('Validating project using the API validation endpoint...', Qgis.Info)
                 self.dataExchangeAPI.validate_project(xml, owner_obj, self.upload_digest, self.handle_project_validation)
         else:
@@ -724,7 +726,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                     files=self.upload_digest,
                     tags=self.tags,
                     no_delete=self.noDeleteChk.isEnabled() and self.noDeleteChk.isChecked(),
-                    owner_obj=owner_obj,
+                    owner_obj=owner_obj if self.new_project else None,
+                    project_id=self.warehouse_id if not self.new_project else None,
                     visibility=self.visibilitySelect.currentText(),
                     callback=self.handle_request_upload_project
                 )
@@ -758,16 +761,16 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             changes = 0
             self.upload_log('Summary of files and operations:', Qgis.Info)
             for file in self.upload_digest.files.values():
-                if file.op == UploadFile.FileOp.CREATE:
+                if file.op in [UploadFile.FileOp.CREATE, UploadFile.FileOp.UPDATE]:
                     changes += 1
                 self.upload_log(f"  - [{file.op}] {file.rel_path} size: {file.size:,} etag: {file.etag}", Qgis.Info)
 
             if changes == 0:
                 self.upload_log('No files to upload. Skipping upload step', Qgis.Info)
-                self.handle_uploads_complete()
-
-            self.upload_log('Requesting upload URLs...', Qgis.Info)
-            self.dataExchangeAPI.request_upload_project_files_url(self.upload_digest, self.handle_request_upload_project_files_url)
+                self.flow_state = ProjectUploadDialogStateFlow.NO_ACTION
+            else:
+                self.upload_log('Requesting upload URLs...', Qgis.Info)
+                self.dataExchangeAPI.request_upload_project_files_url(self.upload_digest, self.handle_request_upload_project_files_url)
 
         self.recalc_state()
 
@@ -831,7 +834,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.upload_log('Starting the ACTUAL file upload process...', Qgis.Info)
 
         for upFile in self.upload_digest.files.values():
-            if upFile.op == UploadFile.FileOp.CREATE:
+            if upFile.op in [UploadFile.FileOp.CREATE, UploadFile.FileOp.UPDATE]:
                 abs_path = os.path.join(self.project_xml.project_dir, upFile.rel_path)
                 self.queue.enqueue(upFile.rel_path, abs_path, upload_urls=upFile.urls)
 

@@ -115,7 +115,9 @@ class UploadFileList():
                 file_etag = etag_obj['etag']
                 self.add_file(rel_path, file_size, file_etag)
 
-    def get_rel_paths(self):
+    def get_rel_paths(self, filter_to: List[UploadFile.FileOp] = None):
+        if filter_to and len(filter_to) > 0:
+            return [file.rel_path for file in self.files.values() if file.op in filter_to]
         return [file.rel_path for file in self.files.values()]
 
     def get_etags(self):
@@ -327,7 +329,7 @@ class DataExchangeAPI(QObject):
             return callback(task, ret_obj)
 
         return self.api.run_query(self._load_query('requestUploadProjectFilesUrl'), {
-            'files': files.get_rel_paths(),
+            'files': files.get_rel_paths([UploadFile.FileOp.CREATE, UploadFile.FileOp.UPDATE]),
             'token': files.token
         },
             _request_upload_project_files_url
