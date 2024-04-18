@@ -6,8 +6,8 @@
 - [X] Unauthed users opens form
 - [X] Authentication fails
 - [X] Authentication times-out (1 minute)
-- [ ] When multiple projects open in viewer dialog shows the correct one.
-- [ ] When multiple projects open in viewer cancelling and re-opening another shows the right one
+- [X] When multiple projects open in viewer dialog shows the correct one.
+- [X] When multiple projects open in viewer cancelling and re-opening another shows the right one
 - [X] Authed user resets auth with "reset" button
 
 ###  New Project Upload
@@ -20,7 +20,7 @@
 - [X] SUCCESS: New Project is uploaded SECRET
 - [ ] SUCCESS: New Project is uploaded with TAGS
 - [X] SUCCESS: Uploading files > 50Mb
-- [ ] FAIL: Project fails validation
+- [ ] SHOULD_FAIL: Project fails validation
   - [X] Broken XML, Malformed XML
   - [X] Missing files
   - [ ] Permissions issues
@@ -29,8 +29,8 @@
 ### Modify Project
 
 - [ ] Existing project can be visited in Data Exchange
-- [ ] FAIL: Project has been deleted remotely
-- [ ] FAIL: Project has been modified remotely since this change
+- [ ] SHOULD_FAIL: Project has been deleted remotely
+- [ ] SHOULD_FAIL: Project has been modified remotely since this change
 - [ ] SUCESS: Existing ORG project is modified
   - [ ] Only new files uploaded
   - [ ] Deleted files are deleted
@@ -46,4 +46,6 @@
 - [X] View log button works
 - [X] SUCCESS: New project is canceled mid-upload
 - [X] SUCCESS: Cancelled project can be restarted successfully
+- [X] SHOULD_FAIL: Refuse to upload project from different api
+- [X] SHOULD_FAIL: Refuse to upload project with bad project id
 - [ ] Form can be closed and opened again without losing functionality

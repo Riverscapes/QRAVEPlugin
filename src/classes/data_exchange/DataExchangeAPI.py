@@ -142,8 +142,6 @@ MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
 
 class DataExchangeAPI(QObject):
-    # This will mean that all instances of this class will share the same state
-    _shared_state = {}
     stateChange = pyqtSignal()
 
     """ Class to handle data exchange between the different components of the system
@@ -152,24 +150,22 @@ class DataExchangeAPI(QObject):
     def __init__(self, on_login=Callable[[bool], None]):
         super().__init__()
         # Make sure the Borg pattern is initialized
-        self.__dict__ = self._shared_state
-        if not hasattr(self, 'initialized'):
-            self.settings = Settings()
-            self.log = self.settings.log
-            self.myId = None
-            self.myName = None
-            self.myOrgs = []
-            self.initialized = False
-            self.on_login = on_login
-            self.api = GraphQLAPI(
-                apiUrl=os.environ.get('DE_API_URL', CONSTANTS['DE_API_URL']),
-                config=GraphQLAPIConfig(**CONSTANTS['DE_API_AUTH'])
-            )
-            # Tie the state change signal to the state change handler inside self.api
-            self.api.stateChange.connect(self.stateChange.emit)
-            self.stateChange.connect(self._handle_state_change)
+        self.settings = Settings()
+        self.log = self.settings.log
+        self.myId = None
+        self.myName = None
+        self.myOrgs = []
+        self.initialized = False
+        self.on_login = on_login
+        self.api = GraphQLAPI(
+            apiUrl=os.environ.get('DE_API_URL', CONSTANTS['DE_API_URL']),
+            config=GraphQLAPIConfig(**CONSTANTS['DE_API_AUTH'])
+        )
+        # Tie the state change signal to the state change handler inside self.api
+        self.api.stateChange.connect(self.stateChange.emit)
+        self.stateChange.connect(self._handle_state_change)
 
-            self.initialized = self.api.access_token is not None
+        self.initialized = self.api.access_token is not None
         # Regardless of outcome we should check the token status
         self.api.refresh_token(self._handle_refresh_token)
 
