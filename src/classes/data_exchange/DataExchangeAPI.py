@@ -388,4 +388,4 @@ class DataExchangeAPI(QObject):
 
             return callback(task, ret_obj)
 
-        return self.api.run_query(self._load_query('downloadFile'), {'id': project_id, 'filePath': remote_path}, _download_file)
+        return self.api.run_query(self._load_query('downloadFile'), {'projectId': project_id, 'filePath': remote_path}, _download_file)
