@@ -36,6 +36,9 @@ class GraphQLAPIException(Exception):
         self.message = message
         super().__init__(self.message)
 
+    def __str__(self):
+        return f"GraphQLAPIException: {self.message}"
+
 
 class RunGQLQueryTask(QgsTask):
     def __init__(self, api, query, variables):
@@ -133,6 +136,16 @@ class RefreshTokenTask(QgsTask):
         self.api = api
         self.success = False
         self.error = None
+
+    def debug_log(self) -> str:
+        debug_obj = {
+            'url': self.api.uri,
+            'error': str(self.error)
+        }
+        json_str = json.dumps(debug_obj, indent=4, sort_keys=True)
+        # Replace all \n line breaks with a newline character
+        json_str = json_str.replace('\\n', '\n                ')
+        return json_str
 
     def run(self):
         try:
@@ -292,12 +305,10 @@ class GraphQLAPI(QObject):
             "redirect_uri": redirect_url,
         }
 
-        response = requests.post(authentication_url, headers={
-            "content-type": "application/x-www-form-urlencoded"}, data=data, timeout=30)
+        response = requests.post(authentication_url, headers={"content-type": "application/x-www-form-urlencoded"}, data=data, timeout=60)
         response.raise_for_status()
         res = response.json()
-        self.token_timeout = threading.Timer(
-            res["expires_in"] - 20, self._refresh_token)
+        self.token_timeout = threading.Timer(res["expires_in"] - 60, self._refresh_token)
         self.token_timeout.start()
         self.access_token = res["access_token"]
         self.log("SUCCESSFUL Browser Authentication", Qgis.Success)
@@ -369,8 +380,7 @@ class GraphQLAPI(QObject):
                 # Now shut down the server and return
                 self.server.shutdown()
 
-        server = ThreadingHTTPServer(("localhost", self.config.port),
-                                     lambda *args, **kwargs: AuthHandler(self.config, *args, **kwargs))
+        server = ThreadingHTTPServer(("localhost", self.config.port), lambda *args, **kwargs: AuthHandler(self.config, *args, **kwargs))
         # Keep the server running until it is manually stopped
         try:
             self.log("Starting server to wait for auth code...")
@@ -379,8 +389,8 @@ class GraphQLAPI(QObject):
 
             start_time = time.time()
 
-            # Loop for up to 10 seconds
-            while time.time() - start_time < 10:
+            # Loop for up to 60 seconds
+            while time.time() - start_time < 60:
                 # If the server thread is still running, shut it down
                 # self.log(f"Waiting for auth code...")
                 if not server_thread.is_alive():
@@ -388,7 +398,7 @@ class GraphQLAPI(QObject):
                     break
                 time.sleep(1)
 
-            # If the server thread is still running after 10 seconds, shut it down
+            # If the server thread is still running after 60 seconds, shut it down
             if server_thread.is_alive():
                 server.shutdown()
                 server_thread.join()

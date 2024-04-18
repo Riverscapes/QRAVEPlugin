@@ -3,7 +3,7 @@ import os
 import re
 from collections import namedtuple, OrderedDict
 from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
-from qgis.core import QgsMessageLog, Qgis
+from qgis.core import Qgis
 import requests
 
 from ..GraphQLAPI import GraphQLAPI, GraphQLAPIConfig, RunGQLQueryTask, RefreshTokenTask
@@ -151,11 +151,11 @@ class DataExchangeAPI(QObject):
 
     def __init__(self, on_login=Callable[[bool], None]):
         super().__init__()
-        self.settings = Settings()
-        self.log = self.settings.log
         # Make sure the Borg pattern is initialized
         self.__dict__ = self._shared_state
         if not hasattr(self, 'initialized'):
+            self.settings = Settings()
+            self.log = self.settings.log
             self.myId = None
             self.myName = None
             self.myOrgs = []
@@ -187,12 +187,12 @@ class DataExchangeAPI(QObject):
 
     def _handle_refresh_token(self, task: RefreshTokenTask):
         if task.error:
-            QgsMessageLog.logMessage('Error refreshing token', MESSAGE_CATEGORY, Qgis.Critical)
-            QgsMessageLog.logMessage(task.error, MESSAGE_CATEGORY, Qgis.Error)
+            self.log('Error refreshing token', Qgis.Critical)
+            self.log(task.debug_log(), Qgis.Critical)
             self.initialized = False
             self.on_login(task)
         else:
-            QgsMessageLog.logMessage('Token refreshed', MESSAGE_CATEGORY, Qgis.Info)
+            self.log('Token refreshed', Qgis.Info)
             self.initialized = True
             self.on_login(task)
 
