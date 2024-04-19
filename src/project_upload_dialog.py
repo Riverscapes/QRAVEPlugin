@@ -179,7 +179,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
     def recalc_state(self):
         """ We have one BIG method to deal with all the state on the form. It gets run whenever we affect the state
         """
-        print(f"Recalculating state: {self.flow_state} for project: {self.project_xml.project.find('Name').text[-50:]}")
 
         self.loading = self.dataExchangeAPI.api.loading
         allow_user_action = not self.loading and self.flow_state in [ProjectUploadDialogStateFlow.USER_ACTION]
@@ -790,8 +789,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.handle_upload_start()
         self.recalc_state()
 
-    @pyqtSlot(str, int)
-    def upload_progress(self, biggest_file_relpath: str, progress: int):
+    @pyqtSlot(str, int, int, int)
+    def upload_progress(self, biggest_file_relpath: str, progress: int, uploaded_bytes: int, total_bytes: int):
         """ Reporting on file uploads
 
         Args:
@@ -823,7 +822,27 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # This would be too busy for the log files. Just dump it to the console for debug purposes
         print(f"Uploading: {biggest_file_relpath} {progress}%")
 
-        self.todoLabel.setText(f"Uploading: {progress}% {end_time_str}")
+        # Print "uploaded_bytes of total_bytes" in a human-friendly way showing megabytes or gigabytes with at most one decimal place
+        uploaded_mb = uploaded_bytes / 1024 / 1024
+        total_mb = total_bytes / 1024 / 1024
+        uploaded_gb = uploaded_mb / 1024
+        total_gb = total_mb / 1024
+
+        if uploaded_gb >= 1:
+            uploaded_str = f"{uploaded_gb:.1f} GB"
+        elif uploaded_mb >= 1:
+            uploaded_str = f"{uploaded_mb:.1f} MB"
+        else:
+            uploaded_str = f"{uploaded_bytes:,} bytes"
+
+        if total_gb >= 1:
+            total_str = f"{total_gb:.1f} GB"
+        elif total_mb >= 1:
+            total_str = f"{total_mb:.1f} MB"
+        else:
+            total_str = f"{total_bytes:,} bytes"
+
+        self.todoLabel.setText(f"Uploading: {uploaded_str} of {total_str} {end_time_str}")
         self.progressSubLabel.setText(f"Uploading: {biggest_file_relpath}")
 
     def handle_upload_start(self):
