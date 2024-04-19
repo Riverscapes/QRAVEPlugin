@@ -307,7 +307,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.upload_start_time = None
         # Reset the queue and the upload digest
         self.queue.reset()
-        self.upload_digest.reset()
 
     def calculate_end_time(self):
         """ Calculate the estimated end time of the upload

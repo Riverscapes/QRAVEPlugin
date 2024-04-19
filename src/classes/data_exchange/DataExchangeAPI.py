@@ -65,8 +65,6 @@ class UploadFile():
     size: int
     etag: str
     op: FileOp
-    # We calculate the op locally but never depend on it
-    local_op: FileOp
     urls: List[str] = []
 
     def __init__(self, rel_path: str, size: int, etag: str):
@@ -74,7 +72,6 @@ class UploadFile():
         self.size = size
         self.etag = etag
         self.op = None
-        self.local_op = None
         urls = []
 
 
