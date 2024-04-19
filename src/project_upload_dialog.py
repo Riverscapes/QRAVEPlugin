@@ -97,6 +97,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.upload_digest = UploadFileList()
         self.api_url = None
         self.queue = UploadQueue(log_callback=self.upload_log)
+        self.local_ops = {
+            UploadFile.FileOp.CREATE: 0,
+            UploadFile.FileOp.UPDATE: 0,
+            UploadFile.FileOp.DELETE: 0
+        }
         # This state gets set AFTER The user clicks start
         self.new_project_id: str = None  # this is the returned project id from requestUploadProject. May be the same as warehouse_id
         self.first_upload_check: datetime.datetime = None
@@ -123,6 +128,10 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Remove the log file if it exists. All the logging in logs will be wiped when the used clicks start
         if self.upload_log_path is not None and os.path.isfile(self.upload_log_path):
             os.remove(self.upload_log_path)
+        self.upload_log('--------------------------------------------------------------------------------', Qgis.Info)
+        self.upload_log('Project Upload Form Loaded', Qgis.Info)
+        self.upload_log('--------------------------------------------------------------------------------', Qgis.Info)
+
         self.upload_log('Logging in... (waiting for browser)', Qgis.Info)
 
         self.dataExchangeAPI = DataExchangeAPI(on_login=self.handle_login)
@@ -173,6 +182,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         project_path = self.project_xml.project_xml_path
         self.projectPathValue.setText(project_path)
         self.projectPathValue.setToolTip(project_path)
+
+        # 1. Files - we need relative paths to the files
+        self.upload_digest.fetch_local_files(self.project_xml.project_dir, self.project_xml.project_type)
 
         self.recalc_state()
 
@@ -254,7 +266,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         elif self.flow_state == ProjectUploadDialogStateFlow.FETCHING_CONTEXT:
             todo_text = 'Fetching user context...'
         elif self.flow_state == ProjectUploadDialogStateFlow.USER_ACTION:
-            todo_text = 'Ready to upload'
+            todo_text = f"Ready: {self.local_ops[UploadFile.FileOp.CREATE]:,} New {self.local_ops[UploadFile.FileOp.UPDATE]:,} Update {self.local_ops[UploadFile.FileOp.DELETE]:,} delete"
         elif self.flow_state == ProjectUploadDialogStateFlow.VALIDATING:
             todo_text = 'Validating project...'
         elif self.flow_state == ProjectUploadDialogStateFlow.REQUESTING_UPLOAD:
@@ -568,9 +580,28 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.upload_log('  - SUCCESS: Fetched existing project', Qgis.Info)
             self.existing_project = project
             self.new_project = False
+
+            # Do a little local check to see if the project needs to be uploaded at all
+            for file in self.upload_digest.files.values():
+                if project.files.get(file.rel_path) is None:
+                    self.local_ops[UploadFile.FileOp.CREATE] += 1
+                elif project.files[file.rel_path].etag != file.etag:
+                    self.local_ops[UploadFile.FileOp.UPDATE] += 1
+            # Now find the deletions
+            for rel_path, file in project.files.items():
+                if self.upload_digest.files.get(rel_path) is None:
+                    self.local_ops[UploadFile.FileOp.DELETE] += 1
+            total_changes = self.local_ops[UploadFile.FileOp.CREATE] + self.local_ops[UploadFile.FileOp.UPDATE] + self.local_ops[UploadFile.FileOp.DELETE]
+
+            if total_changes == 0:
+                self.upload_log('  - No differences between local and remote. Nothing to upload', Qgis.Info)
+                self.flow_state = ProjectUploadDialogStateFlow.NO_ACTION
+                self.recalc_state()
+                return
+
             self.optModifyProject.setChecked(True)
 
-        self.upload_log('Waiting for user input...', Qgis.Info)
+        self.upload_log('Waiting for user input...' + os.linesep * 3, Qgis.Info)
         self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
         self.recalc_state()
 
@@ -672,16 +703,13 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         qm.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
 
         # Remove the log file if it exists and create a new one
-        if self.upload_log_path is not None and os.path.isfile(self.upload_log_path):
-            os.remove(self.upload_log_path)
-        self.upload_log('Initiate project upload process', Qgis.Info)
+        self.upload_log('--------------------------------------------------------------------------------', Qgis.Info)
+        self.upload_log('User-Initiated project upload starting', Qgis.Info)
+        self.upload_log('--------------------------------------------------------------------------------', Qgis.Info)
 
         response = qm.exec_()
         if response == QMessageBox.Yes:
             # New let's kick off project validation. We need 3 things to do this: 1. The XML, 2. The files, 3. The owner
-
-            # 1. Files - we need relative paths to the files
-            self.upload_digest.fetch_local_files(self.project_xml.project_dir, self.project_xml.project_type)
 
             with open(self.project_xml.project_xml_path, 'r') as f:
                 xml = lxml.etree.parse(self.project_xml.project_xml_path).getroot()
@@ -924,7 +952,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         # Uploader Fail case
         if status == 'FAILED':
-            self.upload_log('Upload failed: ' + json.dumps(job_status_obj, indent=2), Qgis.Critical, task)
+            self.upload_log('Upload failed: ' + json.dumps(job_status_obj, indent=2) + os.linesep * 3, Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Upload failed', 'The upload failed. Check the logs to see the reason')
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
 
@@ -941,7 +969,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Timeout case
         elif total_duration_s >= 300:
             # If it failed we need to handle that
-            self.upload_log('Upload Timed-Out after 300 seconnds (5min)', Qgis.Critical, task)
+            self.upload_log('Upload Timed-Out after 300 seconnds (5min)' + os.linesep * 3, Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Upload failed', 'The upload took too long to complete. It\'s possible the upload failed. Check the logs to see the reason.')
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
 
@@ -957,11 +985,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """After the last callback is complete we report success
         """
         if task.error is not None:
-            self.upload_log('  - ERROR: Could not download the project.rs.xml file back to the local project folder', Qgis.Critical, task)
+            self.upload_log('  - ERROR: Could not download the project.rs.xml file back to the local project folder' + os.linesep * 3, Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Download failed', 'The download of the project.rs.xml file failed. Check the logs to see the reason')
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
         else:
             self.upload_log('  - SUCCESS: Downloaded the project.rs.xml file back to the local project folder', Qgis.Info)
-            self.upload_log('Upload process complete. Shutting down.', Qgis.Info)
+            self.upload_log('Upload process complete. Shutting down.' + os.linesep * 3, Qgis.Info)
             self.flow_state = ProjectUploadDialogStateFlow.COMPLETED
             self.recalc_state()

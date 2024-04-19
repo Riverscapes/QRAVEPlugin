@@ -13,6 +13,11 @@ query getProject($id: ID!) {
       update
       view
     }
+    files {
+      localPath
+      size
+      etag      
+    }
   }
 }
 fragment dbobjSm on DBObj {
