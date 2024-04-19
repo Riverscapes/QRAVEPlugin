@@ -599,6 +599,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 self.recalc_state()
                 return
 
+            self.upload_log(f"Found changes that need: {self.local_ops[UploadFile.FileOp.CREATE]:,} New {self.local_ops[UploadFile.FileOp.UPDATE]:,} Update {self.local_ops[UploadFile.FileOp.DELETE]:,} delete", Qgis.Info)
             self.optModifyProject.setChecked(True)
 
         self.upload_log('Waiting for user input...' + os.linesep * 3, Qgis.Info)
