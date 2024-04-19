@@ -43,7 +43,8 @@
 
 ### Misc and Edge cases:
 
-- [X] View log button works
+- [ ] SUCCESS: Unknown project type
+- [X] SUCCESS: View log button works
 - [X] SUCCESS: New project is canceled mid-upload
 - [X] SUCCESS: Cancelled project can be restarted successfully
 - [X] SHOULD_FAIL: Refuse to upload project from different api

@@ -116,6 +116,37 @@ Licensed under the [GNU General Public License Version 3](https://github.com/Riv
 
 ## QT Designer
 
+### Installing `pb_tool`
+
+First make sure that pb_tool is installed (note that you may need to adjust your QGIS paths in the commands below )
+
+```
+/Applications/QGIS-LTR.app/Contents/MacOS/bin/pip3 install pb_tool
+```
+
+### Running `pb_tool` compile
+
+You just need to run `pb_tool compile` from the installed QGIS python environment. Make sure you're in the repo root for QRavePlugin when you do that
+
+pb_tool compile will do 2 things:
+
+1. It will run pyrcc5 on the `src/resources.qrc` file and compile it to a python file in the `src` directory
+2. It will run pyuic5 on the `src/ui/*.ui` files and compile them to python files in the `src/ui` directory
+
+```bash
+> /Applications/QGIS-LTR.app/Contents/MacOS/bin/pb_tool compile     
+Skipping ./src/ui/dock_widget.ui (unchanged)
+Skipping ./src/ui/meta_widget.ui (unchanged)
+Skipping ./src/ui/meta_widget.ui (unchanged)
+Skipping ./src/ui/about_dialog.ui (unchanged)
+Skipping ./src/ui/options_dialog.ui (unchanged)
+Compiling ./src/ui/project_upload_dialog.ui to ./src/ui/project_upload_dialog.py
+Compiled 1 UI files
+Compiling ./src/resources.qrc to ./src/resources.py
+Compiled 1 resource files
+```
+
+
 On MacOS
 
 `/Applications/QGIS.app/Contents/MacOS/bin/designer`
@@ -132,3 +163,6 @@ On MacOS
 ```
 https://github.com/planetfederal/qgis-connect-plugin/blob/885773aa0bed618f85bd15d4c67ccbbcf9bee64c/boundlessconnect/gui/connectdockwidget.py#L430
 ```
+
+
+

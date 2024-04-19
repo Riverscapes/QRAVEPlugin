@@ -205,7 +205,10 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         # New Or Update Choice
         ########################################################################
-        self.newOrUpdateLayout.setEnabled(allow_user_action)
+        self.newOrUpdateLayout.setEnabled(not self.loading and self.flow_state in [
+            ProjectUploadDialogStateFlow.USER_ACTION,
+            ProjectUploadDialogStateFlow.NO_ACTION
+        ])
         # If the self.warehouse_id is not set then we're going to disable the "new" option
         if not can_update_project:
             if self.optModifyProject.isChecked():
@@ -504,13 +507,67 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.recalc_state()
 
     def handle_org_select_change(self, index):
+        """ Handler for the organization select change
+
+        Args:
+            index (_type_): _description_
+        """
         # Get the current item's data
         item_data = self.orgSelect.itemData(index)
         if item_data is not None:
             print(f"Selected organization ID: {item_data}")
             self.org_id = item_data
 
+    def recalc_local_ops(self) -> int:
+        """_summary_
+        """
+        self.local_ops = {
+            UploadFile.FileOp.CREATE: 0,
+            UploadFile.FileOp.UPDATE: 0,
+            UploadFile.FileOp.DELETE: 0
+        }
+        total_changes = 0
+        # If this project is being modified then we have to do one thing
+        if not self.new_project:
+            if self.existing_project is not None:
+                # Do a little local check to see if the project needs to be uploaded at all
+                for file in self.upload_digest.files.values():
+                    if self.existing_project.files.get(file.rel_path) is None:
+                        self.upload_log(f"  - [CREATE]: {file.rel_path}", Qgis.Info)
+                        self.local_ops[UploadFile.FileOp.CREATE] += 1
+                    elif self.existing_project.files[file.rel_path].etag != file.etag:
+                        self.upload_log(f"  - [UPDATE]: {file.rel_path}", Qgis.Info)
+                        self.local_ops[UploadFile.FileOp.UPDATE] += 1
+                # Now find the deletions
+                for rel_path, file in self.existing_project.files.items():
+                    if self.upload_digest.files.get(rel_path) is None:
+                        self.upload_log(f"  - [DELETE]: {rel_path}", Qgis.Info)
+                        self.local_ops[UploadFile.FileOp.DELETE] += 1
+
+            total_changes = self.local_ops[UploadFile.FileOp.CREATE] + self.local_ops[UploadFile.FileOp.UPDATE] + self.local_ops[UploadFile.FileOp.DELETE]
+            if total_changes == 0:
+                self.upload_log('  - No differences between local and remote. Nothing to upload', Qgis.Info)
+                self.flow_state = ProjectUploadDialogStateFlow.NO_ACTION
+            else:
+                self.upload_log(f'Found changes that need: {self.local_ops[UploadFile.FileOp.CREATE]:,} New {self.local_ops[UploadFile.FileOp.UPDATE]:,} Update {self.local_ops[UploadFile.FileOp.DELETE]:,} delete', Qgis.Info)
+                self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+
+        # Otherwise we're creating a new project and everything is a creation
+        else:
+            self.local_ops[UploadFile.FileOp.CREATE] = len(self.upload_digest.files)
+            total_changes = self.local_ops[UploadFile.FileOp.CREATE]
+            for file in self.upload_digest.files.values():
+                self.upload_log(f"  - [CREATE]: {file.rel_path}", Qgis.Info)
+            self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+
     def handle_new_or_update_change(self, button, checked):
+        """ Handler for the radio button group that determines if we're creating a new project or updating an existing one
+
+        Args:
+            button (_type_): _description_
+            checked (_type_): _description_
+        """
+        total_changes = 0
         if checked:
             btn_id = self.new_or_update_group.checkedId()
             # NEW
@@ -548,11 +605,15 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                         # If we can't find the visibility we're going to set it to public
                         self.visibilitySelect.setCurrentIndex(0)
 
+                    self.upload_log(f"Found changes that need: {self.local_ops[UploadFile.FileOp.CREATE]:,} New {self.local_ops[UploadFile.FileOp.UPDATE]:,} Update {self.local_ops[UploadFile.FileOp.DELETE]:,} delete", Qgis.Info)
+                    self.recalc_state()
                 else:
                     # If there's no project set it back to new
                     self.optNewProject.setChecked(True)
                     self.new_project = True
 
+            # Re-verify the uplodability of the project
+            self.recalc_local_ops()
             self.recalc_state()
 
     def handle_owner_change(self, button, checked):
@@ -580,29 +641,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.existing_project = project
             self.new_project = False
 
-            # Do a little local check to see if the project needs to be uploaded at all
-            for file in self.upload_digest.files.values():
-                if project.files.get(file.rel_path) is None:
-                    self.local_ops[UploadFile.FileOp.CREATE] += 1
-                elif project.files[file.rel_path].etag != file.etag:
-                    self.local_ops[UploadFile.FileOp.UPDATE] += 1
-            # Now find the deletions
-            for rel_path, file in project.files.items():
-                if self.upload_digest.files.get(rel_path) is None:
-                    self.local_ops[UploadFile.FileOp.DELETE] += 1
-            total_changes = self.local_ops[UploadFile.FileOp.CREATE] + self.local_ops[UploadFile.FileOp.UPDATE] + self.local_ops[UploadFile.FileOp.DELETE]
-
-            if total_changes == 0:
-                self.upload_log('  - No differences between local and remote. Nothing to upload', Qgis.Info)
-                self.flow_state = ProjectUploadDialogStateFlow.NO_ACTION
-                self.recalc_state()
-                return
-
-            self.upload_log(f"Found changes that need: {self.local_ops[UploadFile.FileOp.CREATE]:,} New {self.local_ops[UploadFile.FileOp.UPDATE]:,} Update {self.local_ops[UploadFile.FileOp.DELETE]:,} delete", Qgis.Info)
             self.optModifyProject.setChecked(True)
 
         self.upload_log('Waiting for user input...' + os.linesep * 3, Qgis.Info)
-        self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+        # This will trigger the recalc_local_ops method and set the flow_state to USER_ACTION or NO_ACTION depending on if there are changes to upload
+        self.recalc_local_ops()
         self.recalc_state()
 
     def show_error_message(self):
