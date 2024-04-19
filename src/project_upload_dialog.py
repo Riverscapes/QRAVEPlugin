@@ -5,7 +5,7 @@ import datetime
 from typing import Tuple, Dict
 
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QButtonGroup, QMessageBox
-from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices
+from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices, QIcon
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QUrl, QTimer
 from qgis.PyQt.QtWidgets import QErrorMessage
 from qgis.core import Qgis, QgsMessageLog
@@ -16,8 +16,6 @@ from .classes.settings import CONSTANTS, Settings
 from .classes.project import Project
 from .classes.util import error_level_to_str
 from .classes.data_exchange.uploader import UploadQueue, UploadMultiPartFileTask
-# DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
-#     os.path.dirname(__file__), 'ui', 'options_dialog.ui'))
 from .ui.project_upload_dialog import Ui_Dialog
 
 
@@ -187,6 +185,10 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.upload_digest.fetch_local_files(self.project_xml.project_dir, self.project_xml.project_type)
 
         self.recalc_state()
+
+    def showHelp(self):
+        help_url = CONSTANTS['webUrl'].rstrip('/') + '/software-help/help-qgis-uploader/'
+        QDesktopServices.openUrl(QUrl(help_url))
 
     def recalc_state(self):
         """ We have one BIG method to deal with all the state on the form. It gets run whenever we affect the state
@@ -414,7 +416,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.upload_log('  - SUCCESS: Fetched user profile', Qgis.Info)
             self.profile = profile
             self.upload_log(f'Logged in as {profile.name} ({profile.id})', Qgis.Info)
-            self.loginStatusValue.setText('Logged in as: ' + profile.name + ' (' + profile.id + ')')
+            self.loginStatusValue.setText(profile.name)
+            self.loginStatusValue.setToolTip(profile.id)
             if self.project_xml.warehouse_meta is not None:
                 self.upload_log('Found a <Warehouse> tag. Checking project association with the current warehouse', Qgis.Info)
                 project_api = self.project_xml.warehouse_meta.get('apiUrl', [None])[0]
@@ -737,7 +740,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         qm = QMessageBox()
         qm.setWindowTitle('Start Upload?')
         qm.setDefaultButton(qm.No)
-        text = f"This will upload the project \"{self.project_xml.project.find('Name').text}\" to the Data Exchange API"
+        text = f"This will upload the project \"{self.project_xml.project.find('Name').text}\" to the Riverscapes Data Exchange"
         if self.new_project:
             text += ' as a new project.'
         else:
