@@ -33,13 +33,16 @@ class DEProfile:
 
 
 class DEProject:
-    def __init__(self, id, name, ownedBy, visibility, permissions, tags):
+    class GetProjectFile(namedtuple('GetProjectFile', ['size', 'etag'])):
+        pass
+    def __init__(self, id, name, ownedBy, visibility, permissions, tags, files):
         self.id = id
         self.name = name
         self.tags = tags
         self.ownedBy = ownedBy
         self.visibility = visibility
         self.permissions = permissions
+        self.files = {f['localPath']: DEProject.GetProjectFile(f['size'],f['etag']) for f in files}
 
 
 class DEValidation:
@@ -51,6 +54,7 @@ class DEValidation:
             self.errors.append(ValidationErrorTuple(**error))
 
 
+
 class UploadFile():
     class FileOp:
         CREATE = 'create'
@@ -60,7 +64,9 @@ class UploadFile():
     rel_path: str
     size: int
     etag: str
-    op: str = FileOp
+    op: FileOp
+    # We calculate the op locally but never depend on it
+    local_op: FileOp
     urls: List[str] = []
 
     def __init__(self, rel_path: str, size: int, etag: str):
@@ -68,6 +74,7 @@ class UploadFile():
         self.size = size
         self.etag = etag
         self.op = None
+        self.local_op = None
         urls = []
 
 
