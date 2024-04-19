@@ -20,7 +20,7 @@
 - [X] SUCCESS: New Project is uploaded SECRET
 - [ ] SUCCESS: New Project is uploaded with TAGS
 - [X] SUCCESS: Uploading files > 50Mb
-- [ ] SHOULD_FAIL: Project fails validation
+- [X] SHOULD_FAIL: Project fails validation
   - [X] Broken XML, Malformed XML
   - [X] Missing files
   - [ ] Permissions issues

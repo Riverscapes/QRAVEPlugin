@@ -228,7 +228,7 @@ class UploadQueue(QObject):
     Returns:
         _type_: _description_
     """
-    progress_signal = pyqtSignal(str, int)
+    progress_signal = pyqtSignal(str, int, int, int)
     complete_signal = pyqtSignal()
     cancelled_signal = pyqtSignal()
 
@@ -283,7 +283,7 @@ class UploadQueue(QObject):
         self.active = True
         self.process_queue()
 
-    def get_overall_status(self, force=False) -> Tuple[float, UploadMultiPartFileTask]:
+    def get_overall_status(self, force=False) -> Tuple[float, UploadMultiPartFileTask, int, int]:
         """
         Returns the overall status of the queue
         Status is the percent of the total bytes sent
@@ -311,9 +311,9 @@ class UploadQueue(QObject):
         big_task = self.get_biggest_active_task()
         progress = int((uploaded_size / total_size) * 100)
 
-        self.progress_signal.emit(big_task.rel_path if big_task else "...", progress)
+        self.progress_signal.emit(big_task.rel_path if big_task else "...", progress, uploaded_size, total_size)
 
-        return (progress, big_task)
+        return (progress, big_task, uploaded_size, total_size)
 
     def get_biggest_active_task(self):
         """ Pull task with the biggest file size off the stack and return it
