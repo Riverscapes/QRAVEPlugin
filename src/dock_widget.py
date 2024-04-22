@@ -734,3 +734,5 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         dialog = ProjectUploadDialog(None, project)
         dialog.exec_()
+        # Reload the project after the upload (and even just on upload cancel)
+        self.reload_tree()
