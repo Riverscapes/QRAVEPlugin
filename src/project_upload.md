@@ -29,12 +29,12 @@
 ### Modify Project
 
 - [X] Existing project can be visited in Data Exchange
-- [ ] SHOULD_FAIL: Project has been deleted remotely
+- [X] SHOULD_FAIL: Project has been deleted remotely
 - [X] SHOULD_FAIL: Project has been modified remotely since this change
 - [X] SUCESS: Existing ORG project is modified
   - [X] Only new files uploaded
-  - [ ] Deleted files are deleted
-  - [ ] Deleted files are not deleted when NoDelete is set
+  - [ ] Deleted local files are deleted remotely
+  - [ ] Deleted local files are not deleted when NoDelete is set
 - [X] SUCCESS: Existing USER project is modified
 - [X] SUCCESS: Uploading files > 50Mb
 - [X] SUCCESS: Unchanged Files < 50Mb are detected as existing and skipped
