@@ -540,9 +540,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                         self.upload_log(f"  - [CREATE]: {file.rel_path}", Qgis.Info)
                         self.local_ops[UploadFile.FileOp.CREATE] += 1
                     # If the file exists in the project but the etag is different then we need to update it
-                    # a special exception for the project XML file is made (because we always upload it)
-                    elif self.existing_project.files[file.rel_path].etag != file.etag \
-                        or file.rel_path == os.path.basename(self.project_xml.project_xml_path):
+                    elif self.existing_project.files[file.rel_path].etag != file.etag:
                         self.upload_log(f"  - [UPDATE]: {file.rel_path}", Qgis.Info)
                         self.local_ops[UploadFile.FileOp.UPDATE] += 1
                 # Now find the deletions
@@ -860,6 +858,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             changes = 0
             self.upload_log('Summary of files and operations:', Qgis.Info)
             for file in self.upload_digest.files.values():
+                # We set the project XML file explicitly because it's ALWAYS uploaded
                 if file.op in [UploadFile.FileOp.CREATE, UploadFile.FileOp.UPDATE]:
                     changes += 1
                 self.upload_log(f"  - [{file.op}] {file.rel_path} size: {file.size:,} etag: {file.etag}", Qgis.Info)
