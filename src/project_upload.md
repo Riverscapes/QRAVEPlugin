@@ -36,14 +36,14 @@
   - [ ] Deleted files are deleted
   - [ ] Deleted files are not deleted when NoDelete is set
 - [X] SUCCESS: Existing USER project is modified
-- [ ] SUCCESS: Uploading files > 50Mb
+- [X] SUCCESS: Uploading files > 50Mb
 - [X] SUCCESS: Unchanged Files < 50Mb are detected as existing and skipped
 - [ ] SUCCESS: Unchanged Files > 50Mb are detected as existing and skipped
 - [ ] SUCCESS: Tags are changed during upload
 
 ### Misc and Edge cases:
 
-- [ ] SUCCESS: Unknown project type
+- [X] SHOULD_FAIL: Unknown project type should load but cannot be uploaded
 - [X] SUCCESS: View log button works
 - [X] SUCCESS: New project is canceled mid-upload
 - [X] SUCCESS: Cancelled project can be restarted successfully

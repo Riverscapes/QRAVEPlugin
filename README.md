@@ -10,7 +10,6 @@ The Riverscapes Viewer Plugin software was developed by North Arrow Research Ltd
 
 ## Developing on windows
 
-
 1. Make a batch file on your desktop to launch VSCode with the QGIS development paths and environment
 
 fill in paths where appropriate.  NOTE: ALL THESE PATHS SHOULD BE CHECKED. They change from version to version!! You'll need one of these files for each version of QGIS that you are developing on. You only need this file if you want to debug using breakpoints.
@@ -95,6 +94,12 @@ Launching the Qt designer:
 ```bash
 $QGIS_PATH/Contents/MacOS/bin/designer 
 ```
+
+## `rsxml` dependency
+
+This plugin uses the `rsxml` library to parse and manipulate Riverscapes XML files. This library is available on PyPi butso you need to install it manually as a wheel so that the plugin can use it. You can install it using the following command:
+
+
 
 
 ## Development resources
