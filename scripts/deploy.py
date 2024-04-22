@@ -34,6 +34,7 @@ def copy_plugin(plugin_dir: str):
         ['CHANGELOG.md'],
         ['README.md'],
         ['config.json'],
+        ['wheels', '**', '*.whl'],
         ['src', '**', '*.py'],
         ['resources', '**', '*.?ml'],
         ['resources', '**', '*.json'],
