@@ -18,19 +18,19 @@
 - [X] SUCCESS: New Project is uploaded to USER 
 - [X] SUCCESS: New Project is uploaded PRIVATE
 - [X] SUCCESS: New Project is uploaded SECRET
-- [ ] SUCCESS: New Project is uploaded with TAGS
+- [X] SUCCESS: New Project is uploaded with TAGS
 - [X] SUCCESS: Uploading files > 50Mb
 - [X] SHOULD_FAIL: Project fails validation
   - [X] Broken XML, Malformed XML
   - [X] Missing files
-  - [ ] Permissions issues
+  - [X] Permissions issues
 
 
 ### Modify Project
 
 - [X] Existing project can be visited in Data Exchange
 - [ ] SHOULD_FAIL: Project has been deleted remotely
-- [ ] SHOULD_FAIL: Project has been modified remotely since this change
+- [X] SHOULD_FAIL: Project has been modified remotely since this change
 - [X] SUCESS: Existing ORG project is modified
   - [X] Only new files uploaded
   - [ ] Deleted files are deleted
@@ -38,8 +38,8 @@
 - [X] SUCCESS: Existing USER project is modified
 - [X] SUCCESS: Uploading files > 50Mb
 - [X] SUCCESS: Unchanged Files < 50Mb are detected as existing and skipped
-- [ ] SUCCESS: Unchanged Files > 50Mb are detected as existing and skipped
-- [ ] SUCCESS: Tags are changed during upload
+- [X] SUCCESS: Unchanged Files > 50Mb are detected as existing and skipped
+- [X] SUCCESS: Tags are changed during upload
 
 ### Misc and Edge cases:
 

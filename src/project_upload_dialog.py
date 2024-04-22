@@ -535,10 +535,14 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             if self.existing_project is not None:
                 # Do a little local check to see if the project needs to be uploaded at all
                 for file in self.upload_digest.files.values():
+                    # The project file always gets added to the project
                     if self.existing_project.files.get(file.rel_path) is None:
                         self.upload_log(f"  - [CREATE]: {file.rel_path}", Qgis.Info)
                         self.local_ops[UploadFile.FileOp.CREATE] += 1
-                    elif self.existing_project.files[file.rel_path].etag != file.etag:
+                    # If the file exists in the project but the etag is different then we need to update it
+                    # a special exception for the project XML file is made (because we always upload it)
+                    elif self.existing_project.files[file.rel_path].etag != file.etag \
+                        or file.rel_path == os.path.basename(self.project_xml.project_xml_path):
                         self.upload_log(f"  - [UPDATE]: {file.rel_path}", Qgis.Info)
                         self.local_ops[UploadFile.FileOp.UPDATE] += 1
                 # Now find the deletions
@@ -790,6 +794,28 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.upload_log('  - ERROR: Project validation failed to run', Qgis.Critical, task)
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
         else:
+            if len(validation_obj.errors) > 0:
+                # Find an error that contains "The project you are verifying has been changed in the warehouse since you downloaded it"
+                # If we find it, we need to pop open a confirmation dialog to let the user opt out
+                # of the upload
+                for err in validation_obj.errors:
+                    if 'The project you are verifying has been changed in the warehouse since you downloaded it' in err.message:
+                        qm = QMessageBox()
+                        qm.setWindowTitle('Project Changed')
+                        qm.setDefaultButton(qm.No)
+                        qm.setText('The project you are trying to upload has been changed in the warehouse since you downloaded it.')
+                        qm.setInformativeText('<strong>Are you sure you want to continue? Saying "yes" will overwrite all changes in the Data Exchange.</strong>')
+                        qm.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                        response = qm.exec_()
+                        if response == QMessageBox.No:
+                            self.upload_log('  - WARNING: User opted out of the upload due to project changes', Qgis.Warning)
+                            self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+                            self.recalc_state()
+                            return
+                        else:
+                            self.upload_log('  - WARNING: User opted to continue the upload despite project changes', Qgis.Warning)
+                            break
+
             if validation_obj.valid is True:
                 # Validation done. Now request upload
                 owner_obj = self.get_owner_obj()
