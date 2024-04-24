@@ -1,6 +1,7 @@
 from typing import Dict, Any, Callable
 import os
 import time
+import traceback
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtCore import QUrl, QUrlQuery
 from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
@@ -293,7 +294,9 @@ class GraphQLAPI(QObject):
         self.stateChange.emit()
 
         # Now open the browser so we can authenticate
-        QDesktopServices.openUrl(QUrl(urlunparse(login_url)))
+        auth_url = QUrl(urlunparse(login_url))
+        # self.log(f"Opening browser for authentication: {auth_url}", Qgis.Info)
+        QDesktopServices.openUrl(auth_url)
 
         auth_code = self._wait_for_auth_code()
         authentication_url = f"https://{self.config.domain}/oauth/token"
@@ -325,6 +328,7 @@ class GraphQLAPI(QObject):
         Returns:
             _type_: _description_
         """
+
         class AuthHandler(BaseHTTPRequestHandler):
             """_summary_
 
@@ -332,9 +336,35 @@ class GraphQLAPI(QObject):
                 BaseHTTPRequestHandler (_type_): _description_
             """
 
-            def __init__(self, config, *args, **kwargs):
+            def __init__(self, config, logger, *args, **kwargs):
                 self.config = config
+                self.logger = logger
                 super().__init__(*args, **kwargs)
+
+            def log_message(self, format, *args):
+                """Log an arbitrary message.
+
+                This is used by all other logging functions.  Override
+                it if you have specific logging wishes.
+
+                The first argument, FORMAT, is a format string for the
+                message to be logged.  If the format string contains
+                any % escapes requiring parameters, they should be
+                specified as subsequent arguments (it's just like
+                printf!).
+
+                The client ip and current date/time are prefixed to
+                every message.
+
+                Unicode control characters are replaced with escaped hex
+                before writing the output to stderr.
+
+                """
+                message = format % args
+                self.logger("%s - - [%s] %s\n" %
+                                (self.address_string(),
+                                self.log_date_time_string(),
+                                message.translate(self._control_char_table)), Qgis.Info)
 
             def do_GET(self):
                 """ Do all the server stuff here
@@ -372,16 +402,32 @@ class GraphQLAPI(QObject):
                     </html>
                 """
 
-                self.send_response(200)
-                self.send_header("Content-type", "text/html")
-                self.end_headers()
-                self.wfile.write(success_html_body.encode()
-                                 if success else failed_html_body.encode())
+                # Make sure the connection is still open
+                if not self.wfile.closed:
+                    try:
+                        self.send_response(200)
+                        self.send_header("Content-type", "text/html")
+                        self.end_headers()
+                        if success:
+                            # self.logger(f"AUTH     SUCCESS: {self.path}", Qgis.Info)
+                            self.wfile.write(success_html_body.encode())
+                        else:
+                            # self.logger(f"AUTH     FAILED: {self.path}", Qgis.Warning)
+                            self.wfile.write(failed_html_body.encode())
 
-                # Now shut down the server and return
+                    except Exception as e:
+                        self.logger(f"LOGIN ERROR: {e}", Qgis.Warning)
+                        # Drop a stacktrace too
+                        self.logger(f"LOGIN ERROR STACKTRACE: {traceback.format_exc()}", Qgis.Warning)
+                else:
+                    self.logger(f"Connection Closed. Killing the server", Qgis.Warning)
+                # Now regardless of the result shut down the server and return
                 self.server.shutdown()
+                if self.server_thread.is_alive():
+                    self.server_thread.join()
+                self.server.server_close()
 
-        server = ThreadingHTTPServer(("localhost", self.config.port), lambda *args, **kwargs: AuthHandler(self.config, *args, **kwargs))
+        server = ThreadingHTTPServer(("localhost", self.config.port), lambda *args, **kwargs: AuthHandler(self.config, self.log, *args, **kwargs))
         # Keep the server running until it is manually stopped
         try:
             self.log("Starting server to wait for auth code...")
@@ -391,20 +437,15 @@ class GraphQLAPI(QObject):
             start_time = time.time()
 
             # Loop for up to 60 seconds
-            while time.time() - start_time < 60:
+            counter = 0
+            while time.time() - start_time < 10:
                 # If the server thread is still running, shut it down
                 # self.log(f"Waiting for auth code...")
                 if not server_thread.is_alive():
-                    server.server_close()
                     break
-                time.sleep(1)
-
-            # If the server thread is still running after 60 seconds, shut it down
-            if server_thread.is_alive():
-                server.shutdown()
-                server_thread.join()
-            # Regardless of how the server thread ended, close the server
-            server.server_close()
+                counter += 1
+                self.log(f"Waiting for auth code... {counter}", Qgis.Info)
+                time.sleep(2)
 
         except KeyboardInterrupt:
             pass
