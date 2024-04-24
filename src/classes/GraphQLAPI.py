@@ -361,10 +361,7 @@ class GraphQLAPI(QObject):
 
                 """
                 message = format % args
-                self.logger("%s - - [%s] %s\n" %
-                                (self.address_string(),
-                                self.log_date_time_string(),
-                                message.translate(self._control_char_table)), Qgis.Info)
+                self.logger(f"{self.address_string()} - - [{self.log_date_time_string()}]", Qgis.Info)
 
             def do_GET(self):
                 """ Do all the server stuff here
