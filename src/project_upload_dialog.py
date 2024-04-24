@@ -700,7 +700,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """
         self.settings.log(message, level)
         level_name = error_level_to_str(level)
-        with open(self.upload_log_path, 'a') as f:
+        with open(self.upload_log_path, 'a', encoding='utf-8') as f:
             # Get an iso timestamp to prepend the message
             timestamp = datetime.datetime.now().isoformat()
             f.write(f"[{timestamp}][{level_name}] {message}{os.linesep}")

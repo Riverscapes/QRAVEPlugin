@@ -117,7 +117,11 @@ class QRAVE:
             return
         else:
             try:
-                python_path = os.path.join(Path(os.__file__).parents[2], 'bin', Path(os.__file__).parent.name)
+                # if we are in OSX then this is the path
+                if sys.platform == 'darwin':
+                    python_path = os.path.join(Path(os.__file__).parents[2], 'bin', Path(os.__file__).parent.name)
+                elif sys.platform == 'win32':
+                    python_path = os.path.join(Path(os.__file__).parents[1], 'python.exe')
                 self.settings.log(f"debugpy imported and attached to: {python_path}", Qgis.Success)
                 debugpy.configure(python=python_path)
             except Exception as e:
