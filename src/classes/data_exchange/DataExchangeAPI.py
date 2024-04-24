@@ -114,6 +114,8 @@ class UploadFileList():
                     continue
                 abs_path = os.path.join(root, file)
                 rel_path = os.path.relpath(abs_path, project_dir)
+                # replace backslashes with forward slashes
+                rel_path = rel_path.replace('\\', '/')
                 etag_obj = calculate_etag(abs_path)
                 file_size = etag_obj['size']
                 file_etag = etag_obj['etag']
