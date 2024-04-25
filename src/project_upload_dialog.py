@@ -654,7 +654,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
             self.optModifyProject.setChecked(True)
 
-        self.upload_log('Waiting for user input...' + os.linesep * 3, Qgis.Info)
+        self.upload_log('Waiting for user input...' + '\n' * 3, Qgis.Info)
         # This will trigger the recalc_local_ops method and set the flow_state to USER_ACTION or NO_ACTION depending on if there are changes to upload
         self.recalc_local_ops()
         self.recalc_state()
@@ -709,33 +709,33 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         with open(self.upload_log_path, 'a', encoding='utf-8') as f:
             # Get an iso timestamp to prepend the message
             timestamp = datetime.datetime.now().isoformat()
-            f.write(f"[{timestamp}][{level_name}] {message}{os.linesep}")
+            f.write(f"[{timestamp}][{level_name}] {message}\n")
             if context_obj is not None:
                 if isinstance(context_obj, (dict, list)):
                     try:
-                        f.write(json.dumps(context_obj, indent=2) + os.linesep)
+                        f.write(json.dumps(context_obj, indent=2) + '\n')
                     except Exception as e:
-                        f.write(f"        Could not serialize context object: {str(e)}{os.linesep}")
+                        f.write(f"        Could not serialize context object: {str(e)}\n")
                 elif isinstance(context_obj, RunGQLQueryTask):
-                    context_str = f"Task Context: {context_obj.debug_log()}{os.linesep}"
+                    context_str = f"Task Context: {context_obj.debug_log()}\n"
                     # indent every line in context_str including the first one by 4 spaces
-                    context_str = os.linesep.join(['    ' + line for line in context_str.split(os.linesep)])
+                    context_str = '\n'.join(['    ' + line for line in context_str.split(os.linesep)])
                     f.write(context_str)
                 elif isinstance(context_obj, UploadMultiPartFileTask):
-                    context_str = f"UploadFile Context: {context_obj.debug_log()}{os.linesep}"
+                    context_str = f"UploadFile Context: {context_obj.debug_log()}\n"
                     # indent every line in context_str including the first one by 4 spaces
-                    context_str = os.linesep.join(['    ' + line for line in context_str.split(os.linesep)])
+                    context_str = '\n'.join(['    ' + line for line in context_str.split(os.linesep)])
                     f.write(context_str)
                 elif isinstance(context_obj, RefreshTokenTask):
-                    context_str = f"Refresh Token Context: {context_obj.debug_log()}{os.linesep}"
+                    context_str = f"Refresh Token Context: {context_obj.debug_log()}\n"
                     # indent every line in context_str including the first one by 4 spaces
-                    context_str = os.linesep.join(['    ' + line for line in context_str.split(os.linesep)])
+                    context_str = '\n'.join(['    ' + line for line in context_str.split(os.linesep)])
                     f.write(context_str)
                 else:
                     try:
-                        f.write(str(context_obj) + os.linesep)
+                        f.write(str(context_obj) + '\n')
                     except Exception as e:
-                        f.write(f"Could not convert context object to string: {str(e)}{os.linesep}")
+                        f.write(f"Could not convert context object to string: {str(e)}\n")
 
     def handle_start_click(self):
         """ The user kicks off the upload process. we give them a dialog to confirm
@@ -1031,7 +1031,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         # Uploader Fail case
         if status == 'FAILED':
-            self.upload_log('Upload failed: ' + json.dumps(job_status_obj, indent=2) + os.linesep * 3, Qgis.Critical, task)
+            self.upload_log('Upload failed: ' + json.dumps(job_status_obj, indent=2) + '\n' * 3, Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Upload failed', 'The upload failed. Check the logs to see the reason')
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
 
@@ -1048,7 +1048,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Timeout case
         elif total_duration_s >= 300:
             # If it failed we need to handle that
-            self.upload_log('Upload Timed-Out after 300 seconnds (5min)' + os.linesep * 3, Qgis.Critical, task)
+            self.upload_log('Upload Timed-Out after 300 seconnds (5min)' + '\n' * 3, Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Upload failed', 'The upload took too long to complete. It\'s possible the upload failed. Check the logs to see the reason.')
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
 
@@ -1064,11 +1064,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """After the last callback is complete we report success
         """
         if task.error is not None:
-            self.upload_log('  - ERROR: Could not download the project.rs.xml file back to the local project folder' + os.linesep * 3, Qgis.Critical, task)
+            self.upload_log('  - ERROR: Could not download the project.rs.xml file back to the local project folder' + '\n' * 3, Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Download failed', 'The download of the project.rs.xml file failed. Check the logs to see the reason')
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
         else:
             self.upload_log('  - SUCCESS: Downloaded the project.rs.xml file back to the local project folder', Qgis.Info)
-            self.upload_log('Upload process complete. Shutting down.' + os.linesep * 3, Qgis.Info)
+            self.upload_log('Upload process complete. Shutting down.' + '\n' * 3, Qgis.Info)
             self.flow_state = ProjectUploadDialogStateFlow.COMPLETED
             self.recalc_state()

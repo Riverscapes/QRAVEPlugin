@@ -75,7 +75,7 @@ class UploadMultiPartFileTask(QgsTask):
             log_str = 'UploadMultiPartFileTask: ' + message
             # indent everuything by 6 spaces
             spacer = ' ' * 6
-            log_str = spacer + log_str.replace(os.linesep, os.linesep + spacer)
+            log_str = spacer + log_str.replace(os.linesep, '\n' + spacer)
             self.log(log_str, level, context_obj)
 
     def debug_log(self) -> str:
@@ -261,7 +261,7 @@ class UploadQueue(QObject):
             log_str = 'UploadQueue: ' + message
             # indent everuything by 4 spaces
             spacer = ' ' * 4
-            log_str = spacer + log_str.replace(os.linesep, os.linesep + spacer)
+            log_str = spacer + log_str.replace(os.linesep, '\n' + spacer)
             self.log_callback(log_str, level, context_obj)
 
     def enqueue(self, rel_path, abs_path, upload_urls: List[str], retries=5):
