@@ -131,14 +131,17 @@ def error_level_to_str(level: int) -> str:
         return 'Info'
 
 
-def calculate_etag(
-    file_path: str,
-    chunk_size_bytes: int = MULTIPART_CHUNK_SIZE,
-    chunk_thresh_bytes: int = MULTIPART_THRESHOLD
-) -> Dict[str, str]:
+def calculate_etag(file_path: str) -> Dict[str, str]:
     """ We need a way to calculate the ETag for a file, which is a hash of the file contents. 
-    If the file is small enough, we can just hash the whole thing. 
-    If it's too big, we need to hash it in chunks.
+
+    NOTE: This used to use the multi-part upload method where files > chunksize get the etag
+    that is a hash of hashes with a suffix of the number of parts.
+
+    This is not necessary anymore though as the file we are comparing against has been copied
+    so the etag we're looking for will actually be just the Md5 hash of the entire file.
+
+    What's really important here is to calculate the MD5 in the most efficient possible way
+    so that we're not loading the whole thing into memory just to calculate the hash.
 
     This should mirror the way AWS S3 calculates ETags for multipart uploads.
 
@@ -152,30 +155,17 @@ def calculate_etag(
     """
     file_size_in_bytes = os.path.getsize(file_path)
 
-    if file_size_in_bytes < chunk_thresh_bytes:
-        with open(file_path, 'rb') as f:
-            fbytes_read = f.read()
-        etag = hashlib.md5(fbytes_read).hexdigest()
-    else:
-        parts = file_size_in_bytes // chunk_size_bytes
-        if file_size_in_bytes % chunk_size_bytes > 0:
-            parts += 1
-        total_md5 = ''
-        with open(file_path, 'rb') as file:
-            for part in range(parts):
-                skip_bytes = chunk_size_bytes * part
-                total_bytes_left = file_size_in_bytes - skip_bytes
-                bytes_to_read = min(total_bytes_left, chunk_size_bytes)
-                file.seek(skip_bytes)
-                buffer = file.read(bytes_to_read)
-                total_md5 += hashlib.md5(buffer).hexdigest()
-        combined_hash = hashlib.md5(bytes.fromhex(total_md5)).hexdigest()
-        etag = f'{combined_hash}-{parts}'
+    hash_md5 = hashlib.md5()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            hash_md5.update(chunk)
+    etag = hash_md5.hexdigest()
 
     return {
         'size': file_size_in_bytes,
-        'etag': f'"{etag}"',
+        'etag': f'"{etag}"'
     }
+
 
 def humane_bytes(size: int, precision: int = 1) -> str:
     """ Convert a byte size to a human readable string.

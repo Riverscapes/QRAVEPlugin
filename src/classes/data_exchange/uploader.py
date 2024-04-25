@@ -188,7 +188,7 @@ class UploadMultiPartFileTask(QgsTask):
                     self.file_upload_log(f"ERROR: uploading chunk {start}-{end} to {url}: {self.error}", Qgis.Critical)
                     # Don't return here so we can retry
                 else:
-                    self.file_upload_log(f"SUCCESS: Finished uploading chunk {start}-{end}", Qgis.Info)
+                    self.file_upload_log(f"SUCCESS: Finished uploading chunk {start:,}-{end:,}", Qgis.Info)
                     return True
             except Exception as e:
                 self.uploaded_size = original_size
