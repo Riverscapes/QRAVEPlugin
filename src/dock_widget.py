@@ -477,9 +477,15 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             QDesktopServices.openUrl(QUrl(url))
 
     def close_all(self):
-        if self.loaded_projects and len(self.loaded_projects) > 0:
-            for p in range(len(self.loaded_projects)):
-                self.close_project(self.loaded_projects[0])
+        loaded_count = len(self.loaded_projects)
+        closed_count = 0
+        while self.loaded_projects and loaded_count > 0 and closed_count < loaded_count:
+            project = self.loaded_projects[-1]
+            try:
+                self.close_project(project)
+                closed_count += 1
+            except Exception as e:
+                self.settings.log(f'Error closing project: {e}', Qgis.Warning)
 
     def close_project(self, project: Project):
         """ Close the project
