@@ -153,7 +153,7 @@ class QRAVE:
         :rtype: QString
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
-        return QCoreApplication.translate('QRAVE', message)
+        return QCoreApplication.translate('Riverscapes Viewer', message)
 
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
