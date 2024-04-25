@@ -419,10 +419,14 @@ class GraphQLAPI(QObject):
                 else:
                     self.logger(f"Connection Closed. Killing the server", Qgis.Warning)
                 # Now regardless of the result shut down the server and return
-                self.server.shutdown()
-                if self.server_thread.is_alive():
-                    self.server_thread.join()
-                self.server.server_close()
+                try:
+                    self.server.shutdown()
+                    if self.server_thread is not None and self.server_thread.is_alive():
+                        self.server_thread.join()
+                    self.server.server_close()
+                except Exception as e:
+                    self.logger(f"Failed to shut down server: {e}", Qgis.Warning)
+                    
 
         server = ThreadingHTTPServer(("localhost", self.config.port), lambda *args, **kwargs: AuthHandler(self.config, self.log, *args, **kwargs))
         # Keep the server running until it is manually stopped
