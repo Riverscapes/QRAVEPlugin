@@ -176,3 +176,21 @@ def calculate_etag(
         'size': file_size_in_bytes,
         'etag': f'"{etag}"',
     }
+
+def humane_bytes(size: int, precision: int = 1) -> str:
+    """ Convert a byte size to a human readable string.
+
+    Args:
+        size (int): _description_
+
+    Returns:
+        str: _description_
+    """
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1024.0:
+            break
+        size /= 1024.0
+    if unit == 'B':
+        precision = 0
+
+    return f"{size:.{precision}f} {unit}"
