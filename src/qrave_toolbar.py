@@ -177,10 +177,8 @@ class QRAVE:
             u'Close All Riverscapes Projects'), self.iface.mainWindow())
         self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
 
-        self.closeAllProjectsAction.setStatusTip(
-            'Close all open Riverscapes projects')
-        self.closeAllProjectsAction.setWhatsThis(
-            'Close all open Riverscapes projects')
+        self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
+        self.closeAllProjectsAction.setWhatsThis('Close all open Riverscapes projects')
 
         self.helpButton = QToolButton()
         self.helpButton.setToolButtonStyle(Qt.ToolButtonTextOnly)

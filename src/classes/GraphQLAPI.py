@@ -361,7 +361,7 @@ class GraphQLAPI(QObject):
 
                 """
                 message = format % args
-                self.logger(f"{self.address_string()} - - [{self.log_date_time_string()}]", Qgis.Info)
+                self.logger(f"{self.address_string()} - - [{self.log_date_time_string()}] {message}", Qgis.Info)
 
             def do_GET(self):
                 """ Do all the server stuff here
@@ -421,12 +421,9 @@ class GraphQLAPI(QObject):
                 # Now regardless of the result shut down the server and return
                 try:
                     self.server.shutdown()
-                    if self.server_thread is not None and self.server_thread.is_alive():
-                        self.server_thread.join()
                     self.server.server_close()
                 except Exception as e:
                     self.logger(f"Failed to shut down server: {e}", Qgis.Warning)
-                    
 
         server = ThreadingHTTPServer(("localhost", self.config.port), lambda *args, **kwargs: AuthHandler(self.config, self.log, *args, **kwargs))
         # Keep the server running until it is manually stopped
