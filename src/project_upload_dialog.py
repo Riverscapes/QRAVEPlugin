@@ -641,8 +641,14 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.upload_log('  - ERROR: Could not fetch existing project', Qgis.Critical, task)
             self.error = ProjectUploadDialogError('Could not fetch existing project', task.error)
             self.existing_project = None
+        elif project and project.deleted is True:
+            # This is a limited case that only exists between when the user actually deletes the project and when the system
+            # finishes cleaning up the files etc.
+            self.upload_log(f'  - ERROR: Project has been deleted. Could not find: {self.dataExchangeAPI.api.uri}/p/{project.id}', Qgis.Critical, task)
+            self.error = ProjectUploadDialogError('Project has been deleted remotely', 'The project has been deleted from the warehouse. You can still upload it as a new project if you want.')
+            self.existing_project = None
         else:
-            self.upload_log('  - SUCCESS: Fetched existing project', Qgis.Info)
+            self.upload_log(f'  - SUCCESS: Fetched existing project from: {self.dataExchangeAPI.api.uri}/p/{project.id}', Qgis.Info)
             self.existing_project = project
             self.new_project = False
 
@@ -735,6 +741,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """ The user kicks off the upload process. we give them a dialog to confirm
         and then we start the process
         """
+        # Set any errors to zero so we can start fresh
+        self.error = None
 
         # Make sure the state is clear to begin with. This is maybe a little overkill but it can't hurt to be safe
         self.reset_upload_state()
