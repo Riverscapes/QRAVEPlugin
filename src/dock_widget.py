@@ -246,6 +246,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         test_project = Project(xml_path)
         test_project.load()
+        if test_project.loadable is False or test_project.exists is False or test_project.qproject is None:
+            self.settings.log(f'Error loading project: {xml_path}', Qgis.Warning)
+            return
         basename = test_project.qproject.text()
         count = [project[1] for project in qrave_projects].count(basename)
         name = f'{basename} Copy {count:02d}' if count > 0 else basename
