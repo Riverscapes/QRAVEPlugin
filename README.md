@@ -103,8 +103,15 @@ $QGIS_PATH/Contents/MacOS/bin/designer
 
 This plugin uses the `rsxml` library to parse and manipulate Riverscapes XML files. This library is available on PyPi butso you need to install it manually as a wheel so that the plugin can use it. You can install it using the following command:
 
+```bash
+sh ./scripts/install_deps.sh
+```
 
+THis is just running the following command:
 
+```bash
+$QGIS_PATH_PYTHON_PATH/pip3 wheel rsxml==2.0.1 -w ./wheels --no-deps
+```
 
 ## Development resources
 
