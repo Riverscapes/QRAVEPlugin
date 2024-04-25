@@ -35,6 +35,7 @@ class DEProfile:
 class DEProject:
     class GetProjectFile(namedtuple('GetProjectFile', ['size', 'etag'])):
         pass
+
     def __init__(self, id, name, ownedBy, visibility, permissions, tags, files):
         self.id = id
         self.name = name
@@ -42,7 +43,7 @@ class DEProject:
         self.ownedBy = ownedBy
         self.visibility = visibility
         self.permissions = permissions
-        self.files = {f['localPath']: DEProject.GetProjectFile(f['size'],f['etag']) for f in files}
+        self.files = {f['localPath']: DEProject.GetProjectFile(f['size'], f['etag']) for f in files}
 
 
 class DEValidation:
@@ -52,7 +53,6 @@ class DEValidation:
         for error in errors:
             del error['__typename']
             self.errors.append(ValidationErrorTuple(**error))
-
 
 
 class UploadFile():
@@ -101,7 +101,7 @@ class UploadFileList():
         if not self.files:
             self.files = OrderedDict()
         # Search for a file called '{project_type}.xml' in the project directory (case insensitive  )
-        bl_file_check = re.compile(f'{project_type}\.xml$', re.IGNORECASE)
+        bl_file_check = re.compile(rf'{project_type}\.xml$', re.IGNORECASE)
 
         if not os.path.isdir(project_dir):
             raise ValueError(f"Project directory {project_dir} does not exist")
