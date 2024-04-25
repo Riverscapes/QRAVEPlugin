@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import json
 from typing import Dict
 import lxml.etree
 import traceback
@@ -137,11 +138,11 @@ class Project:
             # 2. Second, check the businesslogic we've got from the web
             parse_rel_path(os.path.join(BL_XML_DIR, web_bl_filename)),
             # 3. Fall back to the default xml file
-            parse_rel_path(os.path.join(BL_XML_DIR, 'default.xml'))
+            parse_rel_path(os.path.join(BL_XML_DIR, 'V2', 'default.xml'))
         ]
 
         # Find the first match
-        chosen_qml = next(iter([candidate for candidate in hierarchy if os.path.isfile(candidate)]))
+        chosen_qml = next(iter([candidate for candidate in hierarchy if os.path.isfile(candidate)]), None)
 
         if chosen_qml is not None:
             self.business_logic_path = chosen_qml
@@ -156,7 +157,7 @@ class Project:
             except Exception as e:
                 raise Exception('Unknown XML File error: {}, {}'.format(self.business_logic_path, e))
         else:
-            raise Exception('Could not find a valid business logic file. Valid paths are: [ {} ]'.format(','.join(hierarchy)))
+            raise Exception(f'Could not find a valid business logic file. Valid paths are: \n{json.dumps(hierarchy, indent=2)}')
 
         # Check for a different kind of file
         root_node = self.business_logic.find('Node')
