@@ -14,7 +14,7 @@ from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, D
 from .classes.GraphQLAPI import RunGQLQueryTask, RefreshTokenTask
 from .classes.settings import CONSTANTS, Settings
 from .classes.project import Project
-from .classes.util import error_level_to_str
+from .classes.util import error_level_to_str, humane_bytes
 from .classes.data_exchange.uploader import UploadQueue, UploadMultiPartFileTask
 from .ui.project_upload_dialog import Ui_Dialog
 
@@ -530,24 +530,41 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             UploadFile.FileOp.DELETE: 0
         }
         total_changes = 0
+        self.upload_log('=======================================================.', Qgis.Info)
+        self.upload_log('Checking for differences between local and remote...', Qgis.Info)
+        self.upload_log('=======================================================.', Qgis.Info)
         # If this project is being modified then we have to do one thing
         if not self.new_project:
             if self.existing_project is not None:
-                # Do a little local check to see if the project needs to be uploaded at all
+                # First find our creations
                 for file in self.upload_digest.files.values():
                     # The project file always gets added to the project
                     if self.existing_project.files.get(file.rel_path) is None:
                         self.upload_log(f"  - [CREATE]: {file.rel_path}", Qgis.Info)
+                        self.upload_log(f"        -  LOCAL: {file.size:,} Bytes  {file.etag}", Qgis.Info)
                         self.local_ops[UploadFile.FileOp.CREATE] += 1
+
+                # Now we're looking for updates
+                for file in self.upload_digest.files.values():
                     # If the file exists in the project but the etag is different then we need to update it
-                    elif self.existing_project.files[file.rel_path].etag != file.etag:
+                    if file.rel_path in self.existing_project.files and self.existing_project.files[file.rel_path].etag != file.etag:
                         self.upload_log(f"  - [UPDATE]: {file.rel_path}", Qgis.Info)
+                        self.upload_log(f"        - REMOTE: {self.existing_project.files[file.rel_path].size:,} Bytes  {self.existing_project.files[file.rel_path].etag}", Qgis.Info)
+                        self.upload_log(f"        -  LOCAL: {file.size:,} Bytes  {file.etag}", Qgis.Info)
                         self.local_ops[UploadFile.FileOp.UPDATE] += 1
+
                 # Now find the deletions
                 for rel_path, file in self.existing_project.files.items():
                     if self.upload_digest.files.get(rel_path) is None:
                         self.upload_log(f"  - [DELETE]: {rel_path}", Qgis.Info)
                         self.local_ops[UploadFile.FileOp.DELETE] += 1
+
+                # Now find the ignored changes (may comment this out for brevity later)
+                for file in self.upload_digest.files.values():
+                    if file.rel_path in self.existing_project.files and self.existing_project.files[file.rel_path].etag == file.etag:
+                        self.upload_log(f"  - [NO CHANGE]: {file.rel_path}", Qgis.Info)
+                        self.upload_log(f"        - REMOTE: {self.existing_project.files[file.rel_path].size:,} Bytes  {self.existing_project.files[file.rel_path].etag}", Qgis.Info)
+                        self.upload_log(f"        -  LOCAL: {file.size:,} Bytes  {file.etag}", Qgis.Info)
 
             total_changes = self.local_ops[UploadFile.FileOp.CREATE] + self.local_ops[UploadFile.FileOp.UPDATE] + self.local_ops[UploadFile.FileOp.DELETE]
             if total_changes == 0:
@@ -610,7 +627,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                         # If we can't find the visibility we're going to set it to public
                         self.visibilitySelect.setCurrentIndex(0)
 
-                    self.upload_log(f"Found changes that need: {self.local_ops[UploadFile.FileOp.CREATE]:,} New {self.local_ops[UploadFile.FileOp.UPDATE]:,} Update {self.local_ops[UploadFile.FileOp.DELETE]:,} delete", Qgis.Info)
                     self.recalc_state()
                 else:
                     # If there's no project set it back to new
@@ -930,24 +946,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         print(f"Uploading: {biggest_file_relpath} {progress}%")
 
         # Print "uploaded_bytes of total_bytes" in a human-friendly way showing megabytes or gigabytes with at most one decimal place
-        uploaded_mb = uploaded_bytes / 1024 / 1024
-        total_mb = total_bytes / 1024 / 1024
-        uploaded_gb = uploaded_mb / 1024
-        total_gb = total_mb / 1024
-
-        if uploaded_gb >= 1:
-            uploaded_str = f"{uploaded_gb:.1f} GB"
-        elif uploaded_mb >= 1:
-            uploaded_str = f"{uploaded_mb:.1f} MB"
-        else:
-            uploaded_str = f"{uploaded_bytes:,} bytes"
-
-        if total_gb >= 1:
-            total_str = f"{total_gb:.1f} GB"
-        elif total_mb >= 1:
-            total_str = f"{total_mb:.1f} MB"
-        else:
-            total_str = f"{total_bytes:,} bytes"
+        uploaded_str = humane_bytes(uploaded_bytes)
+        total_str = humane_bytes(total_bytes)
 
         self.todoLabel.setText(f"Uploading: {uploaded_str} of {total_str} {end_time_str}")
         self.progressSubLabel.setText(f"Uploading: {biggest_file_relpath}")
