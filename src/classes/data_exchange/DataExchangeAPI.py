@@ -36,10 +36,11 @@ class DEProject:
     class GetProjectFile(namedtuple('GetProjectFile', ['size', 'etag'])):
         pass
 
-    def __init__(self, id, name, ownedBy, visibility, permissions, tags, files):
+    def __init__(self, id, name, deleted, ownedBy, visibility, permissions, tags, files):
         self.id = id
         self.name = name
         self.tags = tags
+        self.deleted = deleted
         self.ownedBy = ownedBy
         self.visibility = visibility
         self.permissions = permissions
