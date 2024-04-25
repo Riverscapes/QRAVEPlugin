@@ -6,8 +6,6 @@ from qgis.PyQt.QtCore import pyqtSignal
 
 from .classes.settings import CONSTANTS
 
-# DIALOG_CLASS, _ = uic.loadUiType(os.path.join(
-#     os.path.dirname(__file__), 'ui', 'about_dialog.ui'))
 from .ui.about_dialog import Ui_Dialog
 from ..__version__ import __version__
 

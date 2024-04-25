@@ -13,9 +13,6 @@ from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl
 
 from .classes.settings import Settings, CONSTANTS
 
-
-# FORM_CLASS, _ = uic.loadUiType(os.path.join(
-#     os.path.dirname(__file__), 'ui', 'meta_widget.ui'))
 from .ui.meta_widget import Ui_QRAVEMetaWidgetBase
 
 
