@@ -44,9 +44,6 @@ from .classes.basemaps import BaseMaps, QRaveBaseMap
 from .classes.settings import Settings, CONSTANTS
 
 
-# FORM_CLASS, _ = uic.loadUiType(os.path.join(
-#     os.path.dirname(__file__), 'ui', 'dock_widget.ui'))
-
 ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
 
 
