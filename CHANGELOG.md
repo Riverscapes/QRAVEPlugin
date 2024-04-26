@@ -1,4 +1,16 @@
 
+## 0.9.2 ***(April 26, 2024)***
+
+### Added
+- Project Data Exchange Uploader
+
+### Fixed
+- Close All Projects Throws Error #107
+- Better Business logic handling 
+
+### Changed
+- Removed additional "QRAVE" references
+
 ## 0.9.1 ***(March 27, 2024)***
 
 ### Fixed
