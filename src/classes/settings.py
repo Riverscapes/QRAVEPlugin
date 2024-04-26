@@ -5,6 +5,14 @@ from qgis.core import QgsMessageLog, Qgis, QgsProject, QgsSettings
 
 with open(os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')) as cfg_file:
     cfg_json = json.load(cfg_file)
+    # For debugging purposes we can set the warehouse URL to the staging server
+    # NOTE: This is maybe a little clumsy but most people will never hit this code and it does the job well enough
+    if os.environ.get("RS_STAGING", "False").lower() == "true":
+        cfg_json['constants']['warehouseUrl'] = "https://staging.data.riverscapes.net"
+        cfg_json['constants']['DE_API_URL'] = "https://api.data.riverscapes.net/staging"
+        QgsMessageLog.logMessage(f"RS_STAGING detected. Using Staging URLS for Data Exchange: {cfg_json['constants']['warehouseUrl']} and {cfg_json['constants']['DE_API_URL']}",
+                                 cfg_json['constants']['logCategory'], level=Qgis.Warning)
+
 
 # We include these so that
 _DEFAULTS = cfg_json['defaultSettings']
