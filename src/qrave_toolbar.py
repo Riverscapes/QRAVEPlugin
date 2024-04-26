@@ -65,6 +65,9 @@ class QRAVE:
         self.qproject = QgsProject.instance()
         self.settings = Settings(iface=self.iface)
 
+        self.settings.setValue('DEBUG', os.environ.get("RS_DEBUG", "False").lower() == "true")
+        self.settings.setValue('Staging', os.environ.get("RS_STAGING", "False").lower() == "true")
+
         self.pluginIsActive = False
 
         self.dockwidget = QRAVEDockWidget()
@@ -101,7 +104,7 @@ class QRAVE:
     def _enable_debug(self):
         debug_port = 5678
         debug_host = "localhost"
-        DEBUG_ON = os.environ.get("RS_DEBUG", "False").lower() == "true"
+        DEBUG_ON = self.settings.getValue('DEBUG')
         if not DEBUG_ON:
             return
 

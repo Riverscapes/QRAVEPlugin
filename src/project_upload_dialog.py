@@ -126,9 +126,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Remove the log file if it exists. All the logging in logs will be wiped when the used clicks start
         if self.upload_log_path is not None and os.path.isfile(self.upload_log_path):
             os.remove(self.upload_log_path)
-        self.upload_log('--------------------------------------------------------------------------------', Qgis.Info)
-        self.upload_log('Project Upload Form Loaded', Qgis.Info)
-        self.upload_log('--------------------------------------------------------------------------------', Qgis.Info)
+        self.upload_log('Project Upload Form Loaded', Qgis.Info, is_header=True)
 
         self.upload_log('Logging in... (waiting for browser)', Qgis.Info)
 
@@ -167,7 +165,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.progressBar.setMaximum(100)
 
         # Connect
-        self.loginResetBtn.clicked.connect(self.dataExchangeAPI.login)
+        self.loginResetBtn.clicked.connect(self.handle_login_reset)
 
         self.flow_state = ProjectUploadDialogStateFlow.LOGGING_IN
         self.loginStatusValue.setText('Logging in... (check your browser)')
@@ -182,6 +180,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.projectPathValue.setToolTip(project_path)
 
         # 1. Files - we need relative paths to the files
+        self.upload_log('Checking for files to upload... (Calculating Etags)', Qgis.Info)
         self.upload_digest.fetch_local_files(self.project_xml.project_dir, self.project_xml.project_type)
 
         self.recalc_state()
@@ -312,6 +311,18 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.upload_start_time = None
         # Reset the queue and the upload digest
         self.queue.reset()
+
+    def handle_login_reset(self):
+        """ This is the "reset" button at the top fo the form
+        """
+        self.upload_log('Resetting the upload form...\n\n\n', Qgis.Info)
+        # First reset the opload state completely
+        self.reset_upload_state()
+        # Now log in using the data exchange API
+        self.dataExchangeAPI.login()
+        # Re-verify the MD5 checksums for all local files
+        self.upload_log('Checking for files to upload... (Calculating Etags)', Qgis.Info)
+        self.upload_digest.fetch_local_files(self.project_xml.project_dir, self.project_xml.project_type)
 
     def calculate_end_time(self):
         """ Calculate the estimated end time of the upload
@@ -444,7 +455,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 elif project_api != self.dataExchangeAPI.api.uri:
                     err_title = 'The project is not associated with the current warehouse'
                     err_str = f"Project API: {project_api} \nWarehouse API: {self.dataExchangeAPI.api.uri}"
-                    self.upload_log(err_title, Qgis.Critical, err_str)
                     self.error = ProjectUploadDialogError(err_title, err_str)
                     self.flow_state = ProjectUploadDialogStateFlow.ERROR
                     self.existingProject = None
@@ -530,9 +540,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             UploadFile.FileOp.DELETE: 0
         }
         total_changes = 0
-        self.upload_log('=======================================================.', Qgis.Info)
-        self.upload_log('Checking for differences between local and remote...', Qgis.Info)
-        self.upload_log('=======================================================.', Qgis.Info)
+        self.upload_log('Checking for differences between local and remote...', Qgis.Info, is_header=True)
         # If this project is being modified then we have to do one thing
         if not self.new_project:
             if self.existing_project is not None:
@@ -671,8 +679,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.optModifyProject.setChecked(True)
 
         self.upload_log('Waiting for user input...' + '\n' * 3, Qgis.Info)
-        # This will trigger the recalc_local_ops method and set the flow_state to USER_ACTION or NO_ACTION depending on if there are changes to upload
-        self.recalc_local_ops()
         self.recalc_state()
 
     def show_error_message(self):
@@ -700,9 +706,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.errorSummaryLable.setText("ERROR: " + self.error.summary)
             self.errorSummaryLable.setStyleSheet("QLabel { color : red; border: 1px solid red; }")
 
-            self.error = ProjectUploadDialogError(
-                self.error.summary, self.error.detail)
-            QgsMessageLog.logMessage(self.error.summary + str(self.error.detail), MESSAGE_CATEGORY, Qgis.Critical)
+            self.error = ProjectUploadDialogError(self.error.summary, self.error.detail)
+            self.upload_log(f"{self.error.summary} DETAIL:  {self.error.detail}", Qgis.Critical)
         else:
             # Set the whole group disabled
             self.errorLayout.setEnabled(False)
@@ -712,7 +717,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.errorSummaryLable.setStyleSheet("QLabel { color : black; border: 0px; }")
             self.error = None
 
-    def upload_log(self, message: str, level: int = Qgis.Info, context_obj=None):
+    def upload_log(self, message: str, level: int = Qgis.Info, context_obj=None, is_header=False):
         """ Logging here should go to the QGIS log and to a file we can check later
 
         Args:
@@ -720,11 +725,16 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             level (int): _description_
             context_obj (_type_, optional): _description_. Defaults to None.
         """
+        header_bars = '-' * 80
         self.settings.log(message, level)
         level_name = error_level_to_str(level)
         with open(self.upload_log_path, 'a', encoding='utf-8') as f:
             # Get an iso timestamp to prepend the message
             timestamp = datetime.datetime.now().isoformat()
+            # add an opening header bar if we need to
+            if is_header:
+                f.write(f"[{timestamp}][{level_name}]\n")
+                f.write(f"[{timestamp}][{level_name}] {header_bars}\n")
             f.write(f"[{timestamp}][{level_name}] {message}\n")
             if context_obj is not None:
                 if isinstance(context_obj, (dict, list)):
@@ -752,6 +762,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                         f.write(str(context_obj) + '\n')
                     except Exception as e:
                         f.write(f"Could not convert context object to string: {str(e)}\n")
+            # Add a closing header bar if we need to
+            if is_header:
+                f.write(f"[{timestamp}][{level_name}] {header_bars}\n")
 
     def handle_start_click(self):
         """ The user kicks off the upload process. we give them a dialog to confirm
@@ -775,9 +788,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         qm.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
 
         # Remove the log file if it exists and create a new one
-        self.upload_log('--------------------------------------------------------------------------------', Qgis.Info)
-        self.upload_log('User-Initiated project upload starting', Qgis.Info)
-        self.upload_log('--------------------------------------------------------------------------------', Qgis.Info)
+        self.upload_log('User-Initiated project upload starting', Qgis.Info, is_header=True)
 
         response = qm.exec_()
         if response == QMessageBox.Yes:
@@ -880,12 +891,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.upload_log(f'  - NOTE: When completed this project will be available at: {CONSTANTS["warehouseUrl"]}/p/{self.new_project_id}', Qgis.Info)
 
             changes = 0
-            self.upload_log('Summary of files and operations:', Qgis.Info)
+            self.upload_log('Summary of files and operations: (deletions are not shown here)', Qgis.Info)
             for file in self.upload_digest.files.values():
                 # We set the project XML file explicitly because it's ALWAYS uploaded
                 if file.op in [UploadFile.FileOp.CREATE, UploadFile.FileOp.UPDATE]:
                     changes += 1
-                self.upload_log(f"  - [{file.op}] {file.rel_path} size: {file.size:,} etag: {file.etag}", Qgis.Info)
+                self.upload_log(f"  - [{(str(file.op).upper())}] {file.rel_path} size: {file.size:,} etag: {file.etag}", Qgis.Info)
 
             if changes == 0:
                 self.upload_log('No files to upload. Skipping upload step', Qgis.Info)
