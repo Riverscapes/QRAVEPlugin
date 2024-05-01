@@ -36,6 +36,7 @@ def copy_plugin(plugin_dir: str):
         ['config.json'],
         ['wheels', '**', '*.whl'],
         ['src', '**', '*.py'],
+        ['src', '**', '*.graphql'],
         ['resources', '**', '*.?ml'],
         ['resources', '**', '*.json'],
     ]
