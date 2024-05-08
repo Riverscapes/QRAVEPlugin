@@ -1,0 +1,10 @@
+mutation finalizeProjectUpload($token: String!) {
+  finalizeProjectUpload(token: $token) {
+    data
+    errors
+    metaData
+    percentComplete
+    status
+    __typename
+  }
+}

@@ -1,0 +1,27 @@
+query getProject($id: ID!) {
+  project(id: $id) {
+    id
+    name
+    tags
+    deleted
+    ownedBy {
+      ...dbobjSm
+      __typename
+    }
+    visibility
+    permissions {
+      delete
+      update
+      view
+    }
+    files {
+      localPath
+      size
+      etag      
+    }
+  }
+}
+fragment dbobjSm on DBObj {
+  id
+  name
+}

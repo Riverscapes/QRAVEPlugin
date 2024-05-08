@@ -13,9 +13,6 @@ from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl
 
 from .classes.settings import Settings, CONSTANTS
 
-
-# FORM_CLASS, _ = uic.loadUiType(os.path.join(
-#     os.path.dirname(__file__), 'ui', 'meta_widget.ui'))
 from .ui.meta_widget import Ui_QRAVEMetaWidgetBase
 
 
@@ -68,7 +65,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
                     for k, v in meta['project'].items():
                         self.appendMetaItem(proj_meta, k, v[0], v[1])
                     root_item.appendRow(proj_meta)
-                if 'warehouse' in meta and len(meta['warehouse'].keys()) > 0:
+                if 'warehouse' in meta and meta['warehouse'] is not None and len(meta['warehouse'].keys()) > 0:
                     wh_meta = QStandardItem('Warehouse Meta')
                     wh_meta_font = proj_meta.font()
                     wh_meta_font.setBold(True)

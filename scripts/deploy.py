@@ -34,13 +34,27 @@ def copy_plugin(plugin_dir: str):
         ['CHANGELOG.md'],
         ['README.md'],
         ['config.json'],
+        ['wheels', '**', '*.whl'],
         ['src', '**', '*.py'],
+        ['src', '**', '*.graphql'],
         ['resources', '**', '*.?ml'],
         ['resources', '**', '*.json'],
     ]
     files = []
     for p in keep_patterns:
         files += glob(os.path.join(source_dir, *p), recursive=True)
+
+    mandatory_wheels = [
+        'rsxml',
+    ]
+
+    # Match our wheel dependency and throw an error if you don't find it. Match using pattern /wheels/rsxml*.whl
+    # for wheel_name in mandatory_wheels:
+    #     if not any([f for f in files if re.match(r'.*/wheels/.*{}.*\.whl'.format(wheel_name), f)]):
+    #         print('rsxml wheel dependency not found. Please run "./scripts/install_deps.sh" and try again')
+    #         sys.exit(1)
+    #     else:
+    #         print('  - SUCCESS: Found {} wheel'.format(wheel_name))
 
     for f in files:
         dst = os.path.normpath(os.path.join(deploy_dir, os.path.relpath(f, source_dir)))

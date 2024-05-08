@@ -10,6 +10,7 @@ colorama==0.4.4
 coverage==4.5.1
 cycler==0.10.0
 decorator==4.4.1
+debugpy==1.8.1
 distlib==0.3.1
 docutils==0.16
 ExifRead==2.1.2
@@ -42,7 +43,6 @@ Pillow==5.3.0
 plotly==4.8.2
 ply==3.11
 psycopg2-binary==2.8.4
-ptvsd==4.3.2
 pycodestyle==2.7.0
 Pygments==2.5.2
 pylint==2.7.4

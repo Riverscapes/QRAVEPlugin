@@ -12,9 +12,11 @@
         email                : info@northarrowresearch.com
  ***************************************************************************/
 """
+import sys
 import os.path
 from time import time
 from functools import partial
+from pathlib import Path
 import requests
 
 from qgis.utils import showPluginHelp
@@ -42,6 +44,9 @@ from ..__version__ import __version__
 
 RESOURCES_DIR = os.path.join(os.path.dirname(__file__), '..', 'resources')
 
+# BASE is the name we want to use inside the settings keys
+MESSAGE_CATEGORY = CONSTANTS['logCategory']
+
 
 class QRAVE:
     """QGIS Plugin Implementation."""
@@ -58,6 +63,10 @@ class QRAVE:
         self.iface = iface
         self.tm = QgsApplication.taskManager()
         self.qproject = QgsProject.instance()
+        self.settings = Settings(iface=self.iface)
+
+        self.settings.setValue('DEBUG', os.environ.get("RS_DEBUG", "False").lower() == "true")
+        self.settings.setValue('Staging', os.environ.get("RS_STAGING", "False").lower() == "true")
 
         self.pluginIsActive = False
 
@@ -75,7 +84,6 @@ class QRAVE:
             self.plugin_dir,
             'i18n',
             'QRAVE_{}.qm'.format(locale))
-        self.settings = Settings(iface=self.iface)
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -90,6 +98,52 @@ class QRAVE:
         self.toolbar = self.iface.addToolBar(u'Riverscapes Viewer')
         self.toolbar.setObjectName(u'Riverscapes Viewer')
 
+        self.debugpy = None
+        self._enable_debug()
+
+    def _enable_debug(self):
+        debug_port = 5678
+        debug_host = "localhost"
+        DEBUG_ON = self.settings.getValue('DEBUG')
+        if not DEBUG_ON:
+            return
+
+        if self.debugpy is None:
+            try:
+                import debugpy
+                self.debugpy = debugpy
+            except:
+                self.settings.log("Need install debugpy: pip3 install debugpy", Qgis.Warning)
+                pass
+
+        if self.debugpy is None:
+            return
+        else:
+            try:
+                # if we are in OSX then this is the path
+                if sys.platform == 'darwin':
+                    python_path = os.path.join(Path(os.__file__).parents[2], 'bin', Path(os.__file__).parent.name)
+                elif sys.platform == 'win32':
+                    python_path = os.path.join(Path(os.__file__).parents[1], 'python.exe')
+                self.settings.log(f"debugpy imported and attached to: {python_path}", Qgis.Success)
+                debugpy.configure(python=python_path)
+            except Exception as e:
+                self.settings.log("Error initializing debugpy: {}".format(e), Qgis.Critical)
+                raise e
+
+        msgPort = f'"request": "attach", "Port": {debug_port}, "host": "{debug_host}"'
+        if self.debugpy.is_client_connected():
+            self.settings.log(f"ALREADY ACTIVE: Remote Debug for Visual Studio is active({debug_port})", Qgis.Warning)
+            return
+        else:
+            try:
+                t_, new_port = self.debugpy.listen((debug_host, debug_port))
+            except Exception as e:
+                self.settings.log(f"Error starting debugpy: {e}", Qgis.Critical)
+                return
+            msgPort = f'"request": "enable_attach", "Port": {new_port}, "host": "{debug_host}"'
+            self.settings.log(f"Remote Debug for Visual Studio is running({msgPort})", Qgis.Success)
+
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
 
@@ -102,25 +156,28 @@ class QRAVE:
         :rtype: QString
         """
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
-        return QCoreApplication.translate('QRAVE', message)
+        return QCoreApplication.translate('Riverscapes Viewer', message)
 
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
         self.qproject.readProject.connect(self.onProjectLoad)
 
-        self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'), self.tr(u'Riverscapes Viewer'), self.iface.mainWindow())
+        self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'),
+                                  self.tr(u'Riverscapes Viewer'), self.iface.mainWindow())
         self.openAction.triggered.connect(self.toggle_widget)
 
         self.openAction.setStatusTip('Toggle the project viewer')
         self.openAction.setWhatsThis('Toggle the project viewer')
 
-        self.openProjectAction = QAction(QIcon(':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
+        self.openProjectAction = QAction(QIcon(
+            ':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
         self.openProjectAction.triggered.connect(self.projectBrowserDlg)
 
         self.openProjectAction.setStatusTip('Open Riverscapes project')
         self.openProjectAction.setWhatsThis('Open Riverscapes project')
 
-        self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/close.png'), self.tr(u'Close All Riverscapes Projects'), self.iface.mainWindow())
+        self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/close.png'), self.tr(
+            u'Close All Riverscapes Projects'), self.iface.mainWindow())
         self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
 
         self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
@@ -166,7 +223,8 @@ class QRAVE:
             self.tr('Update resources'),
             self.iface.mainWindow()
         )
-        self.net_sync_action.triggered.connect(lambda: self.net_sync_load(force=True))
+        self.net_sync_action.triggered.connect(
+            lambda: self.net_sync_load(force=True))
 
         self.find_resources_action = QAction(
             QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'),
@@ -204,7 +262,8 @@ class QRAVE:
         self.net_sync_load(force=versionChange)
 
         if versionChange:
-            QgsMessageLog.logMessage("Version change detected: {} ==> {}".format(lastVersion, __version__), 'Riverscapes Viewer', level=Qgis.Info)
+            QgsMessageLog.logMessage("Version change detected: {} ==> {}".format(
+                lastVersion, __version__), MESSAGE_CATEGORY, level=Qgis.Info)
             self.settings.setValue('pluginVersion', __version__)
 
     def onProjectLoad(self, doc):
@@ -279,7 +338,8 @@ class QRAVE:
             self.metawidget.hide()
 
         if self.dockwidget is not None and not self.dockwidget.isHidden():
-            self.qproject.writeEntry(CONSTANTS['settingsCategory'], 'enabled', True)
+            self.qproject.writeEntry(
+                CONSTANTS['settingsCategory'], 'enabled', True)
         else:
             self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'enabled')
 
@@ -333,9 +393,11 @@ class QRAVE:
         :return:
         """
         last_browse_path = self.settings.getValue('lastBrowsePath')
-        last_dir = os.path.dirname(last_browse_path) if last_browse_path is not None else None
+        last_dir = os.path.dirname(
+            last_browse_path) if last_browse_path is not None else None
 
-        dialog_return = QFileDialog.getOpenFileName(self.dockwidget, "Open a Riverscapes project", last_dir, self.tr("Riverscapes Project files (project.rs.xml)"))
+        dialog_return = QFileDialog.getOpenFileName(
+            self.dockwidget, "Open a Riverscapes project", last_dir, self.tr("Riverscapes Project files (project.rs.xml)"))
         if dialog_return is not None and len(dialog_return[0]) > 0:
             # Remember this path for next time
             self.settings.setValue('lastBrowsePath', dialog_return[0])
@@ -352,7 +414,8 @@ class QRAVE:
                 msgBox = QMessageBox()
                 msgBox.setWindowTitle("Close All Riverscapes Projects?")
                 msgBox.setIcon(QMessageBox.Question)
-                msgBox.setText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
+                msgBox.setText(
+                    "Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
                 # msgBox.setInformativeText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
                 msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
                 msgBox.setDefaultButton(QMessageBox.No)

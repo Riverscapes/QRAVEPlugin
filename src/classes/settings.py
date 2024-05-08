@@ -1,12 +1,18 @@
 import os
 import json
-import logging
 import html
-
 from qgis.core import QgsMessageLog, Qgis, QgsProject, QgsSettings
 
 with open(os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')) as cfg_file:
     cfg_json = json.load(cfg_file)
+    # For debugging purposes we can set the warehouse URL to the staging server
+    # NOTE: This is maybe a little clumsy but most people will never hit this code and it does the job well enough
+    if os.environ.get("RS_STAGING", "False").lower() == "true":
+        cfg_json['constants']['warehouseUrl'] = "https://staging.data.riverscapes.net"
+        cfg_json['constants']['DE_API_URL'] = "https://api.data.riverscapes.net/staging"
+        QgsMessageLog.logMessage(f"RS_STAGING detected. Using Staging URLS for Data Exchange: {cfg_json['constants']['warehouseUrl']} and {cfg_json['constants']['DE_API_URL']}",
+                                 cfg_json['constants']['logCategory'], level=Qgis.Warning)
+
 
 # We include these so that
 _DEFAULTS = cfg_json['defaultSettings']
@@ -14,6 +20,7 @@ CONSTANTS = cfg_json['constants']
 
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
+AUTH_CONFIG_NAME = "RiverscapesDataExchangeToken"
 
 
 class SettingsBorg(object):
@@ -36,8 +43,9 @@ class Settings(SettingsBorg):
         SettingsBorg.__init__(self)
 
         # The iface is important as a pointer so we can get to the messagebar
-        self.iface = None
-        if iface is not None and 'iface' not in self.__dict__:
+        if 'iface' not in self.__dict__:
+            self.iface = None
+        if iface is not None:
             self.iface = iface
         if not self._initdone:
             self.proj = QgsProject.instance()
@@ -67,7 +75,8 @@ class Settings(SettingsBorg):
             self.iface.messageBar().pushMessage(title, msg, level=level, duration=duration)
         # Fall back to regular logging
         else:
-            QgsMessageLog.logMessage("{}: {}".format(title, msg), MESSAGE_CATEGORY, level=level)
+            QgsMessageLog.logMessage("{}: {}".format(
+                title, msg), MESSAGE_CATEGORY, level=level)
 
     def resetAllSettings(self):
         for key in _DEFAULTS.keys():
@@ -101,4 +110,5 @@ class Settings(SettingsBorg):
         """
         # Set it in the file
         self.s.setValue(key, json.dumps({"v": value}))
-        self.log("SETTINGS SET: {}={} of type '{}'".format(key, value, html.escape(str(type(value)))), level=Qgis.Info)
+        self.log("SETTINGS SET: {}={} of type '{}'".format(
+            key, value, html.escape(str(type(value)))), level=Qgis.Info)

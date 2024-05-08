@@ -8,8 +8,11 @@ The Riverscapes Viewer (formerly QRAVE) is a [QGIS](http://www.qgis.org/en/site/
 
 The Riverscapes Viewer Plugin software was developed by North Arrow Research Ltd., with funding form the [Bonneville Power Administration](https://www.bpa.gov/) (BPA) BPA Fish and Wildlife Program Project [#2011-006](http://www.cbfish.org/Project.mvc/Display/2011-006-00). Contributions were also made by [South Fork Research](http://www.southforkresearch.org/) and members of the [Fluvial Habitats Center](http://etal.joewheaton.org/a/joewheaton.org/et-al/) at Utah State University.
 
-## Developing on windows
+## Developing on Windows OR OSX
 
+Make sure the `RS_DEBUG=true` is set in QGIS Environment
+
+## Developing on windows
 
 1. Make a batch file on your desktop to launch VSCode with the QGIS development paths and environment
 
@@ -96,6 +99,19 @@ Launching the Qt designer:
 $QGIS_PATH/Contents/MacOS/bin/designer 
 ```
 
+## `rsxml` dependency
+
+This plugin uses the `rsxml` library to parse and manipulate Riverscapes XML files. This library is available on PyPi butso you need to install it manually as a wheel so that the plugin can use it. You can install it using the following command:
+
+```bash
+sh ./scripts/install_deps.sh
+```
+
+THis is just running the following command:
+
+```bash
+$QGIS_PATH_PYTHON_PATH/pip3 wheel rsxml==2.0.1 -w ./wheels --no-deps
+```
 
 ## Development resources
 
@@ -104,12 +120,48 @@ $QGIS_PATH/Contents/MacOS/bin/designer
 * [Qt for Python](https://doc.qt.io/qtforpython-5/) - Qt is a C++ library so you need to specify the Python docs. This is where you find help with things like QtGui and QtWidgets
 
 
+## Buildsing the UI files
+
+```
+pyuic5 -x input.ui -o output.py
+```
 
 ## License
 
 Licensed under the [GNU General Public License Version 3](https://github.com/Riverscapes/RiverscapesToolbar/blob/master/LICENSE).
 
 ## QT Designer
+
+### Installing `pb_tool`
+
+First make sure that pb_tool is installed (note that you may need to adjust your QGIS paths in the commands below )
+
+```
+/Applications/QGIS-LTR.app/Contents/MacOS/bin/pip3 install pb_tool
+```
+
+### Running `pb_tool` compile
+
+You just need to run `pb_tool compile` from the installed QGIS python environment. Make sure you're in the repo root for QRavePlugin when you do that
+
+pb_tool compile will do 2 things:
+
+1. It will run pyrcc5 on the `src/resources.qrc` file and compile it to a python file in the `src` directory
+2. It will run pyuic5 on the `src/ui/*.ui` files and compile them to python files in the `src/ui` directory
+
+```bash
+> /Applications/QGIS-LTR.app/Contents/MacOS/bin/pb_tool compile     
+Skipping ./src/ui/dock_widget.ui (unchanged)
+Skipping ./src/ui/meta_widget.ui (unchanged)
+Skipping ./src/ui/meta_widget.ui (unchanged)
+Skipping ./src/ui/about_dialog.ui (unchanged)
+Skipping ./src/ui/options_dialog.ui (unchanged)
+Compiling ./src/ui/project_upload_dialog.ui to ./src/ui/project_upload_dialog.py
+Compiled 1 UI files
+Compiling ./src/resources.qrc to ./src/resources.py
+Compiled 1 resource files
+```
+
 
 On MacOS
 
@@ -123,4 +175,10 @@ On MacOS
 1. Click the play button in Visual Studio Code for the "QGIS Debug" process. This will fail if the previous step was not performed.
 1. Drop a breakpoint.
 1. Cause the breakpoint to fire. VSCode should pause at the breakpoint.
+
+```
+https://github.com/planetfederal/qgis-connect-plugin/blob/885773aa0bed618f85bd15d4c67ccbbcf9bee64c/boundlessconnect/gui/connectdockwidget.py#L430
+```
+
+
 
