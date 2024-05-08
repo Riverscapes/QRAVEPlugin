@@ -6,7 +6,9 @@
 
 ### Fixed
 - Close All Projects Throws Error #107
-- Better Business logic handling 
+- Better Business logic handling
+- Message bar was not showing up #123
+- GraphQL files not being included in the deploy #117
 
 ### Changed
 - Removed additional "QRAVE" references
