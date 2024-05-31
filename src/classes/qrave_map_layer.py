@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 
 from typing import Dict
-from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer
+from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsLayerTreeNode, QgsLayerTreeGroup
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QStandardItem
 from .rspaths import parse_rel_path
@@ -11,7 +11,7 @@ from .settings import CONSTANTS, Settings
 SYMBOLOGY_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'symbology')
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
-
+PRODUCT_KEY = "QRAVE"
 
 class QRaveTreeTypes():
     PROJECT_ROOT = 'PROJECT_ROOT'
@@ -229,19 +229,24 @@ class QRaveMapLayer():
 
         # Only add the layer if it's not already in the registry
         exists = False
-        existing_layers = QgsProject.instance().mapLayersByName(map_layer.label)
-        layers_ancestry = [QRaveMapLayer.get_layer_ancestry(lyr) for lyr in existing_layers]
+        project_key = project.project_xml_path
+        toc_layer = get_map_layer(project_key, map_layer, None)
+        if toc_layer is not None:
+            exists = True
 
-        # Now we compare the ancestry group labels to the business logic ancestry branch names
-        # to see if this layer is already in the map
-        for lyr in layers_ancestry:
-            if len(lyr) == len(ancestry) \
-                    and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
-                exists = True
-                break
-            elif lyr[0] == ancestry[0][0]:  # bit of a hacky way to test if map layer is in the same named qproject
-                exists = True
-                break
+        # existing_layers = QgsProject.instance().mapLayersByName(map_layer.label)
+        # layers_ancestry = [QRaveMapLayer.get_layer_ancestry(lyr) for lyr in existing_layers]
+
+        # # Now we compare the ancestry group labels to the business logic ancestry branch names
+        # # to see if this layer is already in the map
+        # for lyr in layers_ancestry:
+        #     if len(lyr) == len(ancestry) \
+        #             and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
+        #         exists = True
+        #         break
+        #     elif lyr[0] == ancestry[0][0]:  # bit of a hacky way to test if map layer is in the same named qproject
+        #         exists = True
+        #         break
 
         if not exists:
             layer_uri = map_layer.layer_uri
@@ -301,8 +306,8 @@ class QRaveMapLayer():
                     settings.log('Error deriving transparency from layer: {}'.format(e), Qgis.Warning)
 
                 QgsProject.instance().addMapLayer(rOutput, False)
-                parentGroup.insertLayer(item.row(), rOutput)
-
+                layer_tree_node = parentGroup.insertLayer(item.row(), rOutput)
+                layer_tree_node.setCustomProperty(PRODUCT_KEY, get_custom_property(PRODUCT_KEY, project_key, map_layer))
                 ##########################################
                 # Feature Filter (Definition Query)
                 ##########################################
@@ -338,3 +343,26 @@ class QRaveMapLayer():
         for group in [child for child in root.children() if child.nodeType() == 0]:
             if group.name() == project_name:
                 root.removeChildNode(group)
+
+def get_map_layer(project_key: str, map_layer: QRaveMapLayer, layer: QgsLayerTreeNode) -> QgsLayerTreeNode:
+
+    if layer is None:
+        layer = QgsProject.instance().layerTreeRoot()
+
+    target_custom_property = get_custom_property(PRODUCT_KEY, project_key, map_layer)
+    layer_custom_property = layer.customProperty(PRODUCT_KEY)
+    if isinstance(layer_custom_property, str) and layer_custom_property == target_custom_property:
+        # Ensure it has the latest name (in case this method is called after an edit)
+        layer.setName(map_layer.label)
+        return layer
+
+    if isinstance(layer, QgsLayerTreeGroup):
+        for child in layer.children():
+            result = get_map_layer(project_key, map_layer, child)
+            if isinstance(result, QgsLayerTreeNode):
+                return result
+
+    return None
+
+def get_custom_property(product_key, project_key: str, map_layer: QRaveMapLayer) -> str:
+    return f'{product_key}::{project_key}::{map_layer.layer_uri}::{map_layer.layer_name}'
