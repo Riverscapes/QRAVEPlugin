@@ -29,6 +29,7 @@ class NetSync(QgsTask):
         self.resource_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'resources'))
         self.business_logic_xml_dir = os.path.abspath(os.path.join(self.resource_dir, CONSTANTS['businessLogicDir']))
         self.symbology_dir = os.path.abspath(os.path.join(self.resource_dir, CONSTANTS['symbologyDir']))
+        self.qris_dir = os.path.abspath(os.path.join(self.resource_dir, CONSTANTS['qrisDir']))
         self.digest_path = os.path.abspath(os.path.join(self.resource_dir, 'index.json'))
 
         self.initialized = False  # self.initialize sets this
@@ -93,6 +94,9 @@ class NetSync(QgsTask):
         if not os.path.isdir(self.business_logic_xml_dir):
             need_sync = True
             os.mkdir(self.business_logic_xml_dir)
+        if not os.path.isdir(self.qris_dir):
+            need_sync = True
+            os.mkdir(self.qris_dir)
         if not os.path.isfile(self.digest_path):
             need_sync = True
 
@@ -115,13 +119,14 @@ class NetSync(QgsTask):
 
         symbologies = {x: v for x, v in digest.items() if x.startswith('Symbology/qgis') and x.endswith('.qml')}
         businesslogics = {x: v for x, v in digest.items() if x.startswith('RaveBusinessLogic') and x.endswith('.xml')}
+        qris = {x: v for x, v in digest.items() if x.startswith('QRIS') and x.endswith('.json')}
         basemaps = {x: v for x, v in digest.items() if x.startswith('BaseMaps.xml')}
 
-        self.total = len(symbologies.keys()) + len(businesslogics.keys()) + 1
+        self.total = len(symbologies.keys()) + len(businesslogics.keys()) + len(qris.keys()) + 1
         self.progress = 0
         self.downloaded = 0
 
-        all_local_files = [os.path.abspath(x) for x in glob(os.path.join(self.resource_dir, '**', '*.?ml'), recursive=True)]
+        all_local_files = [os.path.abspath(x) for x in glob(os.path.join(self.resource_dir, '**', '*.{xml,qml,json}'), recursive=True)]
 
         # Symbologies have directory structure
         for remote_path, remote_md5 in symbologies.items():
@@ -144,6 +149,17 @@ class NetSync(QgsTask):
             if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
                 requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
                 QgsMessageLog.logMessage("BusinessLogic downloaded: {}".format(local_path), MESSAGE_CATEGORY, level=Qgis.Info)
+
+                self.downloaded += 1
+            all_local_files = [x for x in all_local_files if x != local_path]
+            self.progress += 1
+            self.setProgress(self.progress)
+
+        for remote_path, remote_md5 in qris.items():
+            local_path = os.path.join(self.qris_dir, os.path.relpath(remote_path, "QRiS"))
+            if not os.path.isfile(local_path) or remote_md5 != md5(local_path):
+                requestDownload(CONSTANTS['resourcesUrl'] + remote_path, local_path, remote_md5)
+                QgsMessageLog.logMessage("QRiS Resource downloaded: {}".format(local_path), MESSAGE_CATEGORY, level=Qgis.Info)
 
                 self.downloaded += 1
             all_local_files = [x for x in all_local_files if x != local_path]

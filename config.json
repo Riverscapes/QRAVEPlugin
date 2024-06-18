@@ -15,6 +15,7 @@
         "settingsCategory": "RiverscapesViewer",
         "businessLogicDir": "blXML",
         "symbologyDir": "symbology",
+        "qrisDir": "QRiS",
         "digestSyncFreqHours": 24,
         "warehouseUrl": "https://data.riverscapes.net",
         "webUrl": "https://viewer.riverscapes.net",
