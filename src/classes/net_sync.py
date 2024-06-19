@@ -181,6 +181,8 @@ class NetSync(QgsTask):
         # Now we clean up any files that aren't supposed to be there
         for dfile in all_local_files:
             try:
+                if dfile == self.digest_path:
+                    continue
                 # Do a quick (probably redundant check) to make sure this file is in our current folder
                 rel_check = os.path.relpath(dfile, os.path.join(os.path.dirname(__file__), '..', '..', 'resources'))
                 if len(os.path.split(rel_check)) < 3:
