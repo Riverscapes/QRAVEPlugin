@@ -119,14 +119,14 @@ class NetSync(QgsTask):
 
         symbologies = {x: v for x, v in digest.items() if x.startswith('Symbology/qgis') and x.endswith('.qml')}
         businesslogics = {x: v for x, v in digest.items() if x.startswith('RaveBusinessLogic') and x.endswith('.xml')}
-        qris = {x: v for x, v in digest.items() if x.startswith('QRIS') and x.endswith('.json')}
+        qris = {x: v for x, v in digest.items() if x.startswith('QRiS') and x.endswith('.json')}
         basemaps = {x: v for x, v in digest.items() if x.startswith('BaseMaps.xml')}
 
         self.total = len(symbologies.keys()) + len(businesslogics.keys()) + len(qris.keys()) + 1
         self.progress = 0
         self.downloaded = 0
 
-        all_local_files = [os.path.abspath(x) for x in glob(os.path.join(self.resource_dir, '**', '*.{xml,qml,json}'), recursive=True)]
+        all_local_files = [os.path.abspath(x) for x in glob(os.path.join(self.resource_dir, '**', '*.?ml'), recursive=True)] + [os.path.abspath(x) for x in glob(os.path.join(self.resource_dir, '**', '*.json'), recursive=True)]
 
         # Symbologies have directory structure
         for remote_path, remote_md5 in symbologies.items():
