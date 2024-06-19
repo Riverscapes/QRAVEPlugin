@@ -1,4 +1,9 @@
 
+## 0.9.3 ***(June 19, 2024)***
+
+### Added
+- Include QRiS metric definitions in the resources sync.
+
 ## 0.9.2 ***(April 26, 2024)***
 
 ### Added
