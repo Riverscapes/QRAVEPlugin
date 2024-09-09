@@ -33,6 +33,7 @@ def copy_plugin(plugin_dir: str):
         ['__init__.py'],
         ['CHANGELOG.md'],
         ['README.md'],
+        ['LICENSE'],
         ['config.json'],
         ['wheels', '**', '*.whl'],
         ['src', '**', '*.py'],
