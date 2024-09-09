@@ -62,8 +62,8 @@ class ContextMenu(QMenu):
             ':/plugins/qrave_toolbar/close.png'
         ),
         'WAREHOUSE_VIEW': (
-            'View in Warehouse',
-            ':/plugins/qrave_toolbar/RaveAddIn_16px.png'
+            'View in Data Exchange',
+            ':/plugins/qrave_toolbar/data-exchange-icon.svg'
         ),
     }
 
