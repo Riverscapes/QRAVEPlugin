@@ -15,6 +15,7 @@ except ImportError:
     path = os.path.join(this_dir, '..', 'wheels', f'rsxml-{RSXML_VERSION}-py3-none-any.whl')
     sys.path.append(path)
     if not os.path.exists(path):
+        QgsMessageLog.logMessage(f'rsxml wheel not found at {path}.', 'Riverscapes Viewer', Qgis.Critical)
         raise Exception(f'rsxml wheel not found at {path}.')
     import rsxml
     QgsMessageLog.logMessage(f'rsxml imported from wheel {path}', 'Riverscapes Viewer', Qgis.Info)
