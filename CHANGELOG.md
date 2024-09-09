@@ -1,3 +1,11 @@
+## 0.9.4 ***(September 9, 2024)***
+
+### Added
+- License agreement for the plugin
+
+### Changed
+- RSXML Module updated to version 2.0.6
+- Warehouse renamed to Data Exchange #129
 
 ## 0.9.3 ***(June 19, 2024)***
 
