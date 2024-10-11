@@ -1,3 +1,9 @@
+## 1.0.1 ***(October 11, 2024)***
+
+### Changed
+- Remove Experimental Tag
+
+
 ## 0.9.5 ***(October 11, 2024)***
 
 ### Fixed
