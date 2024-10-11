@@ -1,3 +1,9 @@
+## 0.9.5 ***(October 11, 2024)***
+
+### Fixed
+- Project uploader using wrong organization ownership #132
+
+
 ## 0.9.4 ***(September 9, 2024)***
 
 ### Added
@@ -11,6 +17,7 @@
 
 ### Added
 - Include QRiS metric definitions in the resources sync.
+
 
 ## 0.9.2 ***(April 26, 2024)***
 
