@@ -494,8 +494,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             # Even when we reload the data
             if self.org_id is not None:
                 for i in range(self.orgSelect.count()):
-                    org_id = self.orgSelect.itemData(i)
-                    if self.orgSelect.itemData(i) == self.org_id:
+                    if self.OrgModel.item(i).data(Qt.UserRole) == self.org_id:
                         self.upload_log(f'  - Setting the previously selected organization: {self.org_id}', Qgis.Info)
                         self.orgSelect.setCurrentIndex(i)
                         org_index_set = True
@@ -650,7 +649,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         if checked:
             btn_id = self.mine_group.checkedId()
             if btn_id == 1:
-                self.org_id = self.orgSelect.currentData()
+                index = self.orgSelect.currentIndex()
+                self.org_id = self.OrgModel.item(index).data(Qt.UserRole)
             else:
                 self.org_id = None
         self.recalc_state()
