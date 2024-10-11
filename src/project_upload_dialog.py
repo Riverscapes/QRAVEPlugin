@@ -359,7 +359,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """
         if not self.org_id and not self.profile:
             return None
-        if self.org_id is not None:
+        if self.org_id is not None and self.optOwnerOrg.isChecked():
             owner_obj = OwnerInputTuple(id=self.org_id, type='ORGANIZATION')
         else:
             owner_obj = OwnerInputTuple(id=self.profile.id, type='USER')
@@ -472,7 +472,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             for org in self.profile.organizations:
                 item_name = f"{org.name} ({org.myRole.lower().capitalize()})"
                 item = QStandardItem(item_name)
-                item.setData(org.id)
+                item.setData(org.id, Qt.UserRole)
                 self.upload_log(f'    - {item_name}: [{org.myRole}]({org.id})', Qgis.Info)
 
                 # Disable the item if org.myRole meets your condition
@@ -526,10 +526,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             index (_type_): _description_
         """
         # Get the current item's data
-        item_data = self.orgSelect.itemData(index)
-        if item_data is not None:
-            print(f"Selected organization ID: {item_data}")
-            self.org_id = item_data
+        if index > -1:
+            item_data = self.OrgModel.item(index).data(Qt.UserRole)
+            if item_data is not None:
+                print(f"Selected organization ID: {item_data}")
+                self.org_id = item_data
 
     def recalc_local_ops(self) -> int:
         """_summary_
