@@ -62,9 +62,9 @@ def requestFetch(remote_url: str, expected_md5=None):
         QgsMessageLog.logMessage("Fetching digest failed with too many redirects: {}".format(remote_url), MESSAGE_CATEGORY, level=Qgis.Critical)
         return False
     except requests.exceptions.RequestException as e:
-        QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), MESSAGE_CATEGORY, level=Qgis.Critical)
+        QgsMessageLog.logMessage(f"Unknown error downloading file: {remote_url} | {e}", MESSAGE_CATEGORY, level=Qgis.Critical)
         # catastrophic error. bail.
-        raise SystemExit(e)
+        return False
     return True
 
 
