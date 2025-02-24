@@ -110,7 +110,7 @@ sh ./scripts/install_deps.sh
 THis is just running the following command:
 
 ```bash
-$QGIS_PATH_PYTHON_PATH/pip3 wheel rsxml==2.0.1 -w ./wheels --no-deps
+$QGIS_PATH_PYTHON_PATH/pip3 wheel rsxml==2.0.6 -w ./wheels --no-deps
 ```
 
 ## Development resources
