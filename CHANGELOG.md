@@ -1,4 +1,10 @@
-## 1.0.1 ***(October 11, 2024)***
+## 1.0.1 ***(February 24, 2025)***
+
+### Fixed
+- Fixing QGIS crash issue. #141
+
+
+## 1.0.0 ***(October 11, 2024)***
 
 ### Changed
 - Remove Experimental Tag
