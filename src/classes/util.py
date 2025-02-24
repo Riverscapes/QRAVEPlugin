@@ -85,6 +85,7 @@ def requestDownload(remote_url: str, local_path: str, expected_md5=None):
     # Get a file and put it somewhere local
     try:
         resp = requests.get(url=remote_url, timeout=15, headers={'Cache-Control': 'no-cache'})
+        resp.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
         local_dir = os.path.dirname(local_path)     # Excludes file name
         if not os.path.exists(local_dir):
             os.makedirs(local_dir)
@@ -107,8 +108,7 @@ def requestDownload(remote_url: str, local_path: str, expected_md5=None):
         return False
     except requests.exceptions.RequestException as e:
         QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), MESSAGE_CATEGORY, level=Qgis.Critical)
-        # catastrophic error. bail.
-        raise SystemExit(e)
+        return False
     return True
 
 
