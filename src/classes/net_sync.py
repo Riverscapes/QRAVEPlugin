@@ -119,7 +119,7 @@ class NetSync(QgsTask):
 
         symbologies = {x: v for x, v in digest.items() if x.startswith('Symbology/qgis') and x.endswith('.qml')}
         businesslogics = {x: v for x, v in digest.items() if x.startswith('RaveBusinessLogic') and x.endswith('.xml')}
-        qris = {x: v for x, v in digest.items() if x.startswith('QRiS') and x.endswith('.json')}
+        qris = {x: v for x, v in digest.items() if x.startswith('QRiS') and (x.endswith('.json') or x.endswith('.xml'))}
         basemaps = {x: v for x, v in digest.items() if x.startswith('BaseMaps.xml')}
 
         self.total = len(symbologies.keys()) + len(businesslogics.keys()) + len(qris.keys()) + 1
