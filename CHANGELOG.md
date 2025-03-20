@@ -1,3 +1,9 @@
+## 1.0.2 ***(March 20, 2025)***
+
+### Changed
+- Sync QRiS protocol library xml files in resources
+- Changed outdated reference to Rave in metadata #159
+
 ## 1.0.1 ***(February 24, 2025)***
 
 ### Fixed
