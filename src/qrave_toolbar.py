@@ -20,7 +20,7 @@ from pathlib import Path
 import requests
 
 from qgis.utils import showPluginHelp
-from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis
+from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis, QgsMapLayer
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl, pyqtSignal
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
@@ -37,6 +37,7 @@ from .options_dialog import OptionsDialog
 from .about_dialog import AboutDialog
 from .dock_widget import QRAVEDockWidget
 from .meta_widget import QRAVEMetaWidget
+from .frm_project_bounds import FrmProjectBounds
 
 # initialize Qt resources from file resources.py
 from . import resources
@@ -226,6 +227,15 @@ class QRAVE:
         self.net_sync_action.triggered.connect(
             lambda: self.net_sync_load(force=True))
 
+        self.generate_project_bounds = QAction(
+            QIcon(':/plugins/qrave_toolbar/Bounds.png'),
+            self.tr('Generate Project Bounds'),
+            self.iface.mainWindow()
+        )
+        # Open a project bounds dialog
+        self.generate_project_bounds.triggered.connect(
+            lambda: self.show_project_bounds())
+
         self.find_resources_action = QAction(
             QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'),
             self.tr('Find Resources folder'),
@@ -244,6 +254,8 @@ class QRAVE:
         # m.addAction(self.websiteAction)
         m.addAction(self.raveOptionsAction)
         m.addAction(self.net_sync_action)
+        m.addSeparator()
+        m.addAction(self.generate_project_bounds)
         m.addSeparator()
         m.addAction(self.find_resources_action)
         m.addAction(self.about_action)
@@ -422,6 +434,19 @@ class QRAVE:
                 response = msgBox.exec_()
                 if response == QMessageBox.Yes:
                     self.dockwidget.close_all()
+
+    def show_project_bounds(self):
+        """
+        Open the project bounds dialog
+        """
+        # Check if there are any Vector layers in the project
+        layers = QgsProject.instance().mapLayers()
+        if not any(layer.type() == QgsMapLayer.VectorLayer for layer in layers.values()):
+            QMessageBox.information(None, "No layers", "There are no Vector Layers in the map. Please add at least one Vector Layer to the map before generating project bounds.")
+            return
+        
+        dialog = FrmProjectBounds()
+        dialog.exec_()
 
     def locateResources(self):
         """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
