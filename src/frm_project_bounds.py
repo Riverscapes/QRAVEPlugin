@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from qgis.core import QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRectangle
+from qgis.core import QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRectangle, QgsGeometry, QgsFeatureRequest
 
 
 class FrmProjectBounds(QtWidgets.QDialog):
@@ -21,6 +21,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
         self.rdoXML.setChecked(True)
 
         self.cmbLayer.currentIndexChanged.connect(self.generate_output)
+        self.chkUseSelected.toggled.connect(self.generate_output)
         self.spnPrecision.valueChanged.connect(self.generate_output)
         self.chkIncludeBoundsFile.toggled.connect(self.generate_output)
         self.rdoXML.toggled.connect(self.generate_output)
@@ -37,27 +38,33 @@ class FrmProjectBounds(QtWidgets.QDialog):
         self.txtOutput.setPlainText("")
 
         layer_id = self.cmbLayer.currentData()
-        layer = QgsProject.instance().mapLayer(layer_id)
+        layer: QgsVectorLayer = QgsProject.instance().mapLayer(layer_id)
         precision = self.spnPrecision.value()
 
         # First check if there are any features in the layer
+        if self.chkUseSelected.isChecked():
+            if len(layer.selectedFeatureIds())== 0:
+                self.txtOutput.setPlainText("No features selected in layer")
+                self.btnCopy.setEnabled(False)
+                return
+        
         if layer.featureCount() == 0:
             self.txtOutput.setPlainText("No features selected in layer")
             self.btnCopy.setEnabled(False)
             return
 
-        bounds = self.get_layer_bounds(layer)
+        bounds = self.get_layer_bounds(layer, use_selected=self.chkUseSelected.isChecked())
 
         if self.rdoXML.isChecked():
             output = self.generate_xml(bounds, precision, self.chkIncludeBoundsFile.isChecked())
         else:
-            output = self.generate_json(bounds, precision)
+            output = self.generate_json(bounds, precision, self.chkIncludeBoundsFile.isChecked())
 
         self.txtOutput.setPlainText(output)
         if output is not None:
             self.btnCopy.setEnabled(True)
 
-    def get_layer_bounds(self, layer: QgsVectorLayer) -> QgsRectangle:
+    def get_layer_bounds(self, layer: QgsVectorLayer, use_selected: bool=False) -> QgsRectangle:
         
         # Given we need typically this information in WGS84, transform the data into this project if the source layer is in another projection.
         if layer.crs().authid() != 'EPSG:4326':
@@ -67,7 +74,10 @@ class FrmProjectBounds(QtWidgets.QDialog):
             transform = QgsCoordinateTransform(layer.crs(), epsg4326, QgsProject.instance())
             feats = []
             bounds = QgsRectangle()
-            for f in layer.getFeatures():
+            feature_request = QgsFeatureRequest()
+            if use_selected:
+                feature_request.setFilterFids(layer.selectedFeatureIds())
+            for f in layer.getFeatures(feature_request):
                 g = f.geometry()
                 g.transform(transform)
                 f.setGeometry(g)
@@ -113,7 +123,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
         
         return pretty_xml_str
     
-    def generate_json(self, bounds: QgsRectangle, precision: int):
+    def generate_json(self, bounds: QgsRectangle, precision: int, include_bounds_file: bool = True):
 
         centroid = bounds.center()
 
@@ -130,20 +140,62 @@ class FrmProjectBounds(QtWidgets.QDialog):
             }
         }
 
+        if include_bounds_file:
+            project_bounds["ProjectBounds"]["Path"] = "project_bounds.geojson"
+
         return json.dumps(project_bounds, indent=4)
     
     def copy_output(self):
-        
         # Copy to clipboard
         clipboard = QtWidgets.QApplication.clipboard()
         clipboard.setText(self.txtOutput.toPlainText())
         self.btnCopy.setText("Copied!")
 
+    def btn_generate_bounds_file_clicked(self):
+        
+        layer = QgsProject.instance().mapLayer(self.cmbLayer.currentData())
+        crs = layer.crs()
+        feature_request = QgsFeatureRequest()
+        if self.chkUseSelected.isChecked():
+            feature_request.setFilterFids(layer.selectedFeatureIds())
+
+
+        transform = None
+        
+        # Initialize an empty geometry
+        geom = QgsGeometry()
+        # Combine all geometries into a single multipart geometry
+        
+        if crs.isGeographic():
+            # Find a suitable UTM zone for the centroid of the layer
+            centroid = self.get_layer_bounds(layer, use_selected=self.chkUseSelected.isChecked()).center()
+            utm_zone = int((centroid.x() + 180) / 6) + 1
+            utm_crs = QgsCoordinateReferenceSystem(f'EPSG:326{utm_zone:02d}')
+            # Transform the layer to the UTM CRS
+            transform = QgsCoordinateTransform(crs, utm_crs, QgsProject.instance())
+            
+        for f in layer.getFeatures(feature_request):
+            g = f.geometry()
+            if transform is not None:
+                g.transform(transform)
+            if geom.isEmpty():
+                geom = g
+            else:
+                geom = geom.combine(g)
+
+        # OK, now we need to run some simplification to reduce the number of vertices so that the file size is not larger than the specified limit
+        geom = geom.simplify(0.0001)
+
+        # TODO: iterate over the vertices and remove those that are not needed until the file size is below the limit
+
+        # TODO: Prompt the user to save the file.
+
+
+
 
     def setupUi(self):
-
         self.setWindowTitle("Project Bounds")
-        self.resize(300, 350)
+        self.resize(300, 450)
 
         vertLayout = QtWidgets.QVBoxLayout(self)
         self.setLayout(vertLayout)
@@ -157,31 +209,58 @@ class FrmProjectBounds(QtWidgets.QDialog):
         self.cmbLayer = QtWidgets.QComboBox()
         gridLayout.addWidget(self.cmbLayer, 0, 1)
 
+        self.chkUseSelected = QtWidgets.QCheckBox("Use selected features only")
+        gridLayout.addWidget(self.chkUseSelected, 1, 0)
+
         self.lblPrecision = QtWidgets.QLabel("Precision")
-        gridLayout.addWidget(self.lblPrecision, 1, 0)
+        gridLayout.addWidget(self.lblPrecision, 2, 0)
 
         self.spnPrecision = QtWidgets.QSpinBox()
-        gridLayout.addWidget(self.spnPrecision, 1, 1)
+        gridLayout.addWidget(self.spnPrecision, 3, 1)
+
+        # Create a button group for XML/JSON radio buttons
+        self.outputFormatGroup = QtWidgets.QButtonGroup(self)
 
         horiz_layout_rdo = QtWidgets.QHBoxLayout()
-        gridLayout.addLayout(horiz_layout_rdo, 2, 0, 1, 2)
+        gridLayout.addLayout(horiz_layout_rdo, 4, 0, 1, 2)
 
         self.rdoXML = QtWidgets.QRadioButton("XML")
         horiz_layout_rdo.addWidget(self.rdoXML)
+        self.outputFormatGroup.addButton(self.rdoXML)
 
         self.rdoJSON = QtWidgets.QRadioButton("JSON")
         horiz_layout_rdo.addWidget(self.rdoJSON)
+        self.outputFormatGroup.addButton(self.rdoJSON)
 
         hspacer = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         horiz_layout_rdo.addItem(hspacer)
 
         self.txtOutput = QtWidgets.QTextEdit()
         self.txtOutput.setReadOnly(True)
-        vertLayout.addWidget(self.txtOutput)
+        gridLayout.addWidget(self.txtOutput, 4, 0, 1, 2)
 
-        self.chkIncludeBoundsFile = QtWidgets.QCheckBox("Include bounds file reference in xml output")
-        self.chkIncludeBoundsFile.setChecked(True)
-        vertLayout.addWidget(self.chkIncludeBoundsFile)
+        self.chkIncludeBoundsFile = QtWidgets.QCheckBox("Include Project Bounds geojson file")
+        gridLayout.addWidget(self.chkIncludeBoundsFile, 5, 0, 1, 2)
+
+
+        self.lblFileSize = QtWidgets.QLabel("Maximum File Size")
+        gridLayout.addWidget(self.lblFileSize, 6, 0)
+
+        self.spnFileSize = QtWidgets.QSpinBox()
+        self.spnFileSize.setMinimum(1)
+        self.spnFileSize.setMaximum(10000)
+        self.spnFileSize.setSingleStep(10)
+        self.spnFileSize.setValue(200)
+        self.spnFileSize.setSuffix(" kb")
+        gridLayout.addWidget(self.spnFileSize, 6, 1)
+
+
+
+        self.btnGenerateBoundsFile = QtWidgets.QPushButton("Save Bounds File")
+        self.btnGenerateBoundsFile.setEnabled(False)
+        self.chkIncludeBoundsFile.toggled.connect(self.btnGenerateBoundsFile.setEnabled)
+        self.btnGenerateBoundsFile.clicked.connect(self.btn_generate_bounds_file_clicked)
+        gridLayout.addWidget(self.btnGenerateBoundsFile, 10, 1, 1, 1)
 
         horiz_layout_btn = QtWidgets.QHBoxLayout()
         vertLayout.addLayout(horiz_layout_btn)
@@ -195,12 +274,3 @@ class FrmProjectBounds(QtWidgets.QDialog):
 
         self.btnClose = QtWidgets.QPushButton("Close")
         horiz_layout_btn.addWidget(self.btnClose)
-
-
-
-
-        
-
-
-
-
