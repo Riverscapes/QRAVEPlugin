@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from qgis.core import QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRectangle, QgsGeometry, QgsFeatureRequest
+from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRectangle, QgsGeometry, QgsFeatureRequest, QgsMapLayer, QgsFeature, QgsVectorFileWriter, QgsCoordinateTransformContext
 
 
 class FrmProjectBounds(QtWidgets.QDialog):
@@ -153,14 +153,14 @@ class FrmProjectBounds(QtWidgets.QDialog):
 
     def btn_generate_bounds_file_clicked(self):
         
-        layer = QgsProject.instance().mapLayer(self.cmbLayer.currentData())
+        layer: QgsMapLayer = QgsProject.instance().mapLayer(self.cmbLayer.currentData())
         crs = layer.crs()
         feature_request = QgsFeatureRequest()
         if self.chkUseSelected.isChecked():
             feature_request.setFilterFids(layer.selectedFeatureIds())
 
-
         transform = None
+        reverse_transform = None
         
         # Initialize an empty geometry
         geom = QgsGeometry()
@@ -173,6 +173,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
             utm_crs = QgsCoordinateReferenceSystem(f'EPSG:326{utm_zone:02d}')
             # Transform the layer to the UTM CRS
             transform = QgsCoordinateTransform(crs, utm_crs, QgsProject.instance())
+            reverse_transform = QgsCoordinateTransform(utm_crs, crs, QgsProject.instance())
             
         for f in layer.getFeatures(feature_request):
             g = f.geometry()
@@ -184,13 +185,96 @@ class FrmProjectBounds(QtWidgets.QDialog):
                 geom = geom.combine(g)
 
         # OK, now we need to run some simplification to reduce the number of vertices so that the file size is not larger than the specified limit
-        geom = geom.simplify(0.0001)
+        
+        simplify_factor = 0.0001  # This is a starting point, you may need to adjust it based on the file size limit
+        geom: QgsGeometry = geom.simplify(simplify_factor)
+        # Check the file size of the geometry
+        file_size_limit = self.spnFileSize.value() * 1024  # Convert to bytes
+        file_size: str = geom.asJson().encode('utf-8')
+        if len(file_size) > file_size_limit:
+            # If the file size is larger than the limit, we need to simplify further
+            # This is a simple example, you may need to implement a more sophisticated algorithm
+            while len(file_size) > file_size_limit:
+                simplify_factor *= 2
+                geom: QgsGeometry = geom.simplify(simplify_factor)
+                file_size: str = geom.asJson().encode('utf-8')
+                # Check if the geometry is empty after simplification
+                if geom.isEmpty():
+                    break
 
-        # TODO: iterate over the vertices and remove those that are not needed until the file size is below the limit
+        # Transform the geometry to WGS84 if necessary
+        if reverse_transform is not None:
+            geom.transform(reverse_transform)
 
-        # TODO: Prompt the user to save the file.
+        # Initialize the GeoJSON layer
+        geojson_layer = QgsVectorLayer("Polygon?crs=EPSG:4326", "Project Bounds", "memory")
+        feature = QgsFeature()
+        feature.setGeometry(geom)
+        geojson_layer.dataProvider().addFeatures([feature])
+        geojson_layer.setCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
 
+        # Save the layer to a temporary file to calculate the actual file size
+        temp_file = QtCore.QTemporaryFile()
+        temp_file.open()
+        temp_file_path = temp_file.fileName()
 
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.driverName = "GeoJSON"
+        options.fileEncoding = "UTF-8"
+
+        error = QgsVectorFileWriter.writeAsVectorFormatV3(
+            geojson_layer,
+            temp_file_path,
+            QgsCoordinateTransformContext(),
+            options
+        )
+
+        if error != QgsVectorFileWriter.NoError:
+            QgsMessageLog.logMessage(f"Error saving temporary GeoJSON file: {error}", "Project Bounds", Qgis.Critical)
+            return
+
+        # Check the file size of the temporary file
+        file_size_limit = self.spnFileSize.value() * 1024  # Convert to bytes
+        buffer_factor = 1.1  # Add a 10% buffer to account for metadata and formatting
+        adjusted_file_size_limit = file_size_limit * buffer_factor
+        actual_file_size = temp_file.size()
+
+        # Simplify the geometry further if the file size exceeds the adjusted limit
+        while actual_file_size > adjusted_file_size_limit:
+            simplify_factor *= 2
+            geom = geom.simplify(simplify_factor)
+            feature.setGeometry(geom)
+            geojson_layer.dataProvider().addFeatures([feature])
+
+            # Save the simplified geometry to the temporary file again
+            error = QgsVectorFileWriter.writeAsVectorFormatV3(
+                geojson_layer,
+                temp_file_path,
+                QgsCoordinateTransformContext(),
+                options
+            )
+
+            if error != QgsVectorFileWriter.NoError:
+                QgsMessageLog.logMessage(f"Error saving temporary GeoJSON file: {error}", "Project Bounds", Qgis.Critical)
+                return
+
+            actual_file_size = temp_file.size()
+
+        # Save the final GeoJSON file
+        out_file = QtWidgets.QFileDialog.getSaveFileName(self, "Save Project Bounds GeoJSON", "project_bounds", "GeoJSON Files (*.geojson)")
+        if not out_file[0]:
+            return
+
+        error = QgsVectorFileWriter.writeAsVectorFormatV3(
+            geojson_layer,
+            out_file[0],
+            QgsCoordinateTransformContext(),
+            options
+        )
+
+        if error != QgsVectorFileWriter.NoError:
+            QgsMessageLog.logMessage(f"Error saving GeoJSON file: {error}", "Project Bounds", Qgis.Critical)
+            return
 
 
     def setupUi(self):
@@ -242,7 +326,6 @@ class FrmProjectBounds(QtWidgets.QDialog):
         self.chkIncludeBoundsFile = QtWidgets.QCheckBox("Include Project Bounds geojson file")
         gridLayout.addWidget(self.chkIncludeBoundsFile, 5, 0, 1, 2)
 
-
         self.lblFileSize = QtWidgets.QLabel("Maximum File Size")
         gridLayout.addWidget(self.lblFileSize, 6, 0)
 
@@ -252,9 +335,9 @@ class FrmProjectBounds(QtWidgets.QDialog):
         self.spnFileSize.setSingleStep(10)
         self.spnFileSize.setValue(200)
         self.spnFileSize.setSuffix(" kb")
+        self.spnFileSize.setEnabled(False)
+        self.chkIncludeBoundsFile.toggled.connect(self.spnFileSize.setEnabled)
         gridLayout.addWidget(self.spnFileSize, 6, 1)
-
-
 
         self.btnGenerateBoundsFile = QtWidgets.QPushButton("Save Bounds File")
         self.btnGenerateBoundsFile.setEnabled(False)
