@@ -410,7 +410,7 @@ class QRAVE:
     def closeAllProjects(self):
         """Close all open projects"""
         if self.dockwidget is not None:
-            if len(self.dockwidget.loaded_projects) > 0:
+            if len(self.dockwidget._get_projects()) > 0:
                 msgBox = QMessageBox()
                 msgBox.setWindowTitle("Close All Riverscapes Projects?")
                 msgBox.setIcon(QMessageBox.Question)
