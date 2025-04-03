@@ -146,7 +146,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 self.basemaps.regions[region]), basemap_states)
 
         self.model.clear()
-        self.loaded_projects = []
+        for x in self.loaded_projects:
+            if isinstance(x, Project):
+                self.loaded_projects.remove(x)
+
         qrave_projects = self.get_project_settings()
 
         for project_name, _basename, project_path in qrave_projects:
