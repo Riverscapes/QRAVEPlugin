@@ -80,8 +80,6 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         self.model = QStandardItemModel()
 
-        self.loaded_projects: List(Project) = []
-
         # Initialize our classes
         self.basemaps = BaseMaps()
         self.treeView.setModel(self.model)
@@ -95,15 +93,27 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if item_data and item_data.data and isinstance(item_data.data, QRaveBaseMap):
             item_data.data.load_layers()
 
-    def _get_project(self, xml_path):
-        try:
-            return next(iter(self.loaded_projects))
-        except Exception:
-            return None
+    def _get_projects(self):
+        """Get the list of loaded projects
+
+        Returns:
+            [type]: [description]
+        """
+        qrave_projects = self.get_project_settings()
+        root_item = self.model.invisibleRootItem()
+        projects = []
+
+        for row in range(root_item.rowCount()):
+            child_item = root_item.child(row)
+            if child_item is not None:
+                item_data = child_item.data(Qt.UserRole)
+                if item_data and hasattr(item_data, 'project') and item_data.project is not None:
+                    projects.append(item_data.project)
+        return projects
 
     def _get_project_by_name(self, name):
         try:
-            for project in self.loaded_projects:
+            for project in self._get_projects():
                 if project.qproject.text() == name:
                     return project
             return None
@@ -130,7 +140,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
             return output
 
-        for project in self.loaded_projects:
+        new_projects = self._get_projects()
+
+        for project in self._get_projects():
             if not isinstance(project, str):
                 project_name = project.qproject.text()
                 project_states = []
@@ -146,9 +158,6 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 self.basemaps.regions[region]), basemap_states)
 
         self.model.clear()
-        for x in self.loaded_projects:
-            if isinstance(x, Project):
-                self.loaded_projects.remove(x)
 
         qrave_projects = self.get_project_settings()
 
@@ -168,7 +177,6 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 else:
                     self.expand_children_recursive(
                         self.model.indexFromItem(project.qproject))
-                self.loaded_projects.append(project)
             else:
                 # If this project is unloadable then make sure it never tries to load again
                 self.set_project_settings(
@@ -247,7 +255,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         test_project = Project(xml_path)
         test_project.load()
         if test_project.loadable is False or test_project.exists is False or test_project.qproject is None:
-            self.settings.log(f'Error loading project: {xml_path}', Qgis.Warning)
+            self.settings.log(
+                f'Error loading project: {xml_path}', Qgis.Warning)
             return
         basename = test_project.qproject.text()
         count = [project[1] for project in qrave_projects].count(basename)
@@ -477,10 +486,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             QDesktopServices.openUrl(QUrl(url))
 
     def close_all(self):
-        loaded_count = len(self.loaded_projects)
         closed_count = 0
-        while self.loaded_projects and loaded_count > 0 and closed_count < loaded_count:
-            project = self.loaded_projects[-1]
+        all_projects = self._get_projects()
+        initial_count = len(all_projects)
+        while len(all_projects) > 0 and closed_count < initial_count:
+            all_projects = self._get_projects()
+            project = all_projects[-1]
             try:
                 self.close_project(project)
                 closed_count += 1
@@ -506,8 +517,6 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # Write the settings back to the project
         self.set_project_settings(qrave_projects)
-        self.loaded_projects = [
-            loaded_project for loaded_project in self.loaded_projects if loaded_project.qproject.text() != project_name]
         self.reload_tree()
 
     def file_system_open(self, fpath: str):
