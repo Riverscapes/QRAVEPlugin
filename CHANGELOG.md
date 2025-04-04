@@ -1,3 +1,9 @@
+## 1.0.3 ***(April 04, 2025)***
+
+### Fixed
+- Fixed netsync issue casuing QGiS crash #162
+- Restructured how plugin tracks loaded projects to fix QGiS crash #135
+
 ## 1.0.2 ***(March 20, 2025)***
 
 ### Changed
