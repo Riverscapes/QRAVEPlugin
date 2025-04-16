@@ -1,8 +1,8 @@
 # Riverscapes Viewer
 
-The Riverscapes Viewer (formerly QRAVE) is a [QGIS](http://www.qgis.org/en/site/) plugin you can use to interact with riverscapes data. See the repository online documentation for more information:
+The Riverscapes Viewer (formerly QRAVE) is a [QGIS](http://www.qgis.org/en/site/) plugin you can use to interact with riverscapes data. See the online documentation for more information:
 
-<https://riverscapes.github.io/RiverscapesToolbar/>
+[viewer.riverscapes.net](https://viewer.riverscapes.net/software-help/help-qgis/)
 
 ## Acknowledgements
 
