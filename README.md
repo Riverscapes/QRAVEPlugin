@@ -120,9 +120,9 @@ $QGIS_PATH_PYTHON_PATH/pip3 wheel rsxml==2.0.6 -w ./wheels --no-deps
 * [Qt for Python](https://doc.qt.io/qtforpython-5/) - Qt is a C++ library so you need to specify the Python docs. This is where you find help with things like QtGui and QtWidgets
 
 
-## Buildsing the UI files
+## Building the UI files
 
-```
+```sh
 pyuic5 -x input.ui -o output.py
 ```
 
@@ -136,7 +136,7 @@ Licensed under the [GNU General Public License Version 3](https://github.com/Riv
 
 First make sure that pb_tool is installed (note that you may need to adjust your QGIS paths in the commands below )
 
-```
+```sh
 /Applications/QGIS-LTR.app/Contents/MacOS/bin/pip3 install pb_tool
 ```
 
@@ -161,7 +161,6 @@ Compiled 1 UI files
 Compiling ./src/resources.qrc to ./src/resources.py
 Compiled 1 resource files
 ```
-
 
 On MacOS
 
