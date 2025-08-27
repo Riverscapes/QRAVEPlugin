@@ -29,6 +29,7 @@ from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QMessa
 from .classes.settings import Settings, CONSTANTS
 from .classes.net_sync import NetSync
 from .classes.basemaps import BaseMaps
+from .classes.map import get_map_center, get_zoom_level
 
 
 # Initialize Qt resources from file resources.py
@@ -184,6 +185,9 @@ class QRAVE:
         self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
         self.closeAllProjectsAction.setWhatsThis('Close all open Riverscapes projects')
 
+        self.browseExchangeProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.tr(u'Browse Data Exchange Projects in this Area'), self.iface.mainWindow())
+        self.browseExchangeProjectsAction.triggered.connect(self.browseExchangeProjects)
+
         self.toolsButton = QToolButton()
         self.toolsButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.toolsButton.setMenu(QMenu())
@@ -272,6 +276,7 @@ class QRAVE:
         self.toolbar.addAction(self.openAction)
         self.toolbar.addAction(self.openProjectAction)
         self.toolbar.addAction(self.closeAllProjectsAction)
+        self.toolbar.addAction(self.browseExchangeProjectsAction)
         self.toolbar.addWidget(self.toolsButton)
         self.toolbar.addWidget(self.helpButton)
 
@@ -486,3 +491,13 @@ class QRAVE:
 
         dialog.acknowledgements.setText(self.acknowledgements)
         dialog.exec_()
+
+    def browseExchangeProjects(self):
+
+            # Get the center and zoom level to build the search url
+            canvas = self.iface.mapCanvas()
+            center = get_map_center(canvas)
+            zoom = get_zoom_level(canvas)
+            search_url = f"{CONSTANTS['warehouseUrl']}/s?type=Project&bounded=1&view=map&geo={center.x()}%2C{center.y()}%2C{zoom}"
+            # Open the URL in the default web browser
+            QDesktopServices.openUrl(QUrl(search_url))
