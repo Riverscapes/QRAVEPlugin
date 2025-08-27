@@ -184,6 +184,26 @@ class QRAVE:
         self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
         self.closeAllProjectsAction.setWhatsThis('Close all open Riverscapes projects')
 
+        self.toolsButton = QToolButton()
+        self.toolsButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.toolsButton.setMenu(QMenu())
+        self.toolsButton.setPopupMode(QToolButton.MenuButtonPopup)
+        self.toolsButton.setText('Tools')
+
+        m_tools = self.toolsButton.menu()
+        
+        self.generate_project_bounds = QAction(
+            QIcon(':/plugins/qrave_toolbar/bounds'),
+            self.tr('Generate Project Bounds'),
+            self.iface.mainWindow()
+        )
+
+        # Open a project bounds dialog
+        self.generate_project_bounds.triggered.connect(
+            lambda: self.show_project_bounds())
+
+        m_tools.addAction(self.generate_project_bounds)
+
         self.helpButton = QToolButton()
         self.helpButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.helpButton.setMenu(QMenu())
@@ -227,15 +247,6 @@ class QRAVE:
         self.net_sync_action.triggered.connect(
             lambda: self.net_sync_load(force=True))
 
-        self.generate_project_bounds = QAction(
-            QIcon(':/plugins/qrave_toolbar/Bounds.png'),
-            self.tr('Generate Project Bounds'),
-            self.iface.mainWindow()
-        )
-        # Open a project bounds dialog
-        self.generate_project_bounds.triggered.connect(
-            lambda: self.show_project_bounds())
-
         self.find_resources_action = QAction(
             QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'),
             self.tr('Find Resources folder'),
@@ -254,9 +265,6 @@ class QRAVE:
         # m.addAction(self.websiteAction)
         m.addAction(self.raveOptionsAction)
         m.addAction(self.net_sync_action)
-        m.addSeparator()
-        m.addAction(self.generate_project_bounds)
-        m.addSeparator()
         m.addAction(self.find_resources_action)
         m.addAction(self.about_action)
         self.helpButton.setDefaultAction(self.helpAction)
@@ -264,6 +272,7 @@ class QRAVE:
         self.toolbar.addAction(self.openAction)
         self.toolbar.addAction(self.openProjectAction)
         self.toolbar.addAction(self.closeAllProjectsAction)
+        self.toolbar.addWidget(self.toolsButton)
         self.toolbar.addWidget(self.helpButton)
 
         # Do a check to see if the stored version is different than the current version
