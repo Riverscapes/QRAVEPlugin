@@ -8,6 +8,7 @@
         <file alias="Options.png">../Images/settings.svg</file>
         <file alias="viewer-icon.svg">../Images/viewer-icon.svg</file>
         <file alias="data-exchange-icon.svg">../Images/data-exchange-icon.svg</file>
+        <file alias="bounds">../Images/bounds.svg</file>
 
         <file alias="refresh.png">../Images/refresh.svg</file>
         <file alias="tree.png">../Images/tree.png</file>
