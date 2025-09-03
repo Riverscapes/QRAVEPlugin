@@ -45,6 +45,7 @@ class QRaveMapLayer():
         LINE = 'line'
         POINT = 'point'
         RASTER = 'raster'
+        TIN = 'tin'
         # Regular file types
         FILE = 'file'
         REPORT = 'report'
