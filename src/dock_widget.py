@@ -61,7 +61,6 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         super(QRAVEDockWidget, self).__init__(parent)
 
         self.setupUi(self)
-        self.menu = ContextMenu()
         self.settings = Settings()
         self.qproject = QgsProject.instance()
         self.qproject.cleared.connect(self.close_all)
@@ -635,115 +634,110 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         # Could be a QRaveBaseMap, a QRaveMapLayer or just some random data
         data = project_tree_data.data
 
+        menu = ContextMenu()
+
         # This is the layer context menu
         if isinstance(data, QRaveMapLayer):
             if data.layer_type == QRaveMapLayer.LayerTypes.WEBTILE:
-                self.basemap_context_menu(idx, item, project_tree_data)
+                self.basemap_context_menu(menu, idx, item, project_tree_data)
             elif data.layer_type in [QRaveMapLayer.LayerTypes.FILE, QRaveMapLayer.LayerTypes.REPORT]:
-                self.file_layer_context_menu(idx, item, project_tree_data)
+                self.file_layer_context_menu(menu, idx, item, project_tree_data)
             else:
-                self.map_layer_context_menu(idx, item, project_tree_data)
+                self.map_layer_context_menu(menu, idx, item, project_tree_data)
 
         elif isinstance(data, QRaveBaseMap):
             # A WMS QARaveBaseMap is just a container for layers
             if data.tile_type == 'wms':
-                self.folder_dumb_context_menu(idx, item, project_tree_data)
+                self.folder_dumb_context_menu(menu, idx, item, project_tree_data)
             # Every other kind of basemap is an add-able layer
             else:
-                self.basemap_context_menu(idx, item, project_tree_data)
+                self.basemap_context_menu(menu, idx, item, project_tree_data)
 
         elif project_tree_data.type == QRaveTreeTypes.PROJECT_ROOT:
-            self.project_context_menu(idx, item, project_tree_data)
+            self.project_context_menu(menu, idx, item, project_tree_data)
 
         elif project_tree_data.type in [
             QRaveTreeTypes.PROJECT_VIEW_FOLDER,
             QRaveTreeTypes.BASEMAP_ROOT,
             QRaveTreeTypes.BASEMAP_SUPER_FOLDER
         ]:
-            self.folder_dumb_context_menu(idx, item, project_tree_data)
+            self.folder_dumb_context_menu(menu, idx, item, project_tree_data)
 
         elif project_tree_data.type in [
             QRaveTreeTypes.PROJECT_FOLDER,
             QRaveTreeTypes.PROJECT_REPEATER_FOLDER,
             QRaveTreeTypes.BASEMAP_SUB_FOLDER
         ]:
-            self.folder_context_menu(idx, item, project_tree_data)
+            self.folder_context_menu(menu, idx, item, project_tree_data)
 
         elif project_tree_data.type == QRaveTreeTypes.PROJECT_VIEW:
-            self.view_context_menu(idx, item, project_tree_data)
+            self.view_context_menu(menu, idx, item, project_tree_data)
 
-        self.menu.exec_(self.treeView.viewport().mapToGlobal(position))
+        menu.exec_(self.treeView.viewport().mapToGlobal(position))
 
-    def map_layer_context_menu(self, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
-        self.menu.clear()
-        self.menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(
+    def map_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
+        menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(
             item), enabled=item_data.data.exists)
-        self.menu.addAction('VIEW_LAYER_META',
+        menu.addAction('VIEW_LAYER_META',
                             lambda: self.change_meta(item, item_data, True))
 
         if bool(self.get_warehouse_url(item_data.data.meta)):
-            self.menu.addAction('VIEW_WEB_SOURCE',
+            menu.addAction('VIEW_WEB_SOURCE',
                                 lambda: self.layer_warehouse_view(item_data))
 
-        self.menu.addAction(
+        menu.addAction(
             'BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
-        self.layerMenuOpen.emit(self.menu, item, item_data)
+        self.layerMenuOpen.emit(menu, item, item_data)
 
-    def file_layer_context_menu(self, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
-        self.menu.clear()
-        self.menu.addAction(
+    def file_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
+        menu.addAction(
             'OPEN_FILE', lambda: self.file_system_open(item_data.data.layer_uri))
-        self.menu.addAction(
+        menu.addAction(
             'BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
 
     # Basemap context items
-    def basemap_context_menu(self, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
-        self.menu.clear()
-        self.menu.addAction(
+    def basemap_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
+        menu.addAction(
             'ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(item))
 
     # Folder-level context menu
-    def folder_context_menu(self, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
-        self.menu.clear()
-        self.menu.addAction(
+    def folder_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
+        menu.addAction(
             'ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
-        self.menu.addSeparator()
-        self.menu.addAction(
+        menu.addSeparator()
+        menu.addAction(
             'COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
-        self.menu.addAction(
+        menu.addAction(
             'EXPAND_ALL', lambda: self.toggleSubtree(item, True))
 
     # Some folders don't have the 'ADD_ALL_TO_MAP' functionality enabled
-    def folder_dumb_context_menu(self, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
-        self.menu.clear()
-        self.menu.addAction(
+    def folder_dumb_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
+        menu.addAction(
             'COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
-        self.menu.addAction(
+        menu.addAction(
             'EXPAND_ALL', lambda: self.toggleSubtree(item, True))
 
     # View context items
-    def view_context_menu(self, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
-        self.menu.clear()
-        self.menu.addAction(
+    def view_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
+        menu.addAction(
             'ADD_ALL_TO_MAP', lambda: self.add_view_to_map(item_data))
 
     # Project-level context menu
-    def project_context_menu(self, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
-        self.menu.clear()
-        self.menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(None, False))
-        self.menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(None, True))
-        self.menu.addSeparator()
-        self.menu.addAction('UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
-        self.menu.addSeparator()
-        self.menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(data.project.project_xml_path))
-        self.menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
-        self.menu.addAction('WAREHOUSE_VIEW', lambda: self.project_warehouse_view(data.project), enabled=bool(self.get_warehouse_url(data.project.warehouse_meta)))
-        self.menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
-        self.menu.addSeparator()
-        self.menu.addAction('REFRESH_PROJECT_HIERARCHY', self.reload_tree)
-        self.menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY', enabled=False)
-        self.menu.addSeparator()
-        self.menu.addAction('CLOSE_PROJECT', lambda: self.close_project(data.project), enabled=bool(data.project))
+    def project_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
+        menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(None, False))
+        menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(None, True))
+        menu.addSeparator()
+        menu.addAction('UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
+        menu.addSeparator()
+        menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(data.project.project_xml_path))
+        menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
+        menu.addAction('WAREHOUSE_VIEW', lambda: self.project_warehouse_view(data.project), enabled=bool(self.get_warehouse_url(data.project.warehouse_meta)))
+        menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
+        menu.addSeparator()
+        menu.addAction('REFRESH_PROJECT_HIERARCHY', self.reload_tree)
+        menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY', enabled=False)
+        menu.addSeparator()
+        menu.addAction('CLOSE_PROJECT', lambda: self.close_project(data.project), enabled=bool(data.project))
 
     def project_upload_load(self, project):
         """
