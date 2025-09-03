@@ -32,6 +32,7 @@
         <file alias="layers/Raster.png">../Images/layers/Raster16.png</file>
         <file alias="layers/basemap.svg">../Images/layers/basemap.svg</file>
         <file alias="layers/satellite.svg">../Images/layers/satellite.svg</file>
+        <file alias="layers/tin.svg">../Images/layers/tin.svg</file>
 
         <!-- "Borrowed" from QGIS Core -->
         <file alias="mActionEditCopy.svg">../Images/mActionEditCopy.svg</file>

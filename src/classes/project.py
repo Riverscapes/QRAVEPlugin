@@ -304,6 +304,8 @@ class Project:
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/draft.svg'))
             elif bl_type == 'report':
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/description.svg'))
+            elif bl_type == 'tin':
+                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/tin.svg'))
             else:
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/viewer-icon.png'))
 
@@ -323,7 +325,10 @@ class Project:
                     raise Exception("Error: Unable to get layer name from version")
 
                 layer_uri = os.path.join(self.project_dir, new_proj_el.getparent().getparent().find('Path').text)
-
+            elif bl_type == 'tin':
+                # TIN layers cannot be loaded in QGIS, so just keep them in the tree
+                layer_uri = os.path.join(self.project_dir, new_proj_el.find('Path').text)
+                layer_path = new_proj_el.find('Path')
             else:
                 layer_uri = os.path.join(self.project_dir, new_proj_el.find('Path').text)
                 layer_path = new_proj_el.find('Path')
@@ -336,7 +341,12 @@ class Project:
             map_layer = QRaveMapLayer(curr_label, layer_type, layer_uri, bl_attr, meta, layer_name)
             curr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), Qt.UserRole)
 
-            if not map_layer.exists:
+            if bl_type == 'tin':
+                curr_item_font = curr_item.font()
+                curr_item_font.setItalic(True)
+                curr_item.setFont(curr_item_font)
+                curr_item.setToolTip('TIN files cannot be loaded in QGIS. File: {}'.format(layer_uri))
+            elif not map_layer.exists:
                 settings.msg_bar(
                     'Missing File',
                     'Error finding file with path={}'.format(map_layer.layer_uri),
