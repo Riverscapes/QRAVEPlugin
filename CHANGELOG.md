@@ -1,3 +1,14 @@
+## 1.0.4 ***(September 4, 2025)***
+
+### Fixed
+- Fix for context menu crashes #163
+- Safely handle Topo TIN data types #137
+
+### Added
+- Project Bounds XML Generator #138
+- Add Browse Data Exchange Projects in this Area #180
+
+
 ## 1.0.3 ***(April 04, 2025)***
 
 ### Fixed
