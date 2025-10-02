@@ -99,6 +99,7 @@ class QRAVE:
         # TODO: We are going to let the user set this up in a future iteration
         self.toolbar = self.iface.addToolBar(u'Riverscapes Viewer')
         self.toolbar.setObjectName(u'Riverscapes Viewer')
+        self.menu = QMenu()
 
         self.debugpy = None
         self._enable_debug()
@@ -165,7 +166,7 @@ class QRAVE:
         self.qproject.readProject.connect(self.onProjectLoad)
 
         self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'),
-                                  self.tr(u'Riverscapes Viewer'), self.iface.mainWindow())
+                                  self.tr(u'Show Riverscapes Viewer Panel'), self.iface.mainWindow())
         self.openAction.triggered.connect(self.toggle_widget)
 
         self.openAction.setStatusTip('Toggle the project viewer')
@@ -195,6 +196,8 @@ class QRAVE:
         self.toolsButton.setText('Tools')
 
         m_tools = self.toolsButton.menu()
+        m_tools.setTitle("Tools")
+        m_tools.setIcon(QIcon(':/plugins/qrave_toolbar/tools')) 
         
         self.generate_project_bounds = QAction(
             QIcon(':/plugins/qrave_toolbar/bounds'),
@@ -214,24 +217,12 @@ class QRAVE:
         self.helpButton.setPopupMode(QToolButton.MenuButtonPopup)
 
         m = self.helpButton.menu()
-
-        # TODO: get the local help working
-        # self.helpAction = QAction(
-        #     QIcon(':/plugins/qrave_toolbar/Help.png'),
-        #     self.tr('Help'),
-        #     self.iface.mainWindow()
-        # )
-        # self.helpAction.triggered.connect(partial(showPluginHelp, None, filename=':/plugins/qrave_toolbar/help/build/html/index'))
-        # self.websiteAction = QAction(
-        #     QIcon(':/plugins/qrave_toolbar/RaveAddIn_16px.png'),
-        #     self.tr('Website'),
-        #     self.iface.mainWindow()
-        # )
-        # self.websiteAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://viewer.riverscapes.net/software-help/help-qgis/")))
-
+        m.setTitle("Help")
+        m.setIcon(QIcon(':/plugins/qrave_toolbar/Help.png')) 
+        
         self.helpAction = QAction(
             QIcon(':/plugins/qrave_toolbar/Help.png'),
-            self.tr('Help'),
+            self.tr('Riverscapes Viewer Online Help'),
             self.iface.mainWindow()
         )
         self.helpAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://viewer.riverscapes.net/software-help/help-qgis/")))
@@ -273,12 +264,26 @@ class QRAVE:
         m.addAction(self.about_action)
         self.helpButton.setDefaultAction(self.helpAction)
 
-        self.toolbar.addAction(self.openAction)
-        self.toolbar.addAction(self.openProjectAction)
-        self.toolbar.addAction(self.closeAllProjectsAction)
-        self.toolbar.addAction(self.browseExchangeProjectsAction)
-        self.toolbar.addWidget(self.toolsButton)
-        self.toolbar.addWidget(self.helpButton)
+        # Add your actions to self.menu instead of directly to the toolbar
+        self.menu.addAction(self.openAction)
+        self.menu.addAction(self.openProjectAction)
+        self.menu.addAction(self.closeAllProjectsAction)
+        self.menu.addAction(self.browseExchangeProjectsAction)
+
+        # Add a separator and your tools/help submenus if desired
+        self.menu.addSeparator()
+        self.menu.addMenu(self.toolsButton.menu())
+        self.menu.addMenu(self.helpButton.menu())
+
+        # Create a single QToolButton with icon and text, and set the menu
+        self.viewer_button = QToolButton(self.toolbar)
+        self.viewer_button.setText('  Riverscapes Viewer')
+        self.viewer_button.setIcon(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'))
+        self.viewer_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.viewer_button.setMenu(self.menu)
+        self.viewer_button.setPopupMode(QToolButton.InstantPopup)  # Clicking anywhere opens the menu
+
+        self.toolbar.addWidget(self.viewer_button)
 
         # Do a check to see if the stored version is different than the current version
         lastVersion = self.settings.getValue('pluginVersion')
