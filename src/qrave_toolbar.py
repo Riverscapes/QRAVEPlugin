@@ -168,25 +168,22 @@ class QRAVE:
         self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'),
                                   self.tr(u'Show Riverscapes Viewer Panel'), self.iface.mainWindow())
         self.openAction.triggered.connect(self.toggle_widget)
-
         self.openAction.setStatusTip('Toggle the project viewer')
         self.openAction.setWhatsThis('Toggle the project viewer')
 
         self.openProjectAction = QAction(QIcon(
-            ':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
+            ':/plugins/qrave_toolbar/BrowseFolder.png'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
         self.openProjectAction.triggered.connect(self.projectBrowserDlg)
-
         self.openProjectAction.setStatusTip('Open Riverscapes project')
         self.openProjectAction.setWhatsThis('Open Riverscapes project')
-
+        
         self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/close.png'), self.tr(
             u'Close All Riverscapes Projects'), self.iface.mainWindow())
         self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
-
         self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
         self.closeAllProjectsAction.setWhatsThis('Close all open Riverscapes projects')
 
-        self.browseExchangeProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.tr(u'Browse Data Exchange Projects in this Area'), self.iface.mainWindow())
+        self.browseExchangeProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.tr(u'Browse Data Exchange Projects in Map Area'), self.iface.mainWindow())
         self.browseExchangeProjectsAction.triggered.connect(self.browseExchangeProjects)
 
         self.toolsButton = QToolButton()
@@ -199,34 +196,6 @@ class QRAVE:
         m_tools.setTitle("Tools")
         m_tools.setIcon(QIcon(':/plugins/qrave_toolbar/tools')) 
         
-        self.generate_project_bounds = QAction(
-            QIcon(':/plugins/qrave_toolbar/bounds'),
-            self.tr('Generate Project Bounds'),
-            self.iface.mainWindow()
-        )
-
-        # Open a project bounds dialog
-        self.generate_project_bounds.triggered.connect(
-            lambda: self.show_project_bounds())
-
-        m_tools.addAction(self.generate_project_bounds)
-
-        self.helpButton = QToolButton()
-        self.helpButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
-        self.helpButton.setMenu(QMenu())
-        self.helpButton.setPopupMode(QToolButton.MenuButtonPopup)
-
-        m = self.helpButton.menu()
-        m.setTitle("Help")
-        m.setIcon(QIcon(':/plugins/qrave_toolbar/Help.png')) 
-        
-        self.helpAction = QAction(
-            QIcon(':/plugins/qrave_toolbar/Help.png'),
-            self.tr('Riverscapes Viewer Online Help'),
-            self.iface.mainWindow()
-        )
-        self.helpAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://viewer.riverscapes.net/software-help/help-qgis/")))
-
         self.raveOptionsAction = QAction(
             QIcon(':/plugins/qrave_toolbar/Options.png'),
             self.tr('Settings'),
@@ -244,10 +213,43 @@ class QRAVE:
 
         self.find_resources_action = QAction(
             QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'),
-            self.tr('Find Resources folder'),
+            self.tr('Open Resources folder'),
             self.iface.mainWindow()
         )
         self.find_resources_action.triggered.connect(self.locateResources)
+
+        self.generate_project_bounds = QAction(
+            QIcon(':/plugins/qrave_toolbar/bounds'),
+            self.tr('Generate Project Bounds'),
+            self.iface.mainWindow()
+        )
+
+        # Open a project bounds dialog
+        self.generate_project_bounds.triggered.connect(
+            lambda: self.show_project_bounds())
+
+        m_tools.addAction(self.net_sync_action)
+        m_tools.addAction(self.find_resources_action)
+        m_tools.addSeparator()
+        m_tools.addAction(self.generate_project_bounds)
+        m_tools.addSeparator()
+        m_tools.addAction(self.raveOptionsAction)
+
+        self.helpButton = QToolButton()
+        self.helpButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.helpButton.setMenu(QMenu())
+        self.helpButton.setPopupMode(QToolButton.MenuButtonPopup)
+
+        m = self.helpButton.menu()
+        m.setTitle("Help")
+        m.setIcon(QIcon(':/plugins/qrave_toolbar/Help.png')) 
+        
+        self.helpAction = QAction(
+            QIcon(':/plugins/qrave_toolbar/Help.png'),
+            self.tr('Riverscapes Viewer Online Help'),
+            self.iface.mainWindow()
+        )
+        self.helpAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://viewer.riverscapes.net/software-help/help-qgis/")))
 
         self.about_action = QAction(
             QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'),
@@ -257,21 +259,18 @@ class QRAVE:
         self.about_action.triggered.connect(self.about_load)
 
         m.addAction(self.helpAction)
-        # m.addAction(self.websiteAction)
-        m.addAction(self.raveOptionsAction)
-        m.addAction(self.net_sync_action)
-        m.addAction(self.find_resources_action)
         m.addAction(self.about_action)
         self.helpButton.setDefaultAction(self.helpAction)
 
         # Add your actions to self.menu instead of directly to the toolbar
-        self.menu.addAction(self.openAction)
+
         self.menu.addAction(self.openProjectAction)
         self.menu.addAction(self.closeAllProjectsAction)
-        self.menu.addAction(self.browseExchangeProjectsAction)
 
         # Add a separator and your tools/help submenus if desired
         self.menu.addSeparator()
+        self.menu.addAction(self.browseExchangeProjectsAction)
+        self.menu.addAction(self.openAction)
         self.menu.addMenu(self.toolsButton.menu())
         self.menu.addMenu(self.helpButton.menu())
 
