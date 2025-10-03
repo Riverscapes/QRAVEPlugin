@@ -1,3 +1,9 @@
+## 1.0.5 ***(October 3, 2025)***
+
+### Changed
+- Single drop down toolbar menu for viewer #186
+
+
 ## 1.0.4 ***(September 4, 2025)***
 
 ### Fixed
