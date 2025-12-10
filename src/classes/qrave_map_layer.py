@@ -278,8 +278,10 @@ class QRaveMapLayer():
                 transparency = 0
 
                 try:
-                    if 'transparency' in map_layer.bl_attr:
-                        transparency = int(map_layer.bl_attr['transparency'])
+                    if map_layer.bl_attr is not None:
+                        transparency = int(map_layer.bl_attr.get('transparency', 0))
+                    else:
+                        transparency = map_layer.transparency
                 except Exception as e:
                     settings.log('Error interpretting error in business logic: {}'.format(e), Qgis.Warning)
 
