@@ -6,8 +6,8 @@
         <file alias="NewProject.png">../Images/add.svg</file>
         <file alias="open.svg">../Images/open.svg</file>
         <file alias="Options.png">../Images/settings.svg</file>
-        <file alias="viewer-icon.svg">../Images/viewer-icon.svg</file>
-        <file alias="data-exchange-icon.svg">../Images/data-exchange-icon.svg</file>
+        <file alias="viewer-icon.svg">../icon.svg</file>
+        <file alias="data-exchange-icon.svg">../Images/DataExchange.svg</file>
         <file alias="bounds">../Images/bounds.svg</file>
         <file alias="tools">../Images/tools.svg</file>
         

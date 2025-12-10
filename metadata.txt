@@ -27,7 +27,7 @@ tags=python,riverscapes,riverscapes_viewer
 
 homepage=https://viewer.riverscapes.net
 category=Plugins
-icon=icon.png
+icon=icon.svg
 
 # experimental flag
 experimental=False
