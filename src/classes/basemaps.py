@@ -30,6 +30,7 @@ class QRaveBaseMap():
         self.tile_type = tile_type
         self.settings = Settings()
         self.layer_url = layer_url.replace('?', '')
+        self.default_wms_format = "image/png"
 
         self.tm = QgsApplication.taskManager()
         self.reset()
@@ -44,51 +45,101 @@ class QRaveBaseMap():
             loading_layer.setEnabled(False)
             self.parent.appendRow(loading_layer)
 
-    def _parse_wms_layer(self, root_el, parent: QStandardItem):
+    @staticmethod
+    def _local_name(tag: str) -> str:
+        """Return the local (namespace-stripped) name for an XML tag."""
+        return tag.split('}')[-1] if tag else tag
 
+    def _child_by_localname(self, el, names):
+        """Return the first direct child whose local-name matches any in names."""
+        if el is None:
+            return None
+        if isinstance(names, str):
+            names = (names,)
+        for child in el:
+            if self._local_name(child.tag) in names:
+                return child
+        return None
+
+    def _children_by_localname(self, el, name):
+        """Yield direct children with the requested local-name."""
+        if el is None:
+            return
+        for child in el:
+            if self._local_name(child.tag) == name:
+                yield child
+
+    def _extract_srs(self, el, fallback: str | None) -> str:
+        """Return the first SRS/CRS defined on this element or inherit the fallback."""
+        srs_el = self._child_by_localname(el, ('SRS', 'CRS'))
+        if srs_el is not None and srs_el.text:
+            first = srs_el.text.split()
+            if first:
+                return first[0]
+        return fallback or "unknown"
+
+    def _parse_wms_layer(self, root_el, parent: QStandardItem, inherited_srs: str | None = None):
         try:
-            title = root_el.find('Title').text
-            name_fnd = root_el.find('Name')
-            name = name_fnd.text if name_fnd is not None else title
+            title_el = self._child_by_localname(root_el, 'Title')
+            title = title_el.text.strip() if title_el is not None and title_el.text else "Untitled Layer"
 
-            srs = root_el.find('SRS').text.split(' ')[0]
-            lyr_format = root_el.find('Style/LegendURL/Format').text
+            name_el = self._child_by_localname(root_el, 'Name')
+            name = name_el.text.strip() if name_el is not None and name_el.text else title
 
-            abstract_fnd = root_el.find('Abstract')
-            abstract = abstract_fnd.text if abstract_fnd is not None else "No abstract provided"
+            srs = self._extract_srs(root_el, inherited_srs)
 
-            urlWithParams = "crs={}&format={}&layers={}&styles&url={}".format(srs, lyr_format, name, self.layer_url)
+            format_el = self._child_by_localname(root_el, 'Style')
+            legend_format_el = None
+            if format_el is not None:
+                legend_url_el = self._child_by_localname(format_el, 'LegendURL')
+                if legend_url_el is not None:
+                    legend_format_el = self._child_by_localname(legend_url_el, 'Format')
+            lyr_format = (legend_format_el.text.strip()
+                          if legend_format_el is not None and legend_format_el.text
+                          else self.default_wms_format)
 
-            lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/layers/Raster.png'), title)
+            abstract_el = self._child_by_localname(root_el, 'Abstract')
+            abstract = abstract_el.text.strip() if abstract_el is not None and abstract_el.text else "No abstract provided"
 
-            extra_meta = {
-                "srs": srs,
-                "name": name,
-                "lyr_format": lyr_format
-            }
+            url_with_params = f"crs={srs}&format={lyr_format}&layers={name}&styles&url={self.layer_url}"
+
+            has_sublayers = any(True for _ in self._children_by_localname(root_el, 'Layer'))
+            icon_path = ':/plugins/qrave_toolbar/BrowseFolder.png' if has_sublayers else ':/plugins/qrave_toolbar/layers/Raster.png'
+            lyr_item = QStandardItem(QIcon(icon_path), title)
+
+            extra_meta = {"srs": srs, "name": name, "lyr_format": lyr_format}
             lyr_item.setData(
                 ProjectTreeData(
                     QRaveTreeTypes.LEAF,
                     None,
-                    QRaveMapLayer(title, QRaveMapLayer.LayerTypes.WEBTILE, tile_type=self.tile_type, layer_uri=urlWithParams, meta=extra_meta)
+                    QRaveMapLayer(
+                        title,
+                        QRaveMapLayer.LayerTypes.WEBTILE,
+                        tile_type=self.tile_type,
+                        layer_uri=url_with_params,
+                        meta=extra_meta
+                    )
                 ),
-                Qt.UserRole)
+                Qt.UserRole
+            )
             lyr_item.setToolTip(wrap_by_word(abstract, 20))
 
         except AttributeError as e:
             sourceline = root_el.sourceline if root_el is not None else None
-            # Something went wrong. This layer is not renderable.
             self.settings.log(
-                'Error parsing basemap layer Exception: {}, Line: {}, Url: {}'.format(e, sourceline, self.layer_url + REQUEST_ARGS),
+                'Error parsing basemap layer Exception: {}, Line: {}, Url: {}'.format(
+                    e, sourceline, self.layer_url + REQUEST_ARGS),
                 Qgis.Warning
             )
-            lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), root_el.find('Title').text)
+            title_fallback_el = self._child_by_localname(root_el, 'Title')
+            fallback_title = title_fallback_el.text.strip() if title_fallback_el is not None and title_fallback_el.text else "Unnamed Layer"
+            lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), fallback_title)
             lyr_item.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_SUB_FOLDER), Qt.UserRole)
 
         parent.appendRow(lyr_item)
 
-        for sublyr in root_el.findall('Layer'):
-            self._parse_wms_layer(sublyr, lyr_item)
+        for sublyr in self._children_by_localname(root_el, 'Layer'):
+            self._parse_wms_layer(sublyr, lyr_item, srs)
 
     def _wms_fetch_done(self, exception, result=None):
         """This is called when doSomething is finished.
@@ -100,7 +151,27 @@ class QRaveBaseMap():
             else:
                 try:
                     self.parent.removeRows(0, self.parent.rowCount())
-                    for lyr in result.findall('Capability/Layer'):
+                    capability_el = self._child_by_localname(result, 'Capability')
+                    if capability_el is None:
+                        raise ValueError("WMS capabilities missing <Capability> section")
+
+                    request_el = self._child_by_localname(capability_el, 'Request')
+                    getmap_el = self._child_by_localname(request_el, 'GetMap') if request_el is not None else None
+                    candidate_formats = []
+                    if getmap_el is not None:
+                        for fmt_el in self._children_by_localname(getmap_el, 'Format'):
+                            if fmt_el.text:
+                                text = fmt_el.text.strip()
+                                if text:
+                                    candidate_formats.append(text)
+                    for fmt in candidate_formats:
+                        if '/' in fmt:  # basic MIME check
+                            self.default_wms_format = fmt
+                            break
+                    else:
+                        self.default_wms_format = "image/png"
+
+                    for lyr in self._children_by_localname(capability_el, 'Layer'):
                         self._parse_wms_layer(lyr, self.parent)
 
                 except Exception as e:
@@ -117,7 +188,19 @@ class QRaveBaseMap():
 
         def _wms_fetch(task):
             result = requestFetch(self.layer_url + REQUEST_ARGS)
-            return lxml.etree.fromstring(result)
+            if isinstance(result, bytes):
+                payload = result
+            else:
+                payload = result.encode('utf-8', errors='ignore')
+            try:
+                return lxml.etree.fromstring(payload)
+            except lxml.etree.XMLSyntaxError as exc:
+                preview = payload.decode('utf-8', errors='ignore')[:400]
+                raise ValueError(
+                    f"WMS capabilities from {self.layer_url} are not valid XML: "
+                    f"{exc.msg} (line {exc.lineno}, column {exc.position[1]}). "
+                    f"Preview: {preview}"
+                )
 
         if self.tile_type == 'wms':
             self.settings.log('Fetching WMS Capabilities: {}'.format(self.layer_url), Qgis.Info)
