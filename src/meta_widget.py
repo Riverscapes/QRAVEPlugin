@@ -24,6 +24,11 @@ class MetaType:
 
 
 class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
+    def clear_and_hide(self):
+        """Clear the metadata panel and hide it."""
+        self.model.clear()
+        self.setWindowTitle("Riverscapes Metadata")
+        self.hide()
 
     def __init__(self, parent=None):
         """Constructor."""
@@ -54,7 +59,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
 
         if meta_type == MetaType.PROJECT:
             self.treeView.setHeaderHidden(False)
-            self.setWindowTitle('Project MetaData: {}'.format(label))
+            self.setWindowTitle('Project Metadata: {}'.format(label))
             self.treeView.setEnabled(True)
             if meta is not None and len(meta.keys()) > 0:
                 if 'project' in meta and len(meta['project'].keys()) > 0:
@@ -80,7 +85,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
             self.treeView.setEnabled(False)
             self.model.setColumnCount(1)
             self.model.setHorizontalHeaderLabels(['Meta Name'])
-            no_item = QStandardItem('Folders have no MetaData')
+            no_item = QStandardItem('Folders have no Metadata')
             no_item.setTextAlignment(Qt.AlignCenter)
             no_f = no_item.font()
             no_f.setItalic(True)
@@ -88,7 +93,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
             root_item.appendRow(no_item)
 
         elif meta_type == MetaType.LAYER:
-            self.setWindowTitle('Layer MetaData: {}'.format(label))
+            self.setWindowTitle('Layer Metadata: {}'.format(label))
             self.treeView.setEnabled(True)
             self.treeView.setHeaderHidden(False)
             if meta is not None and len(meta.keys()) > 0:
@@ -99,7 +104,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
                 self.treeView.setEnabled(False)
                 self.model.setColumnCount(1)
                 self.model.setHorizontalHeaderLabels(['Meta Name'])
-                no_item = QStandardItem('This layer has no MetaData')
+                no_item = QStandardItem('This layer has no Metadata')
                 no_item.setTextAlignment(Qt.AlignCenter)
                 no_f = no_item.font()
                 no_f.setItalic(True)
@@ -109,7 +114,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
             self.treeView.setHeaderHidden(True)
             self.treeView.setEnabled(False)
             self.model.setColumnCount(1)
-            self.setWindowTitle('Riverscapes MetaData: {}'.format(label))
+            self.setWindowTitle('Riverscapes Metadata: {}'.format(label))
             no_item = QStandardItem('This item cannot have metadata')
             no_item.setTextAlignment(Qt.AlignCenter)
             no_f = no_item.font()
@@ -133,7 +138,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
         val_item.setData(meta_type, Qt.UserRole)
 
         # Getting ready for custom meta types
-        if (meta_type == 'url' or meta_type == 'image' or meta_type == 'video') and value.startswith('http'):
+        if (meta_type == 'url' or meta_type == 'image' or meta_type == 'video') and value is not None and value.startswith('http'):
             val_item.setData(QBrush(Qt.blue), Qt.ForegroundRole)
         # val_item.setUnderlineStyle(QTextCharFormat.SingleUnderline)
 
