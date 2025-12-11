@@ -133,7 +133,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
         val_item.setData(meta_type, Qt.UserRole)
 
         # Getting ready for custom meta types
-        if meta_type == 'url' or meta_type == 'image' or meta_type == 'video' and value.startswith('http'):
+        if (meta_type == 'url' or meta_type == 'image' or meta_type == 'video') and value.startswith('http'):
             val_item.setData(QBrush(Qt.blue), Qt.ForegroundRole)
         # val_item.setUnderlineStyle(QTextCharFormat.SingleUnderline)
 
@@ -151,10 +151,10 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
         text = item.text()
 
         if meta_type is not None and text is not None:
-            if meta_type == 'url' or meta_type == 'image' or meta_type == 'video' and text.startswith('http'):
+            if (meta_type == 'url' or meta_type == 'image' or meta_type == 'video') and text.startswith('http'):
                 qm = QMessageBox
-                qm.question(self, '', "Visit in browser?", qm.Yes | qm.No)
-                if qm.Yes:
+                result = qm.question(self, 'Riverscapes Viewer', "Visit in browser?", qm.Yes | qm.No)
+                if result == qm.Yes:
                     QDesktopServices.openUrl(QUrl(text))
         else:
             self.copy(text)
