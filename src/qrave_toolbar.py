@@ -452,6 +452,8 @@ class QRAVE:
                 response = msgBox.exec_()
                 if response == QMessageBox.Yes:
                     self.dockwidget.close_all()
+                    if self.metawidget is not None:
+                        self.metawidget.clear_and_hide()
 
     def show_project_bounds(self):
         """
