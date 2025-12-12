@@ -34,7 +34,7 @@ class AboutDialog(QDialog):
         )
 
     def setupUi(self):
-        self.resize(600, 300)
+        self.resize(550, 200)
         self.verticalLayout_3 = QVBoxLayout(self)
         self.horizontalLayout = QHBoxLayout()
         # Logo
@@ -101,3 +101,6 @@ class AboutDialog(QDialog):
         self.closeButton.setOrientation(Qt.Horizontal)
         self.closeButton.setStandardButtons(QDialogButtonBox.Close)
         self.verticalLayout_3.addWidget(self.closeButton)
+
+        # Connect the rejected signal of the close button to the reject slot of the dialog
+        self.closeButton.rejected.connect(self.reject)
