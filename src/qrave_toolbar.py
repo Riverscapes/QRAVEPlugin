@@ -494,7 +494,7 @@ class QRAVE:
         dialog = OptionsDialog()
         if self.dockwidget:
             dialog.dataChange.connect(self.dockwidget.dataChange)
-            dialog.dataChange.connect(self.redock_widget)
+            dialog.dataChange.connect(self.redock_widgets)
         dialog.exec_()
 
     def about_load(self):
@@ -508,17 +508,27 @@ class QRAVE:
         dialog.acknowledgements.setText(self.acknowledgements)
         dialog.exec_()
 
-    def redock_widget(self):
+    def redock_widgets(self):
         """Redock the widget according to the saved settings.
         If the widget is hidden, set the new dock location but do not show it.
         """
+        dock_location = Qt.LeftDockWidgetArea if self.settings.getValue('dockLocation') == "left" else Qt.RightDockWidgetArea
+
+        # Redock main dockwidget
         if self.dockwidget is not None:
             was_visible = not self.dockwidget.isHidden()
             self.iface.removeDockWidget(self.dockwidget)
-            dock_location = Qt.LeftDockWidgetArea if self.settings.getValue('dockLocation') == "left" else Qt.RightDockWidgetArea
             self.iface.addDockWidget(dock_location, self.dockwidget)
             if not was_visible:
                 self.dockwidget.hide()
+
+        # Redock metadata widget
+        if self.metawidget is not None:
+            was_visible = not self.metawidget.isHidden()
+            self.iface.removeDockWidget(self.metawidget)
+            self.iface.addDockWidget(dock_location, self.metawidget)
+            if not was_visible:
+                self.metawidget.hide()
 
     def browseExchangeProjects(self):
 
