@@ -171,7 +171,7 @@ class QRaveMapLayer():
                     # Report to the terminal if we couldn't find a qml file to use
                     if chosen_qml is None:
                         settings.log(
-                            "Missing Symbolog: Could not find a valid .qml symbology file for layer {}. Search paths: \n[\n{}]".format(layer_uri, '   ,\n'.join(hierarchy)),
+                            "Missing Symbolog: Could not find a valid .qml symbology file for layer {}. Search paths: \n[\n{}]".format(map_layer.layer_uri, '   ,\n'.join(hierarchy)),
                             level=Qgis.Warning
                         )
 
