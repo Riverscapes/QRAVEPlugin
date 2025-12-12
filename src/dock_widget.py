@@ -342,7 +342,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if not self.treeView.isExpanded(idx) and not collapsed:
             self.treeView.setExpanded(idx, True)
 
-    def restore_expaned_state(self, idx: QModelIndex = None, states: List(dict) = None):
+    def restore_expaned_state(self, idx: QModelIndex = None, states: list = None):
         """Expand all the children of a QTreeView node. Do it recursively
         TODO: Recursion might not be the best for large trees here.
 
@@ -508,17 +508,22 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             QDesktopServices.openUrl(QUrl(url))
 
     def close_all(self):
-        closed_count = 0
-        all_projects = self._get_projects()
-        initial_count = len(all_projects)
-        while len(all_projects) > 0 and closed_count < initial_count:
+        try:
+            closed_count = 0
             all_projects = self._get_projects()
-            project = all_projects[-1]
-            try:
-                self.close_project(project)
-                closed_count += 1
-            except Exception as e:
-                self.settings.log(f'Error closing project: {e}', Qgis.Warning)
+            initial_count = len(all_projects)
+            while len(all_projects) > 0 and closed_count < initial_count:
+                all_projects = self._get_projects()
+                if not all_projects:
+                    break
+                project = all_projects[-1]
+                try:
+                    self.close_project(project)
+                    closed_count += 1
+                except Exception as e:
+                    self.settings.log(f'Error closing project: {e}', Qgis.Warning)
+        except Exception as e:
+            self.settings.log(f'Error closing all projects: {e}', Qgis.Warning)
 
     def close_project(self, project: Project):
         """ Close the project
