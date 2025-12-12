@@ -42,11 +42,11 @@ class ContextMenu(QMenu):
             ':/plugins/qrave_toolbar/RaveAddIn_16px.png'
         ),
         'VIEW_LAYER_META': (
-            'View Layer MetaData',
+            'View Layer Metadata',
             ':/plugins/qrave_toolbar/metadata.png'
         ),
         'VIEW_PROJECT_META': (
-            'View Project MetaData',
+            'View Project Metadata',
             ':/plugins/qrave_toolbar/metadata.png'
         ),
         'REFRESH_PROJECT_HIERARCHY': (
