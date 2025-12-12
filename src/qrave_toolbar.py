@@ -316,8 +316,15 @@ class QRAVE:
             self.dockwidget.hide()
 
         # disconnects
-        self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
-        self.qproject.readProject.disconnect(self.onProjectLoad)
+        try:
+            self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
+        except TypeError:
+            pass  # Signal was not connected
+
+        try:
+            self.qproject.readProject.disconnect(self.onProjectLoad)
+        except TypeError:
+            pass  # Signal was not connected
 
         # remove this statement if dockwidget is to remain
         self.pluginIsActive = False
@@ -351,10 +358,11 @@ class QRAVE:
 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
+            dock_location  = Qt.LeftDockWidgetArea if self.settings.getValue('dockLocation') == "left" else Qt.RightDockWidgetArea
 
             # show the dockwidget
-            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockwidget)
-            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.metawidget)
+            self.iface.addDockWidget(dock_location, self.dockwidget)
+            self.iface.addDockWidget(dock_location, self.metawidget)
             self.dockwidget.show()
 
         else:
@@ -486,6 +494,7 @@ class QRAVE:
         dialog = OptionsDialog()
         if self.dockwidget:
             dialog.dataChange.connect(self.dockwidget.dataChange)
+            dialog.dataChange.connect(self.redock_widget)
         dialog.exec_()
 
     def about_load(self):
@@ -498,6 +507,18 @@ class QRAVE:
 
         dialog.acknowledgements.setText(self.acknowledgements)
         dialog.exec_()
+
+    def redock_widget(self):
+        """Redock the widget according to the saved settings.
+        If the widget is hidden, set the new dock location but do not show it.
+        """
+        if self.dockwidget is not None:
+            was_visible = not self.dockwidget.isHidden()
+            self.iface.removeDockWidget(self.dockwidget)
+            dock_location = Qt.LeftDockWidgetArea if self.settings.getValue('dockLocation') == "left" else Qt.RightDockWidgetArea
+            self.iface.addDockWidget(dock_location, self.dockwidget)
+            if not was_visible:
+                self.dockwidget.hide()
 
     def browseExchangeProjects(self):
 
