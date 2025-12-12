@@ -303,6 +303,7 @@ class QRAVE:
             'enabled'
         )
         if type_conversion_ok and qrave_enabled == '1':
+            self.dockwidget.fix_broken_project_paths()
             self.toggle_widget(forceOn=True)
             if self.dockwidget is not None:
                 self.dockwidget.reload_tree()

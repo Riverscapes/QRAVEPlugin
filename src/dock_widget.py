@@ -27,7 +27,7 @@ import os
 import json
 
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl
-from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction
+from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction, QFileDialog, QMessageBox
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices
 from qgis.core import Qgis, QgsRasterLayer, QgsVectorLayer, QgsProject
 from qgis.PyQt import uic
@@ -84,6 +84,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.treeView.setModel(self.model)
 
         self.dataChange.connect(self.reload_tree)
+        # self.fix_broken_project_paths()
         self.reload_tree()
 
     def expand_tree_item(self, idx: QModelIndex):
@@ -198,13 +199,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     self.model.indexFromItem(self.basemaps.regions[region]))
 
     def get_project_settings(self):
-        qrave_projects = []
+        """Return the list of projects from settings, no user interaction."""
         try:
             qrave_projects_raw, type_conversion_ok = self.qproject.readEntry(
                 CONSTANTS['settingsCategory'],
                 'qrave_projects'
             )
-
             if type_conversion_ok is False:
                 qrave_projects = []
             else:
@@ -214,9 +214,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     qrave_projects = []
 
         except Exception as e:
-            self.settings.log(
-                'Error loading project settings: {}'.format(e), Qgis.Warning)
-
+            self.settings.log(f'Error loading project settings: {e}', Qgis.Warning)
+            return []
+        
         qgs_path = self.qproject.absoluteFilePath()
         if os.path.isfile(qgs_path):
             qgs_path_dir = os.path.dirname(qgs_path)
@@ -225,6 +225,29 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 xml_path, qgs_path_dir)) for name, basename, xml_path in qrave_projects]
 
         return qrave_projects
+
+    def fix_broken_project_paths(self):
+        """Prompt user to fix broken project paths, update settings if fixed."""
+        qrave_projects = self.get_project_settings()
+        clean_projects = []
+        for name, basename, xml_path in qrave_projects:
+            if not os.path.isfile(xml_path):
+                result = QMessageBox.question(
+                    self,
+                    "Locate Missing Project",
+                    f"The Riverscapes project file for '{name}' could not be found at the expected location:\n\n{xml_path}\n\nWould you like to locate it?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                if result != QMessageBox.Yes:
+                    continue
+                new_path, _ = QFileDialog.getOpenFileName(
+                    self, f"Locate missing project file for '{name}'", "", "Riverscapes Project (*.xml);;All Files (*)")
+                if new_path:
+                    clean_projects.append((name, basename, new_path))
+            else:
+                clean_projects.append((name, basename, xml_path))
+        self.set_project_settings(clean_projects)
 
     @pyqtSlot()
     def project_homePathChanged(self):
