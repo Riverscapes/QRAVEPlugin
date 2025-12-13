@@ -20,6 +20,15 @@ class Ui_QRAVEMetaWidgetBase(object):
         self.verticalLayout.setContentsMargins(0, 4, 0, 4)
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName("verticalLayout")
+
+        # Add a read-only QTextEdit for the description above the tree view
+        self.descriptionBox = QtWidgets.QTextEdit(self.dockWidgetContents)
+        self.descriptionBox.setReadOnly(True)
+        self.descriptionBox.setMinimumHeight(60)  # About 2 lines of text
+        self.descriptionBox.setMaximumHeight(60)  # Prevents it from growing too tall
+        self.descriptionBox.setObjectName("descriptionBox")
+        self.verticalLayout.addWidget(self.descriptionBox)
+
         self.treeView = QtWidgets.QTreeView(self.dockWidgetContents)
         self.treeView.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.treeView.setProperty("showDropIndicator", False)

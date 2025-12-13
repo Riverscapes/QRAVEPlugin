@@ -8,12 +8,10 @@ import json
 from qgis.PyQt import uic
 from qgis.core import Qgis
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices, QGuiApplication, QBrush
-from qgis.PyQt.QtWidgets import QDockWidget, QMenu, QMessageBox
+from qgis.PyQt.QtWidgets import QDockWidget, QMenu, QMessageBox, QWidget, QTextEdit, QVBoxLayout, QTreeView, QAbstractItemView
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl
 
 from .classes.settings import Settings, CONSTANTS
-
-from .ui.meta_widget import Ui_QRAVEMetaWidgetBase
 
 
 class MetaType:
@@ -23,17 +21,12 @@ class MetaType:
     NONE = 'none'
 
 
-class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
-    def clear_and_hide(self):
-        """Clear the metadata panel and hide it."""
-        self.model.clear()
-        self.setWindowTitle("Riverscapes Metadata")
-        self.hide()
+class QRAVEMetaWidget(QDockWidget):
 
     def __init__(self, parent=None):
         """Constructor."""
         super(QRAVEMetaWidget, self).__init__(parent)
-        self.setupUi(self)
+        self.setupUi()
 
         self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
         self.treeView.customContextMenuRequested.connect(self.open_menu)
@@ -43,20 +36,28 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
         self.model = QStandardItemModel()
         self.treeView.setModel(self.model)
         self.meta = None
+        self.description = None
         self.menu = QMenu()
 
         # Initialize our classes
         self.hide()
 
-    @pyqtSlot(str, str, dict, bool)
-    def load(self, label: str, meta_type: str, meta: dict, show: bool = False):
+    @pyqtSlot(str, str, dict, str, bool)
+    def load(self, label: str, meta_type: str, meta: dict, description: str, show: bool = False):
         # re-initialize our model
         self.model.clear()
         self.meta = meta
+        self.description = description
         root_item = self.model.invisibleRootItem()
         self.model.setColumnCount(2)
         self.model.setHorizontalHeaderLabels(['Meta Name', 'Meta Value'])
 
+        if description is not None and len(description) > 0:
+            self.descriptionBox.setPlainText(description)
+            self.descriptionBox.show()
+        else:
+            self.descriptionBox.setPlainText('No description available.')
+            self.descriptionBox.show()
         if meta_type == MetaType.PROJECT:
             self.treeView.setHeaderHidden(False)
             self.setWindowTitle('Project Metadata: {}'.format(label))
@@ -81,6 +82,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
 
         elif meta_type == MetaType.FOLDER:
             self.setWindowTitle('Folder: {}'.format(label))
+            self.descriptionBox.hide()
             self.treeView.setHeaderHidden(True)
             self.treeView.setEnabled(False)
             self.model.setColumnCount(1)
@@ -111,6 +113,7 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
                 no_item.setFont(no_f)
                 root_item.appendRow(no_item)
         elif meta_type == MetaType.NONE:
+            self.descriptionBox.hide()
             self.treeView.setHeaderHidden(True)
             self.treeView.setEnabled(False)
             self.model.setColumnCount(1)
@@ -195,3 +198,34 @@ class QRAVEMetaWidget(QDockWidget, Ui_QRAVEMetaWidgetBase):
         cb = QGuiApplication.clipboard()
         cb.clear(mode=cb.Clipboard)
         cb.setText(data, mode=cb.Clipboard)
+
+    def clear_and_hide(self):
+        """Clear the metadata panel and hide it."""
+        self.model.clear()
+        self.setWindowTitle("Riverscapes Metadata")
+        self.hide()
+
+    def setupUi(self):
+        
+        self.resize(555, 559)
+        self.dockWidgetContents = QWidget()
+        self.verticalLayout = QVBoxLayout(self.dockWidgetContents)
+        self.verticalLayout.setContentsMargins(0, 4, 0, 4)
+        self.verticalLayout.setSpacing(0)
+
+        # Add a read-only QTextEdit for the description above the tree view
+        self.descriptionBox = QTextEdit(self.dockWidgetContents)
+        self.descriptionBox.setReadOnly(True)
+        self.descriptionBox.setMinimumHeight(60)  # About 2 lines of text
+        self.descriptionBox.setMaximumHeight(60)  # Prevents it from growing too tall
+        self.verticalLayout.addWidget(self.descriptionBox)
+
+        self.treeView = QTreeView(self.dockWidgetContents)
+        self.treeView.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.treeView.setProperty("showDropIndicator", False)
+        self.treeView.setAlternatingRowColors(True)
+        self.treeView.setIndentation(0)
+        self.treeView.setSortingEnabled(False)
+        self.treeView.setHeaderHidden(False)
+        self.verticalLayout.addWidget(self.treeView)
+        self.setWidget(self.dockWidgetContents)

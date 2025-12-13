@@ -30,6 +30,7 @@ class Project:
     def __init__(self, project_xml_path: str):
         self.exists = False
         self.meta = None
+        self.description = None
         self.warehouse_meta = None
         self.default_view = None
         self.views = {}
@@ -88,6 +89,7 @@ class Project:
             self.project = lxml.etree.parse(self.project_xml_path).getroot()
 
             self.meta = self.extract_meta(self.project.findall('MetaData/Meta'))
+            self.description = self.project.find('Description').text if self.project.find('Description') is not None else None
             if self.version == 'V1':
                 self.warehouse_meta = self.extract_meta(self.project.findall('Warehouse/Meta'))
             else:
@@ -311,34 +313,41 @@ class Project:
 
             # Couldn't find this node. Ignore it.
             meta = self.extract_meta(new_proj_el.findall('MetaData/Meta'))
-            new_proj_el.find('Path')
 
             layer_name = None
 
             # If this is a geopackage it's special
             if new_proj_el.getparent().tag == 'Layers':
                 if self.version == "V1":
-                    layer_name = new_proj_el.find('Path').text
+                    path_el = new_proj_el.find('Path')
+                    layer_name = path_el.text if path_el is not None else None
                 elif self.version == "V2":
                     layer_name = new_proj_el.attrib['lyrName']
                 else:
                     raise Exception("Error: Unable to get layer name from version")
 
-                layer_uri = os.path.join(self.project_dir, new_proj_el.getparent().getparent().find('Path').text)
+                parent_path_el = new_proj_el.getparent().getparent().find('Path')
+                parent_path = parent_path_el.text if parent_path_el is not None else None
+                layer_uri = os.path.join(self.project_dir, parent_path) if parent_path else None
             elif bl_type == 'tin':
                 # TIN layers cannot be loaded in QGIS, so just keep them in the tree
-                layer_uri = os.path.join(self.project_dir, new_proj_el.find('Path').text)
-                layer_path = new_proj_el.find('Path')
+                path_el = new_proj_el.find('Path')
+                path_text = path_el.text if path_el is not None else None
+                layer_uri = os.path.join(self.project_dir, path_text) if path_text else None
             else:
-                layer_uri = os.path.join(self.project_dir, new_proj_el.find('Path').text)
-                layer_path = new_proj_el.find('Path')
-                if layer_path is None:
+                path_el = new_proj_el.find('Path')
+                path_text = path_el.text if path_el is not None else None
+                layer_uri = os.path.join(self.project_dir, path_text) if path_text else None
+                if path_text is None:
                     self.settings.log("Could not find <Path> element on line {} of file: {}".format(new_proj_el.sourceline, self.business_logic_path), Qgis.Critical)
                     return
 
             layer_type = bl_attr['type'] if 'type' in bl_attr else 'unknown'
 
-            map_layer = QRaveMapLayer(curr_label, layer_type, layer_uri, bl_attr, meta, layer_name)
+            desc_el = new_proj_el.find('Description')
+            layer_description = desc_el.text.strip() if desc_el is not None and desc_el.text else None
+
+            map_layer = QRaveMapLayer(curr_label, layer_type, layer_uri, bl_attr, meta, layer_name, description=layer_description)
             curr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), Qt.UserRole)
 
             if bl_type == 'tin':
