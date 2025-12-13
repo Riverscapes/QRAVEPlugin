@@ -54,7 +54,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     closingPlugin = pyqtSignal()
     dataChange = pyqtSignal()
     showMeta = pyqtSignal()
-    metaChange = pyqtSignal(str, str, dict, bool)
+    metaChange = pyqtSignal(str, str, dict, str, bool)
 
     def __init__(self, parent=None):
         """Constructor."""
@@ -452,16 +452,19 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         data = item_data.data
         if isinstance(data, QRaveMapLayer):
             meta = data.meta if data.meta is not None else {}
-            self.metaChange.emit(item.text(), MetaType.LAYER, meta, show)
+            description = data.description 
+            self.metaChange.emit(item.text(), MetaType.LAYER, meta, description, show)
 
         elif isinstance(data, QRaveBaseMap):
-            self.metaChange.emit(item.text(), MetaType.NONE, {}, show)
+            # description = data.description
+            self.metaChange.emit(item.text(), MetaType.NONE, {}, None, show)
 
         elif item_data.type == QRaveTreeTypes.PROJECT_ROOT:
+            description = item_data.project.description
             self.metaChange.emit(item.text(), MetaType.PROJECT, {
                 'project': item_data.project.meta,
                 'warehouse': item_data.project.warehouse_meta
-            }, show)
+            }, description, show)
         elif item_data.type in [
             QRaveTreeTypes.PROJECT_FOLDER,
             QRaveTreeTypes.PROJECT_REPEATER_FOLDER,
@@ -471,13 +474,13 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             QRaveTreeTypes.BASEMAP_SUB_FOLDER
         ]:
             self.metaChange.emit(
-                item.text(), MetaType.FOLDER, data or {}, show)
+                item.text(), MetaType.FOLDER, data or {}, None, show)
         elif isinstance(data, dict):
             # this is just the generic case for any kind of metadata
-            self.metaChange.emit(item.text(), MetaType.NONE, data or {}, show)
+            self.metaChange.emit(item.text(), MetaType.NONE, data or {}, None, show)
         else:
             # Do not  update the metadata if we have nothing to show
-            self.metaChange.emit(item.text(), MetaType.NONE, {}, show)
+            self.metaChange.emit(item.text(), MetaType.NONE, {}, None, show)
 
     def get_warehouse_url(self, wh_meta: Dict[str, str]):
 

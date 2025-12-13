@@ -59,8 +59,8 @@ class QRaveMapLayer():
                  bl_attr: Dict[str, str] = None,
                  meta: Dict[str, str] = None,
                  layer_name: str = None,
-                 tile_type: str = None
-                 ):
+                 tile_type: str = None,
+                 description: str = None):
 
         self.label = label
         self.layer_uri = layer_uri
@@ -75,6 +75,7 @@ class QRaveMapLayer():
         self.transparency = 0
         self.layer_name = layer_name
         self.tile_type = tile_type
+        self.description = description
 
         if layer_type not in QRaveMapLayer.LayerTypes.__dict__.values():
             settings = Settings()
