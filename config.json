@@ -9,7 +9,8 @@
         "lastBrowsePath": null,
         "pluginVersion": null,
         "basemapRegion": "United States",
-        "dockLocation": "left"
+        "dockLocation": "left",
+        "localBLFolder": null
     },
     "constants": {
         "logCategory": "Riverscapes Viewer",
