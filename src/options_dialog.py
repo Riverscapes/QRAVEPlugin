@@ -1,4 +1,4 @@
-from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QComboBox, QPushButton, QSizePolicy, QSpacerItem, QGridLayout, QRadioButton
+from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QComboBox, QPushButton, QSizePolicy, QSpacerItem, QGridLayout, QRadioButton, QLineEdit
 from qgis.PyQt.QtCore import pyqtSignal, Qt
 from qgis.PyQt.QtGui import QIcon
 
@@ -33,6 +33,7 @@ class OptionsDialog(QDialog):
         self.basemapsInclude.setChecked(self.settings.getValue('basemapsInclude'))
         self.loadDefaultView.setChecked(self.settings.getValue('loadDefaultView'))
         self.autoUpdate.setChecked(self.settings.getValue('autoUpdate'))
+        self.txtBL.setText(self.settings.getValue('localBLFolder'))
 
         # Set the combo box
         self.basemapRegion.clear()
@@ -58,6 +59,7 @@ class OptionsDialog(QDialog):
             self.settings.setValue('loadDefaultView', self.loadDefaultView.isChecked())
             self.settings.setValue('basemapRegion', self.basemapRegion.currentText())
             self.settings.setValue('autoUpdate', self.autoUpdate.isChecked())
+            self.settings.setValue('localBLFolder', self.txtBL.text())
             if self.left_radio.isChecked():
                 self.settings.setValue('dockLocation', 'left')
             elif self.right_radio.isChecked():
@@ -70,19 +72,22 @@ class OptionsDialog(QDialog):
         # Emit a datachange so we can trigger other parts of this plugin
         self.dataChange.emit()
 
+    def browseBLFolder(self):
+        from qgis.PyQt.QtWidgets import QFileDialog
+        folder = QFileDialog.getExistingDirectory(self, "Select Business Logic Folder", "")
+        if folder and len(folder) > 0:
+            self.txtBL.setText(folder)
+
     def setupUi(self):
         self.resize(365, 251)
         self.verticalLayout = QVBoxLayout(self)
         self.verticalLayout.setObjectName("verticalLayout")
         # Basemaps and region
         self.basemapsInclude = QCheckBox(self)
-        self.basemapsInclude.setObjectName("basemapsInclude")
         self.verticalLayout.addWidget(self.basemapsInclude)
         self.basemapsInclude.setText("Include basemaps in explorer tree")
         self.horizontalLayout = QHBoxLayout()
-        self.horizontalLayout.setObjectName("horizontalLayout")
         self.label = QLabel(self)
-        self.label.setObjectName("label")
         self.label.setText("Region")
         self.horizontalLayout.addWidget(self.label)
         self.basemapRegion = QComboBox(self)
@@ -91,20 +96,16 @@ class OptionsDialog(QDialog):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.basemapRegion.sizePolicy().hasHeightForWidth())
         self.basemapRegion.setSizePolicy(sizePolicy)
-        self.basemapRegion.setObjectName("basemapRegion")
         self.horizontalLayout.addWidget(self.basemapRegion)
         self.regionHelp = QPushButton(self)
-        self.regionHelp.setObjectName("regionHelp")
         self.horizontalLayout.addWidget(self.regionHelp)
         self.verticalLayout.addLayout(self.horizontalLayout)
         # Auto Update Checkbox
         self.autoUpdate = QCheckBox(self)
-        self.autoUpdate.setObjectName("autoUpdate")
         self.autoUpdate.setText("Automatically update resource files (symbology, business logic etc.)")
         self.verticalLayout.addWidget(self.autoUpdate)
         # Load Default View Checkbox
         self.loadDefaultView = QCheckBox(self)
-        self.loadDefaultView.setObjectName("loadDefaultView")
         self.loadDefaultView.setText("Load default project views when opening projects")
         self.verticalLayout.addWidget(self.loadDefaultView)
         # Dock location radio buttons
@@ -116,13 +117,26 @@ class OptionsDialog(QDialog):
         self.grid.addWidget(self.left_radio, 1, 0)
         self.grid.addWidget(self.right_radio, 1, 1)
         self.verticalLayout.addLayout(self.grid)
+        # Optional BL folder
+        self.labelBL = QLabel("Local Business Logic Folder (Advanced Users)")
+        self.verticalLayout.addWidget(self.labelBL)
+        self.hlayout_bl = QHBoxLayout()
+        self.txtBL = QLineEdit(self)
+        self.txtBL.setReadOnly(True)
+        self.hlayout_bl.addWidget(self.txtBL)
+        self.btnBrowseBL = QPushButton("...")
+        self.btnBrowseBL.clicked.connect(self.browseBLFolder)
+        self.hlayout_bl.addWidget(self.btnBrowseBL)
+        self.btnClearBL = QPushButton("Clear")
+        self.btnClearBL.clicked.connect(lambda: self.txtBL.setText(''))
+        self.hlayout_bl.addWidget(self.btnClearBL)
+        self.verticalLayout.addLayout(self.hlayout_bl)
         # Button Box
         spacerItem = QSpacerItem(20, 154, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.verticalLayout.addItem(spacerItem)
         self.buttonBox = QDialogButtonBox(self)
         self.buttonBox.setOrientation(Qt.Horizontal)
         self.buttonBox.setStandardButtons(QDialogButtonBox.Apply|QDialogButtonBox.Cancel|QDialogButtonBox.Reset)
-        self.buttonBox.setObjectName("buttonBox")
         self.verticalLayout.addWidget(self.buttonBox)
         # Standard buttons
         self.buttonBox.accepted.connect(self.accept)

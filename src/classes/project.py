@@ -137,11 +137,16 @@ class Project:
         hierarchy = [
             # 1. first check for a businesslogic file next to the project file
             parse_rel_path(os.path.join(os.path.dirname(self.project_xml_path), bl_filename)),
+            # 1.5. Check for a local business logic folder
+            parse_rel_path(os.path.join(self.settings.getValue('localBLFolder'), bl_filename)) if self.settings.getValue('localBLFolder') else None,
             # 2. Second, check the businesslogic we've got from the web
             parse_rel_path(os.path.join(BL_XML_DIR, web_bl_filename)),
             # 3. Fall back to the default xml file
             parse_rel_path(os.path.join(BL_XML_DIR, 'V2', 'default.xml'))
         ]
+
+        # Drop any None values
+        hierarchy = [path for path in hierarchy if path is not None]
 
         # Find the first match
         chosen_qml = next(iter([candidate for candidate in hierarchy if os.path.isfile(candidate)]), None)
