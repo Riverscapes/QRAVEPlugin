@@ -1,3 +1,25 @@
+## 1.0.6 ***(December 17, 2025)***
+
+### Added
+- Allow user to fix broken or moved rs project reference when opening qgz #182
+- Add user setting for dock widget (Project Explorer and Metadata Panels) location #185, #49
+- Add Layer description to Metadata dock widget #174
+- Add Local folder for Business Logic Search #191
+
+### Fixed
+- Fixed bug in rendering BL transparency
+- Expanding NAIP plus basemap crashes QGIS #105
+- Metadata popup for hyperlinks ignores user input #170
+- Metadata panel should clear when unload projects #192
+- QGiS crashes on Project Close #140
+
+### Changed
+- Icons Updated
+- Rename MetaData as Metadata in context menus
+- Include a Try/Catch within Close All #184
+- QViewer About Dialog changes #195
+
+
 ## 1.0.5 ***(October 3, 2025)***
 
 ### Changed
