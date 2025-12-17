@@ -27,7 +27,7 @@ import os
 import json
 
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl, QTimer
-from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction, QFileDialog, QMessageBox
+from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction, QFileDialog, QMessageBox, QApplication
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices
 from qgis.core import Qgis, QgsRasterLayer, QgsVectorLayer, QgsProject
 from qgis.PyQt import uic
@@ -539,6 +539,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                           xml in qrave_projects if name != project_name]
 
         QRaveMapLayer.remove_project_from_map(project_name)
+        QApplication.processEvents()
 
         # Write the settings back to the project
         self.set_project_settings(qrave_projects)
