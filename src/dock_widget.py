@@ -26,7 +26,7 @@ from typing import List, Dict
 import os
 import json
 
-from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl
+from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl, QTimer
 from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction, QFileDialog, QMessageBox
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices
 from qgis.core import Qgis, QgsRasterLayer, QgsVectorLayer, QgsProject
@@ -511,24 +511,19 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             QDesktopServices.openUrl(QUrl(url))
 
     def close_all(self):
-        try:
-            closed_count = 0
-            all_projects = self._get_projects()
-            initial_count = len(all_projects)
-            while len(all_projects) > 0 and closed_count < initial_count:
-                all_projects = self._get_projects()
-                if not all_projects:
-                    break
-                project = all_projects[-1]
-                try:
-                    self.close_project(project)
-                    closed_count += 1
-                except Exception as e:
-                    self.settings.log(f'Error closing project: {e}', Qgis.Warning)
-        except Exception as e:
-            self.settings.log(f'Error closing all projects: {e}', Qgis.Warning)
+        projects = list(self._get_projects())
+        if len(projects) == 0:
+            return
 
-    def close_project(self, project: Project):
+        for project in reversed(projects):
+            try:
+                self.close_project(project, reload_tree=False)
+            except Exception as e:
+                self.settings.log(f'Error closing project: {e}', Qgis.Warning)
+
+        QTimer.singleShot(0, self.reload_tree)
+
+    def close_project(self, project: Project, reload_tree=True):
         """ Close the project
         """
         try:
@@ -547,7 +542,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # Write the settings back to the project
         self.set_project_settings(qrave_projects)
-        self.reload_tree()
+
+        if reload_tree:
+            QTimer.singleShot(0, self.reload_tree)
 
     def file_system_open(self, fpath: str):
         """Open a file on the operating system using the default action
