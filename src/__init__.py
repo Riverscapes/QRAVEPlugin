@@ -2,10 +2,11 @@ import os
 
 from qgis.core import QgsMessageLog, Qgis
 
-RSXML_VERSION = '2.0.6'
+RSXML_VERSION = '2.2.1'
 
 # This is how we import the rsxml module. We do this because we want to bundle the rsxml whl with this package
 try:
+    # NOTE: IF this shows as a pylance warning that's ok.
     import rsxml
     QgsMessageLog.logMessage('rsxml imported from system', 'Riverscapes Viewer', Qgis.Info)
 except ImportError:

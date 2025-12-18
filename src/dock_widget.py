@@ -216,7 +216,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         except Exception as e:
             self.settings.log(f'Error loading project settings: {e}', Qgis.Warning)
             return []
-        
+
         qgs_path = self.qproject.absoluteFilePath()
         if os.path.isfile(qgs_path):
             qgs_path_dir = os.path.dirname(qgs_path)
@@ -342,7 +342,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if not self.treeView.isExpanded(idx) and not collapsed:
             self.treeView.setExpanded(idx, True)
 
-    def restore_expaned_state(self, idx: QModelIndex = None, states: list = None):
+    def restore_expaned_state(self, idx: QModelIndex = None, states: List[dict] = None):
         """Expand all the children of a QTreeView node. Do it recursively
         TODO: Recursion might not be the best for large trees here.
 
@@ -452,7 +452,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         data = item_data.data
         if isinstance(data, QRaveMapLayer):
             meta = data.meta if data.meta is not None else {}
-            description = data.description 
+            description = data.description
             self.metaChange.emit(item.text(), MetaType.LAYER, meta, description, show)
 
         elif isinstance(data, QRaveBaseMap):
@@ -708,11 +708,11 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(
             item), enabled=item_data.data.exists)
         menu.addAction('VIEW_LAYER_META',
-                            lambda: self.change_meta(item, item_data, True))
+                       lambda: self.change_meta(item, item_data, True))
 
         if bool(self.get_warehouse_url(item_data.data.meta)):
             menu.addAction('VIEW_WEB_SOURCE',
-                                lambda: self.layer_warehouse_view(item_data))
+                           lambda: self.layer_warehouse_view(item_data))
 
         menu.addAction(
             'BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))

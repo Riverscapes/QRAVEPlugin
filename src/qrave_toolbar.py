@@ -176,7 +176,7 @@ class QRAVE:
         self.openProjectAction.triggered.connect(self.projectBrowserDlg)
         self.openProjectAction.setStatusTip('Open Riverscapes project')
         self.openProjectAction.setWhatsThis('Open Riverscapes project')
-        
+
         self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/close.png'), self.tr(
             u'Close All Riverscapes Projects'), self.iface.mainWindow())
         self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
@@ -194,8 +194,8 @@ class QRAVE:
 
         m_tools = self.toolsButton.menu()
         m_tools.setTitle("Tools")
-        m_tools.setIcon(QIcon(':/plugins/qrave_toolbar/tools')) 
-        
+        m_tools.setIcon(QIcon(':/plugins/qrave_toolbar/tools'))
+
         self.raveOptionsAction = QAction(
             QIcon(':/plugins/qrave_toolbar/Options.png'),
             self.tr('Settings'),
@@ -242,8 +242,8 @@ class QRAVE:
 
         m = self.helpButton.menu()
         m.setTitle("Help")
-        m.setIcon(QIcon(':/plugins/qrave_toolbar/Help.png')) 
-        
+        m.setIcon(QIcon(':/plugins/qrave_toolbar/Help.png'))
+
         self.helpAction = QAction(
             QIcon(':/plugins/qrave_toolbar/Help.png'),
             self.tr('Riverscapes Viewer Online Help'),
@@ -473,7 +473,7 @@ class QRAVE:
         if not any(layer.type() == QgsMapLayer.VectorLayer for layer in layers.values()):
             QMessageBox.information(None, "No layers", "There are no Vector Layers in the map. Please add at least one Vector Layer to the map before generating project bounds.")
             return
-        
+
         dialog = FrmProjectBounds()
         dialog.exec_()
 
@@ -532,10 +532,10 @@ class QRAVE:
 
     def browseExchangeProjects(self):
 
-            # Get the center and zoom level to build the search url
-            canvas = self.iface.mapCanvas()
-            center = get_map_center(canvas)
-            zoom = get_zoom_level(canvas)
-            search_url = f"{CONSTANTS['warehouseUrl']}/s?type=Project&bounded=1&view=map&geo={center.x()}%2C{center.y()}%2C{zoom}"
-            # Open the URL in the default web browser
-            QDesktopServices.openUrl(QUrl(search_url))
+        # Get the center and zoom level to build the search url
+        canvas = self.iface.mapCanvas()
+        center = get_map_center(canvas)
+        zoom = get_zoom_level(canvas)
+        search_url = f"{CONSTANTS['warehouseUrl']}/s?type=Project&bounded=1&view=map&geo={center.x()}%2C{center.y()}%2C{zoom}"
+        # Open the URL in the default web browser
+        QDesktopServices.openUrl(QUrl(search_url))

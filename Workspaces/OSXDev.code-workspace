@@ -15,6 +15,12 @@
 			"PYTHONPATH": "${env:QGIS_PATH}/Contents/Resources/python:${env:QGIS_PATH}/Contents/Resources/python/site-packages:${env:QGIS_PATH}/Contents/Resources/python/site-packages/PyQt5:${workspaceFolder}/wheels",
 			"PATH": "${env:PATH}:${env:QGIS_PATH}/Contents/MacOS/bin"
 		},
+		"python.analysis.extraPaths": [
+			"${workspaceFolder}/wheels",
+			"${env:QGIS_PATH}/Contents/Resources/python",
+			"${env:QGIS_PATH}/Contents/Resources/python/site-packages"
+		],
+		"python.defaultInterpreterPath": "${env:QGIS_PATH}/Contents/MacOS/bin/python3",
     "terminal.integrated.defaultProfile.linux": "zsh",
     "[python]": {
       "editor.tabSize": 4,
