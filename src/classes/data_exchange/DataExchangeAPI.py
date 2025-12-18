@@ -6,7 +6,7 @@ from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
 from qgis.core import Qgis
 import requests
 
-from rsxml import etag
+from rsxml.etag import calculate_etag
 from ..GraphQLAPI import GraphQLAPI, GraphQLAPIConfig, RunGQLQueryTask, RefreshTokenTask
 from ..settings import CONSTANTS, Settings
 
@@ -81,11 +81,16 @@ class UploadFileList():
     # It should be an ordered dictionary
     files: OrderedDict[str, UploadFile] = OrderedDict()
 
+    def __init__(self):
+        # Make sure the Borg pattern is initialized
+        self.settings = Settings()
+        self.log = self.settings.log
+
     def reset(self):
         self.token = None
         self.files = OrderedDict()
 
-    def add_file(self, rel_path: str, size: int, etag: str = None):
+    def add_file(self, rel_path: str, size: int, etag: str):
         self.files[rel_path] = UploadFile(rel_path, size, etag)
 
     def scan_local_files(self, project_dir: str, project_type: str):
@@ -119,14 +124,16 @@ class UploadFileList():
                 rel_path = rel_path.replace('\\', '/')
 
                 file_size = os.path.getsize(abs_path)
-                self.add_file(rel_path, file_size, None)
+                # WE add a dummy etag here, it will be calculated later if there is an existing project. If not then the etag does not really matter
+                # Since there is nothing to compare against and we can skip that constly step entirely
+                self.add_file(rel_path, file_size, etag='XXXXXXXXXXXXXXXXXXXXXX')
 
     def calculate_etags(self, project_dir: str, existing_files: Dict[str, str] = None):
         """Calculate the etags for all files in the upload digest
 
         Args:
             project_dir (str): _description_
-            existing_files (Dict[str, str], optional): Dictionary of existing files and their etags. Defaults to None.
+            existing_files (Dict[str, str], optional): Dictionary of existing files in the data exchange and their etags. Defaults to None.
         """
         for file in self.files.values():
             abs_path = os.path.join(project_dir, file.rel_path)
@@ -136,9 +143,12 @@ class UploadFileList():
                 existing_etag = existing_files[file.rel_path]
                 # If the existing etag has a dash, it is multipart, so we should NOT force single part.
                 is_single_part = not re.match(r'.*-[0-9]+$', existing_etag)
-
-            etag_obj = etag(abs_path, force_single_part=is_single_part)
-            file.etag = etag_obj['etag']
+                # We only compute the local etag if there is a remote file to compare with. This should
+                # Save a lot of time when uploading new files.
+                self.log('Calculating etag for file: ' + file.rel_path, Qgis.Info)
+                etag_obj = calculate_etag(abs_path, force_single_part=is_single_part)
+                self.log(f"Calculated etag: {etag_obj} (single part: {is_single_part})", Qgis.Info)
+                file.etag = etag_obj
 
     def get_rel_paths(self, filter_to: List[UploadFile.FileOp] = None):
         if filter_to and len(filter_to) > 0:
