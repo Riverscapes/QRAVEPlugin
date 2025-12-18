@@ -542,9 +542,6 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             UploadFile.FileOp.DELETE: 0
         }
         total_changes = 0
-        self.upload_log('Recalculating etags', Qgis.Info)  # Blank line for readability
-        existing_files = None if self.existing_project is None else {k: v.etag for k, v in self.existing_project.files.items()}
-        self.upload_digest.calculate_etags(self.project_xml.project_dir, existing_files=existing_files)
 
         self.upload_log('Checking for differences between local and remote...', Qgis.Info, is_header=True)
         # If this project is being modified then we have to do one thing
@@ -687,8 +684,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
             self.upload_log('Rescanning files based on existing project files...', Qgis.Info)
             self.upload_digest.reset()
+            self.upload_digest.scan_local_files(self.project_xml.project_dir, self.project_xml.project_type)
+
+            # Recalculate etags with existing files
             existing_etags = {k: v.etag for k, v in self.existing_project.files.items()}
-            self.upload_digest.scan_local_files(self.project_xml.project_dir, self.project_xml.project_type, existing_files=existing_etags)
+            self.upload_log('Recalculating file etags based on existing project files...', Qgis.Info)
+            self.upload_digest.calculate_etags(self.project_xml.project_dir, existing_files=existing_etags)
 
         self.upload_log('Waiting for user input...' + '\n' * 3, Qgis.Info)
         self.recalc_state()
