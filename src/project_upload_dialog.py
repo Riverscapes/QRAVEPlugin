@@ -180,8 +180,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.projectPathValue.setToolTip(project_path)
 
         # 1. Files - we need relative paths to the files
-        self.upload_log('Checking for files to upload... (Calculating Etags)', Qgis.Info)
-        self.upload_digest.fetch_local_files(self.project_xml.project_dir, self.project_xml.project_type)
+        self.upload_log('Checking for files to upload...', Qgis.Info)
+        self.upload_digest.scan_local_files(self.project_xml.project_dir, self.project_xml.project_type)
 
         self.recalc_state()
 
@@ -321,8 +321,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Now log in using the data exchange API
         self.dataExchangeAPI.login()
         # Re-verify the MD5 checksums for all local files
-        self.upload_log('Checking for files to upload... (Calculating Etags)', Qgis.Info)
-        self.upload_digest.fetch_local_files(self.project_xml.project_dir, self.project_xml.project_type)
+        self.upload_log('Checking for files to upload...', Qgis.Info)
+        self.upload_digest.scan_local_files(self.project_xml.project_dir, self.project_xml.project_type)
 
     def calculate_end_time(self):
         """ Calculate the estimated end time of the upload
@@ -436,6 +436,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
                 # Handle Errors. We fail harshly on these because they should be rare (borderline impossible) for
                 # non-developers to get into these states
+                # THis case is: missing apiUrl
                 if project_api is None or len(project_api.strip()) == 0:
                     self.upload_log('ERROR: Missing or invalid "apiUrl" in the <Warehouse> tag', Qgis.Critical)
                     self.error = ProjectUploadDialogError('Warehouse lookup error', 'Missing API URL in the project')
@@ -443,7 +444,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                     self.existingProject = None
                     self.recalc_state()
                     return
-
+                # THis case is: missing id which means we cannot look up the project in the warehouse
                 elif project_id is None or len(project_id.strip()) == 0:
                     self.upload_log('ERROR: Missing "id" attribute in the <Warehouse> tag', Qgis.Critical)
                     self.error = ProjectUploadDialogError('Warehouse lookup error', 'Missing ID in the project')
@@ -451,7 +452,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                     self.existingProject = None
                     self.recalc_state()
                     return
-
+                # This case is the apiUrl does not match the current warehouse API URL
                 elif project_api != self.dataExchangeAPI.api.uri:
                     err_title = 'The project is not associated with the current warehouse'
                     err_str = f"Project API: {project_api} \nWarehouse API: {self.dataExchangeAPI.api.uri}"
@@ -511,6 +512,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         if self.warehouse_id is None:
             self.upload_log('No existing project found in the warehouse, proceeding to user action', Qgis.Info)
             self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+
         else:
             self.upload_log('Fetching existing project from the warehouse...', Qgis.Info)
             self.existing_project = None
@@ -540,6 +542,10 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             UploadFile.FileOp.DELETE: 0
         }
         total_changes = 0
+        self.upload_log('Recalculating etags', Qgis.Info)  # Blank line for readability
+        existing_files = None if self.existing_project is None else {k: v.etag for k, v in self.existing_project.files.items()}
+        self.upload_digest.calculate_etags(self.project_xml.project_dir, existing_files=existing_files)
+
         self.upload_log('Checking for differences between local and remote...', Qgis.Info, is_header=True)
         # If this project is being modified then we have to do one thing
         if not self.new_project:
@@ -678,6 +684,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.new_project = False
 
             self.optModifyProject.setChecked(True)
+
+            self.upload_log('Rescanning files based on existing project files...', Qgis.Info)
+            self.upload_digest.reset()
+            existing_etags = {k: v.etag for k, v in self.existing_project.files.items()}
+            self.upload_digest.scan_local_files(self.project_xml.project_dir, self.project_xml.project_type, existing_files=existing_etags)
 
         self.upload_log('Waiting for user input...' + '\n' * 3, Qgis.Info)
         self.recalc_state()

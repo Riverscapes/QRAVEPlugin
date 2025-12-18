@@ -131,42 +131,6 @@ def error_level_to_str(level: int) -> str:
         return 'Info'
 
 
-def calculate_etag(file_path: str) -> Dict[str, str]:
-    """ We need a way to calculate the ETag for a file, which is a hash of the file contents. 
-
-    NOTE: This used to use the multi-part upload method where files > chunksize get the etag
-    that is a hash of hashes with a suffix of the number of parts.
-
-    This is not necessary anymore though as the file we are comparing against has been copied
-    so the etag we're looking for will actually be just the Md5 hash of the entire file.
-
-    What's really important here is to calculate the MD5 in the most efficient possible way
-    so that we're not loading the whole thing into memory just to calculate the hash.
-
-    This should mirror the way AWS S3 calculates ETags for multipart uploads.
-
-    Args:
-        file_path (str): _description_
-        chunk_size_bytes (int): _description_
-        chunk_thresh_bytes (int): _description_
-
-    Returns:
-        Dict[str, str]: _description_
-    """
-    file_size_in_bytes = os.path.getsize(file_path)
-
-    hash_md5 = hashlib.md5()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            hash_md5.update(chunk)
-    etag = hash_md5.hexdigest()
-
-    return {
-        'size': file_size_in_bytes,
-        'etag': f'"{etag}"'
-    }
-
-
 def humane_bytes(size: int, precision: int = 1) -> str:
     """ Convert a byte size to a human readable string.
 

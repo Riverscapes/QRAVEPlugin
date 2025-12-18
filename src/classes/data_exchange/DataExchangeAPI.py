@@ -6,9 +6,9 @@ from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
 from qgis.core import Qgis
 import requests
 
+from rsxml import etag
 from ..GraphQLAPI import GraphQLAPI, GraphQLAPIConfig, RunGQLQueryTask, RefreshTokenTask
 from ..settings import CONSTANTS, Settings
-from ..util import calculate_etag
 
 FILE_EXCLUDE_RE = [
     r'^\.git',
@@ -68,7 +68,7 @@ class UploadFile():
     op: FileOp
     urls: List[str] = []
 
-    def __init__(self, rel_path: str, size: int, etag: str):
+    def __init__(self, rel_path: str, size: int, etag: str = None):
         self.rel_path = rel_path
         self.size = size
         self.etag = etag
@@ -85,10 +85,10 @@ class UploadFileList():
         self.token = None
         self.files = OrderedDict()
 
-    def add_file(self, rel_path: str, size: int, etag: str):
+    def add_file(self, rel_path: str, size: int, etag: str = None):
         self.files[rel_path] = UploadFile(rel_path, size, etag)
 
-    def fetch_local_files(self, project_dir: str, project_type: str):
+    def scan_local_files(self, project_dir: str, project_type: str):
         """Scrape through the project folder and add all files to the upload digest
         except if they are a business logic file or match the exclusion list
 
@@ -117,10 +117,28 @@ class UploadFileList():
                 rel_path = os.path.relpath(abs_path, project_dir)
                 # replace backslashes with forward slashes
                 rel_path = rel_path.replace('\\', '/')
-                etag_obj = calculate_etag(abs_path)
-                file_size = etag_obj['size']
-                file_etag = etag_obj['etag']
-                self.add_file(rel_path, file_size, file_etag)
+
+                file_size = os.path.getsize(abs_path)
+                self.add_file(rel_path, file_size, None)
+
+    def calculate_etags(self, project_dir: str, existing_files: Dict[str, str] = None):
+        """Calculate the etags for all files in the upload digest
+
+        Args:
+            project_dir (str): _description_
+            existing_files (Dict[str, str], optional): Dictionary of existing files and their etags. Defaults to None.
+        """
+        for file in self.files.values():
+            abs_path = os.path.join(project_dir, file.rel_path)
+
+            is_single_part = False
+            if existing_files and file.rel_path in existing_files:
+                existing_etag = existing_files[file.rel_path]
+                # If the existing etag has a dash, it is multipart, so we should NOT force single part.
+                is_single_part = not re.match(r'.*-[0-9]+$', existing_etag)
+
+            etag_obj = etag(abs_path, force_single_part=is_single_part)
+            file.etag = etag_obj['etag']
 
     def get_rel_paths(self, filter_to: List[UploadFile.FileOp] = None):
         if filter_to and len(filter_to) > 0:
