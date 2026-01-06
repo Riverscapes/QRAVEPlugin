@@ -44,6 +44,7 @@ query webRaveProject($id: ID!, $dsLimit: Int!, $dsOffset: Int!) {
       items {
         id
         rsXPath
+        summary
         refProject {
           ...DatasetProjectSource
         }

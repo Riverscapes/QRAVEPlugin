@@ -283,7 +283,7 @@ class DataExchangeAPI(QObject):
 
         return self.api.run_query(self._load_query('webRaveProject'), {
             'id': project_id,
-            'dsLimit': 1,
+            'dsLimit': 50,
             'dsOffset': 0
         }, _parse_remote_project)
 

@@ -65,6 +65,10 @@ class ContextMenu(QMenu):
             'View in Data Exchange',
             ':/plugins/qrave_toolbar/data-exchange-icon.svg'
         ),
+        'BROWSE_REMOTE_DATA_EXCHANGE': (
+            'Browse Remote Data Exchange',
+            ':/plugins/qrave_toolbar/data-exchange-icon.svg'
+        ),
     }
 
     # def __init__(self):

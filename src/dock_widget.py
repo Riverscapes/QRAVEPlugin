@@ -345,6 +345,26 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         
         self.reload_tree()
 
+    def show_loading(self, label: str):
+        """Add a temporary loading item to the tree"""
+        # Make sure it's not already there
+        self.hide_loading()
+        
+        loading_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/refresh.png'), f"Loading Remote: {label}...")
+        # Use a special data role to identify it
+        loading_item.setData("LOADING_PLACEHOLDER", Qt.UserRole + 10)
+        self.model.appendRow(loading_item)
+
+    def hide_loading(self):
+        """Remove any loading items from the tree"""
+        root = self.model.invisibleRootItem()
+        for i in range(root.rowCount()):
+            item = root.child(i)
+            if item and item.data(Qt.UserRole + 10) == "LOADING_PLACEHOLDER":
+                root.removeRow(i)
+                # We return here because we only expect one, and loop indices change after removeRow
+                return
+
     def closeEvent(self, event):
         """ When the user clicks the "X" in the dockwidget titlebar
         """
@@ -761,15 +781,25 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             menu.addAction('VIEW_WEB_SOURCE',
                            lambda: self.layer_warehouse_view(item_data))
 
-        menu.addAction(
-            'BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
+        if isinstance(item_data.project, RemoteProject):
+            project_id = item_data.project.id
+            url = f"https://data.riverscapes.net/p/{project_id}/datasets"
+            menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
+        else:
+            menu.addAction(
+                'BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
         self.layerMenuOpen.emit(menu, item, item_data)
 
     def file_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
         menu.addAction(
             'OPEN_FILE', lambda: self.file_system_open(item_data.data.layer_uri))
-        menu.addAction(
-            'BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
+        if isinstance(item_data.project, RemoteProject):
+            project_id = item_data.project.id
+            url = f"https://data.riverscapes.net/p/{project_id}/datasets"
+            menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
+        else:
+            menu.addAction(
+                'BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
 
     # Basemap context items
     def basemap_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
@@ -778,8 +808,13 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
     # Folder-level context menu
     def folder_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
-        menu.addAction(
-            'ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
+        if isinstance(data.project, RemoteProject):
+            project_id = data.project.id
+            url = f"https://data.riverscapes.net/p/{project_id}/datasets"
+            menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
+        else:
+            menu.addAction(
+                'ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
         menu.addSeparator()
         menu.addAction(
             'COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
@@ -805,10 +840,15 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         menu.addSeparator()
         menu.addAction('UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
         menu.addSeparator()
-        menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(data.project.project_xml_path))
+        if isinstance(data.project, RemoteProject):
+            project_id = data.project.id
+            url = f"https://data.riverscapes.net/p/{project_id}/datasets"
+            menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
+        else:
+            menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(data.project.project_xml_path))
         menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
         menu.addAction('WAREHOUSE_VIEW', lambda: self.project_warehouse_view(data.project), enabled=bool(self.get_warehouse_url(data.project.warehouse_meta)))
-        menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
+        menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item), enabled=not isinstance(data.project, RemoteProject))
         menu.addSeparator()
         menu.addAction('REFRESH_PROJECT_HIERARCHY', self.reload_tree)
         menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY', enabled=False)

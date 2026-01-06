@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import json
 from typing import Dict, List
+from qgis.core import Qgis
 from qgis.PyQt.QtGui import QStandardItem, QIcon, QBrush
 from qgis.PyQt.QtCore import Qt
 
@@ -13,10 +14,16 @@ class RemoteProject:
 
     def __init__(self, gql_data: Dict):
         self.settings = Settings()
-        self.data = gql_data.get('data', {}).get('project', {})
+        # Handle both wrapped and unwrapped data
+        if 'data' in gql_data:
+            self.data = gql_data.get('data', {}).get('project', {}) or {}
+        else:
+            self.data = gql_data.get('project', {}) or gql_data
+
         self.id = self.data.get('id')
         self.name = self.data.get('name')
-        self.description = self.data.get('summary')
+        self.tree_data = self.data.get('tree', {}) or {}
+        self.description = self.data.get('summary') or self.tree_data.get('description', '')
         self.project_type = self.data.get('projectType', {}).get('id')
         self.meta = self._extract_meta(self.data.get('meta', []))
         self.warehouse_meta = {
@@ -24,7 +31,6 @@ class RemoteProject:
             'apiUrl': (CONSTANTS['DE_API_URL'], 'string')
         }
         
-        self.tree_data = self.data.get('tree', {})
         self.default_view = self.tree_data.get('defaultView')
         self.views = {}
         
@@ -33,6 +39,9 @@ class RemoteProject:
         self.loadable = True
         self.project_dir = None # Remote projects don't have a local dir (yet)
 
+        # Map datasets for metadata lookup
+        self._build_dataset_maps()
+
     def load(self):
         """Build the tree from GraphQL data"""
         self._build_tree()
@@ -40,9 +49,37 @@ class RemoteProject:
 
     def _extract_meta(self, meta_list: List[Dict]):
         meta = {}
+        if meta_list is None:
+            return meta
         for m in meta_list:
-            meta[m['key']] = (m['value'], m['type'])
+            key = m.get('key')
+            if key:
+                # MetaWidget expects a string for value, and GQL might return null
+                val = str(m.get('value')) if m.get('value') is not None else ""
+                meta[key] = (val, m.get('type'))
         return meta
+
+    def _build_dataset_maps(self):
+        # Map datasets for metadata lookup by both rsXPath and ID
+        self.dataset_meta_map = {}
+        self.datasets = self.data.get('datasets', {}).get('items', [])
+        
+        for ds in self.datasets:
+            meta = self._extract_meta(ds.get('meta', []))
+            summary = ds.get('summary', '')
+            
+            ds_info = {'meta': meta, 'description': summary}
+            
+            xpath = ds.get('rsXPath')
+            if xpath:
+                self.dataset_meta_map[xpath] = ds_info
+            
+            # Also map by ID as a fallback
+            ds_id = ds.get('id')
+            if ds_id:
+                self.dataset_meta_map[ds_id] = ds_info
+        
+        self.settings.log(f"RemoteProject {self.id}: Mapped {len(self.datasets)} datasets for metadata lookup", Qgis.Info)
 
     def _build_tree(self):
         """Parse the flat GraphQL tree structure and build QStandardItems"""
@@ -120,18 +157,29 @@ class RemoteProject:
                 'transparency': str(leaf.get('transparency', 0))
             }
             
-            # We don't have meta for leaves in the tree object yet, 
-            # but we could find it in the datasets if needed.
-            # For now, let's keep it simple.
+            # Match leaf to dataset metadata
+            rs_xpath = leaf.get('rsXPath')
+            node_id = leaf.get('nodeId')
+            
+            meta = {}
+            description = None
+            if rs_xpath and rs_xpath in self.dataset_meta_map:
+                ds_info = self.dataset_meta_map[rs_xpath]
+                meta = ds_info['meta']
+                description = ds_info['description']
+            elif node_id and node_id in self.dataset_meta_map:
+                ds_info = self.dataset_meta_map[node_id]
+                meta = ds_info['meta']
+                description = ds_info['description']
             
             map_layer = QRaveMapLayer(
                 label=leaf.get('label'),
                 layer_type=bl_type,
                 layer_uri=layer_uri,
                 bl_attr=bl_attr,
-                meta={},
+                meta=meta,
                 layer_name=leaf.get('lyrName'),
-                description=None
+                description=description
             )
             
             # Since this is remote, the file likely doesn't exist locally unless downloaded

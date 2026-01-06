@@ -459,7 +459,7 @@ class QRAVE:
         Open a dialog to enter a project ID or URL
         """
         from qgis.PyQt.QtWidgets import QInputDialog
-        text, ok = QInputDialog.getText(self.iface.mainWindow(), "Open Remote Project", "Enter Project ID or URL:")
+        text, ok = QInputDialog.getText(self.iface.mainWindow(), "Open Remote Project", "Enter Project ID or URL:", text="ac104f27-93b7-4e47-b279-7a7dad8ccf1d")
         
         if ok and text:
             # Extract project ID from URL if necessary
@@ -472,6 +472,12 @@ class QRAVE:
                 QMessageBox.warning(self.iface.mainWindow(), "Invalid Project ID", "The project ID you entered is invalid.")
                 return
 
+            if self.dockwidget is None or self.dockwidget.isHidden() is True:
+                self.toggle_widget(forceOn=True)
+
+            if self.dockwidget:
+                self.dockwidget.show_loading(project_id)
+
             # Use DataExchangeAPI to fetch the project
             self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_remote_login(task, project_id))
 
@@ -479,9 +485,14 @@ class QRAVE:
         if task.success:
             self.dataExchangeAPI.get_remote_project(project_id, self._on_remote_project_fetched)
         else:
+            if self.dockwidget:
+                self.dockwidget.hide_loading()
             QMessageBox.critical(self.iface.mainWindow(), "Login Failed", "Could not log in to Riverscapes API.")
 
     def _on_remote_project_fetched(self, task, response):
+        if self.dockwidget:
+            self.dockwidget.hide_loading()
+
         if task.success and response and 'data' in response and response['data']['project']:
             if self.dockwidget is None or self.dockwidget.isHidden() is True:
                 self.toggle_widget(forceOn=True)
