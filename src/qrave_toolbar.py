@@ -171,27 +171,32 @@ class QRAVE:
         self.openAction.triggered.connect(self.toggle_widget)
         self.openAction.setStatusTip('Toggle the project viewer')
         self.openAction.setWhatsThis('Toggle the project viewer')
+        self.actions.append(self.openAction)
 
         self.openProjectAction = QAction(QIcon(
             ':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
         self.openProjectAction.triggered.connect(self.projectBrowserDlg)
         self.openProjectAction.setStatusTip('Open Riverscapes project')
         self.openProjectAction.setWhatsThis('Open Riverscapes project')
+        self.actions.append(self.openProjectAction)
 
         self.openRemoteProjectAction = QAction(QIcon(
             ':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Remote Project'), self.iface.mainWindow())
         self.openRemoteProjectAction.triggered.connect(self.remoteProjectDlg)
         self.openRemoteProjectAction.setStatusTip('Open Remote Riverscapes project')
         self.openRemoteProjectAction.setWhatsThis('Open Remote Riverscapes project')
+        self.actions.append(self.openRemoteProjectAction)
 
         self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/close.png'), self.tr(
             u'Close All Riverscapes Projects'), self.iface.mainWindow())
         self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
         self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
         self.closeAllProjectsAction.setWhatsThis('Close all open Riverscapes projects')
+        self.actions.append(self.closeAllProjectsAction)
 
         self.browseExchangeProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.tr(u'Browse Data Exchange Projects in Map Area'), self.iface.mainWindow())
         self.browseExchangeProjectsAction.triggered.connect(self.browseExchangeProjects)
+        self.actions.append(self.browseExchangeProjectsAction)
 
         self.toolsButton = QToolButton()
         self.toolsButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
@@ -230,6 +235,7 @@ class QRAVE:
             self.tr('Generate Project Bounds'),
             self.iface.mainWindow()
         )
+        self.actions.append(self.generate_project_bounds)
 
         # Open a project bounds dialog
         self.generate_project_bounds.triggered.connect(
@@ -264,6 +270,11 @@ class QRAVE:
             self.iface.mainWindow()
         )
         self.about_action.triggered.connect(self.about_load)
+        self.actions.append(self.about_action)
+        self.actions.append(self.raveOptionsAction)
+        self.actions.append(self.net_sync_action)
+        self.actions.append(self.find_resources_action)
+        self.actions.append(self.helpAction)
 
         m.addAction(self.helpAction)
         m.addAction(self.about_action)
@@ -341,16 +352,31 @@ class QRAVE:
         """Removes the plugin menu item and icon from QGIS GUI."""
         if self.metawidget is not None:
             self.metawidget.hide()
+            self.iface.removeDockWidget(self.metawidget)
+            self.metawidget.deleteLater()
+
         if self.dockwidget is not None:
             self.dockwidget.hide()
+            self.iface.removeDockWidget(self.dockwidget)
+            self.dockwidget.deleteLater()
 
         for action in self.actions:
             self.iface.removePluginMenu(
                 self.tr(u'&Riverscapes Viewer Plugin'),
                 action)
             self.iface.removeToolBarIcon(action)
+
+        # Disconnect signals
+        try:
+            self.qproject.readProject.disconnect(self.onProjectLoad)
+        except TypeError:
+            pass
+
         # remove the toolbar
-        del self.toolbar
+        if self.toolbar is not None:
+            self.iface.mainWindow().removeToolBar(self.toolbar)
+            self.toolbar.deleteLater()
+            self.toolbar = None
 
     def toggle_widget(self, forceOn=False):
         """Toggle the widget open and closed when clicking the toolbar"""
