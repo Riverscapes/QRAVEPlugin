@@ -69,15 +69,15 @@ class QRAVEMetaWidget(QDockWidget):
                     proj_meta_font.setBold(True)
                     proj_meta.setFont(proj_meta_font)
                     for k, v in meta['project'].items():
-                        self.appendMetaItem(proj_meta, k, v[0], v[1])
+                        self.appendMetaItem(proj_meta, k, v[0], v[1] if len(v) > 1 else None)
                     root_item.appendRow(proj_meta)
                 if 'warehouse' in meta and meta['warehouse'] is not None and len(meta['warehouse'].keys()) > 0:
                     wh_meta = QStandardItem('Warehouse Meta')
-                    wh_meta_font = proj_meta.font()
+                    wh_meta_font = wh_meta.font()
                     wh_meta_font.setBold(True)
                     wh_meta.setFont(wh_meta_font)
                     for k, v in meta['warehouse'].items():
-                        self.appendMetaItem(wh_meta, k, v[0], v[1])
+                        self.appendMetaItem(wh_meta, k, v[0], v[1] if len(v) > 1 else None)
                     root_item.appendRow(wh_meta)
 
         elif meta_type == MetaType.FOLDER:
@@ -100,7 +100,7 @@ class QRAVEMetaWidget(QDockWidget):
             self.treeView.setHeaderHidden(False)
             if meta is not None and len(meta.keys()) > 0:
                 for k, v in meta.items():
-                    self.appendMetaItem(root_item, k, v[0], v[1])
+                    self.appendMetaItem(root_item, k, v[0], v[1] if len(v) > 1 else None)
             else:
                 self.treeView.setHeaderHidden(True)
                 self.treeView.setEnabled(False)
