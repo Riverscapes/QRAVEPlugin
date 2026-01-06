@@ -40,6 +40,7 @@ from .project_upload_dialog import ProjectUploadDialog
 from .classes.qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
 from .classes.context_menu import ContextMenu
 from .classes.project import Project, ProjectTreeData
+from .classes.remote_project import RemoteProject
 from .classes.basemaps import BaseMaps, QRaveBaseMap
 from .classes.settings import Settings, CONSTANTS
 
@@ -162,6 +163,22 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         qrave_projects = self.get_project_settings()
 
         for project_name, _basename, project_path in qrave_projects:
+            if project_path.startswith('remote:'):
+                project_id = project_path[7:]
+                if hasattr(self, '_remote_project_cache') and project_id in self._remote_project_cache:
+                    project = RemoteProject(self._remote_project_cache[project_id])
+                    project.load()
+                    if project.qproject:
+                        project.qproject.setText(project_name)
+                        self.model.appendRow(project.qproject)
+                        if project_name in expanded_states.keys():
+                            self.restore_expaned_state(self.model.indexFromItem(
+                                project.qproject), expanded_states[project_name])
+                        else:
+                            self.expand_children_recursive(
+                                self.model.indexFromItem(project.qproject))
+                continue
+
             project = Project(project_path)
             project.load()
 
@@ -221,7 +238,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if os.path.isfile(qgs_path):
             qgs_path_dir = os.path.dirname(qgs_path)
             # Change all relative paths back to absolute ones
-            qrave_projects = [(name, basename, safe_make_abspath(
+            qrave_projects = [(name, basename, xml_path if xml_path.startswith('remote:') else safe_make_abspath(
                 xml_path, qgs_path_dir)) for name, basename, xml_path in qrave_projects]
 
         return qrave_projects
@@ -261,7 +278,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if projects and os.path.isdir(os.path.dirname(qgs_path)):
             qgs_path_dir = os.path.dirname(qgs_path)
             # Swap all abspaths for relative ones
-            projects = [(name, basename, safe_make_relpath(xml_path, qgs_path_dir))
+            projects = [(name, basename, xml_path if xml_path.startswith('remote:') else safe_make_relpath(xml_path, qgs_path_dir))
                         for name, basename, xml_path in projects]
         self.qproject.writeEntry(
             CONSTANTS['settingsCategory'], 'qrave_projects', json.dumps(projects))
@@ -297,6 +314,36 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 and new_project.default_view in new_project.views:
             self.add_children_to_map(
                 new_project.qproject, new_project.views[new_project.default_view])
+
+    @pyqtSlot()
+    def add_remote_project(self, gql_data: Dict):
+        qrave_projects = self.get_project_settings()
+        
+        test_project = RemoteProject(gql_data)
+        test_project.load()
+        
+        if test_project.qproject is None:
+            self.settings.log('Error loading remote project', Qgis.Warning)
+            return
+            
+        basename = test_project.qproject.text()
+        count = [project[1] for project in qrave_projects].count(basename)
+        name = f'{basename} Copy {count:02d}' if count > 0 else basename
+        
+        # We store it with a 'remote:' prefix in the xml_path field
+        qrave_projects.insert(0, (name, basename, f"remote:{test_project.id}"))
+        self.set_project_settings(qrave_projects)
+        
+        # We also need to store the data somewhere if we want to reload it without re-fetching
+        # But for now, let's just reload it from the GQL response which we have.
+        # However, reload_tree clears the model.
+        
+        # I'll add a cache for remote project data
+        if not hasattr(self, '_remote_project_cache'):
+            self._remote_project_cache = {}
+        self._remote_project_cache[test_project.id] = gql_data
+        
+        self.reload_tree()
 
     def closeEvent(self, event):
         """ When the user clicks the "X" in the dockwidget titlebar

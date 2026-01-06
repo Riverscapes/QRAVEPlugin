@@ -49,6 +49,7 @@ class RunGQLQueryTask(QgsTask):
         self.variables = variables
         self.error = None
         self.response = None
+        self.success = False
 
     def debug_log(self) -> str:
         debug_obj = {
@@ -79,22 +80,23 @@ class RunGQLQueryTask(QgsTask):
                     # Authentication timeout: re-login and retry the query
                     if len(list(filter(lambda err: 'You must be authenticated' in err['message'], resp_json['errors']))) > 0:
                         if retries < MAX_RETRIES:
-                            self.log("Authentication timed out. Fetching new token...")
+                            self.api.log("Authentication timed out. Fetching new token...")
                             try:
                                 self.api._refresh_token()
                             except Exception as e:
-                                self.log(f"Failed to refresh token: {e}")
+                                self.api.log(f"Failed to refresh token: {e}")
                                 return  # or handle the error in some other way
 
-                            self.log("   done. Re-trying query...")
+                            self.api.log("   done. Re-trying query...")
                             return self.run(retries=retries+1)
                         else:
-                            self.log("Failed to authenticate after multiple attempts.")
+                            self.api.log("Failed to authenticate after multiple attempts.")
                             return  # or handle the error in some other way
                     raise GraphQLAPIException(
                         f"Query failed to run by returning code of {request.status_code}. ERRORS: {json.dumps(resp_json, indent=4, sort_keys=True)}")
                 else:
                     self.response = request.json()
+                    self.success = True
                     return True
             else:
                 raise GraphQLAPIException(

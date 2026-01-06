@@ -271,6 +271,22 @@ class DataExchangeAPI(QObject):
 
         return self.api.run_query(self._load_query('getProject'), {'id': project_id}, _parse_project)
 
+    def get_remote_project(self, project_id: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
+        """ Get the tree and metadata for a remote project
+
+        Args:
+            project_id (str): the id of the project to get
+        """
+        def _parse_remote_project(task: RunGQLQueryTask):
+            # We just return the raw response for now and let the RemoteProject handle it
+            return callback(task, task.response)
+
+        return self.api.run_query(self._load_query('webRaveProject'), {
+            'id': project_id,
+            'dsLimit': 1,
+            'dsOffset': 0
+        }, _parse_remote_project)
+
     def validate_project(self, xml_str: str, owner_obj: OwnerInputTuple, files: UploadFileList, callback: Callable[[RunGQLQueryTask, Dict], None]):
         """ Validate a project
 
