@@ -50,7 +50,7 @@ class QRaveMapLayer():
         FILE = 'file'
         REPORT = 'report'
         # Tile Types
-        WEBTILE = 'WEBTILE'
+        WEBTILE = 'webtile'
 
     def __init__(self,
                  label: str,
@@ -64,6 +64,7 @@ class QRaveMapLayer():
 
         self.label = label
         self.layer_uri = layer_uri
+        layer_type = layer_type.lower() if layer_type else None
 
         # If this is a real file then sanitize the URI
         if isinstance(self.layer_uri, str) and len(layer_uri) > 0 and layer_type != QRaveMapLayer.LayerTypes.WEBTILE:
@@ -82,7 +83,11 @@ class QRaveMapLayer():
             settings.log('Layer type "{}" is not valid'.format(layer_type), Qgis.Critical)
         self.layer_type = layer_type
 
-        self.exists = self.layer_type == QRaveMapLayer.LayerTypes.WEBTILE or os.path.isfile(self.layer_uri)
+        self.exists = False
+        if self.layer_type == QRaveMapLayer.LayerTypes.WEBTILE:
+            self.exists = True
+        elif isinstance(self.layer_uri, str) and len(self.layer_uri) > 0:
+            self.exists = os.path.isfile(self.layer_uri)
 
     @staticmethod
     def _getlayerposition(item):

@@ -17,7 +17,7 @@ import os.path
 from time import time
 from functools import partial
 from pathlib import Path
-import requests
+import re
 
 from qgis.utils import showPluginHelp
 from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis, QgsMapLayer
@@ -37,6 +37,7 @@ from .classes.map import get_map_center, get_zoom_level
 from .options_dialog import OptionsDialog
 from .about_dialog import AboutDialog
 from .dock_widget import QRAVEDockWidget
+from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
 from .meta_widget import QRAVEMetaWidget
 from .frm_project_bounds import FrmProjectBounds
 
@@ -177,6 +178,12 @@ class QRAVE:
         self.openProjectAction.setStatusTip('Open Riverscapes project')
         self.openProjectAction.setWhatsThis('Open Riverscapes project')
 
+        self.openRemoteProjectAction = QAction(QIcon(
+            ':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Remote Project'), self.iface.mainWindow())
+        self.openRemoteProjectAction.triggered.connect(self.remoteProjectDlg)
+        self.openRemoteProjectAction.setStatusTip('Open Remote Riverscapes project')
+        self.openRemoteProjectAction.setWhatsThis('Open Remote Riverscapes project')
+
         self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/close.png'), self.tr(
             u'Close All Riverscapes Projects'), self.iface.mainWindow())
         self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
@@ -265,6 +272,7 @@ class QRAVE:
         # Add your actions to self.menu instead of directly to the toolbar
 
         self.menu.addAction(self.openProjectAction)
+        self.menu.addAction(self.openRemoteProjectAction)
         self.menu.addAction(self.closeAllProjectsAction)
 
         # Add a separator and your tools/help submenus if desired
@@ -445,6 +453,50 @@ class QRAVE:
             if self.dockwidget is None or self.dockwidget.isHidden() is True:
                 self.toggle_widget(forceOn=True)
             self.dockwidget.add_project(dialog_return[0])
+
+    def remoteProjectDlg(self):
+        """
+        Open a dialog to enter a project ID or URL
+        """
+        from qgis.PyQt.QtWidgets import QInputDialog
+        text, ok = QInputDialog.getText(self.iface.mainWindow(), "Open Remote Project", "Enter Project ID or URL:")
+        
+        if ok and text:
+            # Extract project ID from URL if necessary
+            project_id = text.strip()
+            if '/' in project_id:
+                project_id = project_id.rstrip('/').split('/')[-1]
+            
+            # Validate that this is a proper guid like 4dd028c6-3e9f-4b14-a317-fe74903ed279
+            if not re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', project_id):
+                QMessageBox.warning(self.iface.mainWindow(), "Invalid Project ID", "The project ID you entered is invalid.")
+                return
+
+            # Use DataExchangeAPI to fetch the project
+            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_remote_login(task, project_id))
+
+    def _on_remote_login(self, task, project_id):
+        if task.success:
+            self.dataExchangeAPI.get_remote_project(project_id, self._on_remote_project_fetched)
+        else:
+            QMessageBox.critical(self.iface.mainWindow(), "Login Failed", "Could not log in to Riverscapes API.")
+
+    def _on_remote_project_fetched(self, task, response):
+        if task.success and response and 'data' in response and response['data']['project']:
+            if self.dockwidget is None or self.dockwidget.isHidden() is True:
+                self.toggle_widget(forceOn=True)
+            self.dockwidget.add_remote_project(response)
+        else:
+            err_msg = f"Could not find project with ID: {task.variables.get('id')}"
+            if task.error:
+                err_msg += f"\n\nError: {task.error}"
+            elif response and 'errors' in response:
+                import json
+                err_msg += f"\n\nAPI Errors:\n{json.dumps(response['errors'], indent=2)}"
+            elif response and 'data' in response and response['data']['project'] is None:
+                err_msg += "\n\nNote: The API returned null for this project ID. It may be private or deleted."
+            
+            QMessageBox.warning(self.iface.mainWindow(), "Project Not Found", err_msg)
 
     def closeAllProjects(self):
         """Close all open projects"""

@@ -1,0 +1,111 @@
+query webRaveProject($id: ID!, $dsLimit: Int!, $dsOffset: Int!) {
+  project(id: $id) {
+    id
+    name
+    summary
+    deleted
+    archived
+    createdOn
+    updatedOn
+    tags
+    visibility
+    projectType {
+      id
+      name
+    }
+    meta {
+      key
+      value
+      type
+      locked
+      ext
+    }
+    ownedBy {
+      ... on User {
+        id
+        name
+        avatar
+      }
+      ... on Organization {
+        id
+        name
+        logo
+      }
+      __typename
+    }
+    bounds {
+      id
+      bbox
+      centroid
+      polygonUrl
+      __typename
+    }
+    datasets(limit: $dsLimit, offset: $dsOffset) {
+      items {
+        id
+        rsXPath
+        refProject {
+          ...DatasetProjectSource
+        }
+        layers {
+          lyrName
+          refProject {
+            ...DatasetProjectSource
+          }
+        }
+        meta {
+          key
+          value
+          type
+          locked
+          ext
+        }
+      }
+      limit
+      offset
+      total
+    }
+    tree {
+      defaultView
+      description
+      leaves {
+        id
+        pid
+        label
+        labelxpath
+        nodeId
+        filePath
+        layerType
+        blLayerId
+        symbology
+        transparency
+        rsXPath
+        lyrName
+      }
+      branches {
+        bid
+        collapsed
+        label
+        pid
+      }
+      views {
+        id
+        name
+        description
+        layers {
+          id
+          visible
+        }
+      }
+    }
+  }
+}
+
+fragment DatasetProjectSource on Project {
+  id
+  name
+  projectType {
+    id
+    name
+  }
+}
