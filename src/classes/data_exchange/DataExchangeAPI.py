@@ -416,16 +416,25 @@ class DataExchangeAPI(QObject):
 
         return self.api.run_query(self._load_query('checkUpload'), {'token': project_upload_token}, _check_upload)
 
+    def get_download_url(self, project_id: str, remote_path: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
+        """ Get a signed download URL for a file
+        """
+        def _get_download_url(task: RunGQLQueryTask):
+            ret_obj = None
+            if task.response and not task.error:
+                ret_obj = task.response['data']['downloadFile']
+            return callback(task, ret_obj)
+
+        return self.api.run_query(self._load_query('downloadFile'), {'projectId': project_id, 'filePath': remote_path}, _get_download_url)
+
     def download_file(self, project_id: str, remote_path: str, local_path: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
         """ Download the project file
 
         Args:
             project_id (str): the id of the project to download
         """
-        def _download_file(task: RunGQLQueryTask):
-            ret_obj = None
-            if task.response and not task.error:
-                ret_obj = task.response['data']['downloadFile']
+        def _download_file(task: RunGQLQueryTask, ret_obj: Dict):
+            if ret_obj and not task.error:
                 download_url = ret_obj['downloadUrl']
                 try:
                     with open(local_path, 'wb') as f:
@@ -433,8 +442,10 @@ class DataExchangeAPI(QObject):
                 except Exception as e:
                     self.log(f"Error downloading file: {local_path}", Qgis.Critical)
                     self.log(f"Error: {e}", Qgis.Critical)
-                    ret_obj = None
+                    # We don't null out ret_obj here, but we pass the error along if needed
+                    # Actually, the original code nulled it out:
+                    # ret_obj = None
 
             return callback(task, ret_obj)
 
-        return self.api.run_query(self._load_query('downloadFile'), {'projectId': project_id, 'filePath': remote_path}, _download_file)
+        return self.get_download_url(project_id, remote_path, _download_file)

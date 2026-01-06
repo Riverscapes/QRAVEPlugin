@@ -43,6 +43,7 @@ from .classes.project import Project, ProjectTreeData
 from .classes.remote_project import RemoteProject
 from .classes.basemaps import BaseMaps, QRaveBaseMap
 from .classes.settings import Settings, CONSTANTS
+from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
 
 
 ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
@@ -353,7 +354,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         loading_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/refresh.png'), f"Loading Remote: {label}...")
         # Use a special data role to identify it
         loading_item.setData("LOADING_PLACEHOLDER", Qt.UserRole + 10)
-        self.model.appendRow(loading_item)
+        self.model.insertRow(0, loading_item)
 
     def hide_loading(self):
         """Remove any loading items from the tree"""
@@ -637,6 +638,44 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         qurl = QUrl.fromLocalFile(final_path)
         QDesktopServices.openUrl(qurl)
 
+    def open_remote_file_in_browser(self, item_data: ProjectTreeData):
+        """ Fetch a signed URL for a remote file and open it in the browser
+        """
+        def _handle_download_url(task: RunGQLQueryTask, resp: Dict):
+            if task.success and resp and 'downloadUrl' in resp:
+                QDesktopServices.openUrl(QUrl(resp['downloadUrl']))
+            else:
+                self.settings.log(f"Error fetching download URL: {task.error}", Qgis.Warning)
+                QMessageBox.warning(self, "Download Failed", f"Could not fetch download URL for {item_data.data.label}")
+
+        if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
+            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_download_login(task, item_data))
+        else:
+            self.dataExchangeAPI.get_download_url(item_data.project.id, item_data.data.layer_uri, _handle_download_url)
+
+    def open_remote_report_in_browser(self, item_data: ProjectTreeData):
+        """ Construct and open a remote report URL in the browser
+        """
+        project_type = item_data.project.project_type
+        project_id = item_data.project.id
+        rs_xpath = item_data.data.bl_attr.get('rsXPath', '')
+        
+        if not rs_xpath:
+            self.settings.log("Cannot open report: rsXPath is missing", Qgis.Warning)
+            QMessageBox.warning(self, "Report Failed", f"Could not determine report URL for {item_data.data.label}")
+            return
+
+        # replace # with _ in rs_xpath
+        rs_xpath_sani = rs_xpath.replace('#', '_')
+        report_url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/tiles/{project_type}/{project_id}/{rs_xpath_sani}/index.html"
+        QDesktopServices.openUrl(QUrl(report_url))
+
+    def _on_download_login(self, task: RefreshTokenTask, item_data: ProjectTreeData):
+        if task.success:
+            self.open_remote_file_in_browser(item_data)
+        else:
+            QMessageBox.critical(self, "Login Failed", "Could not log in to Riverscapes API for download.")
+
     def toggleSubtree(self, item: QStandardItem = None, expand=True):
 
         def _recurse(curritem):
@@ -783,7 +822,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         if isinstance(item_data.project, RemoteProject):
             project_id = item_data.project.id
-            url = f"https://data.riverscapes.net/p/{project_id}/datasets"
+            url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
             menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
         else:
             menu.addAction(
@@ -791,13 +830,18 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.layerMenuOpen.emit(menu, item, item_data)
 
     def file_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
-        menu.addAction(
-            'OPEN_FILE', lambda: self.file_system_open(item_data.data.layer_uri))
         if isinstance(item_data.project, RemoteProject):
+            if item_data.data.layer_type == QRaveMapLayer.LayerTypes.REPORT:
+                menu.addAction('OPEN_REPORT', lambda: self.open_remote_report_in_browser(item_data))
+            else:
+                menu.addAction('OPEN_FILE', lambda: self.open_remote_file_in_browser(item_data))
+            
             project_id = item_data.project.id
-            url = f"https://data.riverscapes.net/p/{project_id}/datasets"
+            url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
             menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
         else:
+            menu.addAction(
+                'OPEN_FILE', lambda: self.file_system_open(item_data.data.layer_uri))
             menu.addAction(
                 'BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
 
@@ -810,7 +854,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     def folder_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
         if isinstance(data.project, RemoteProject):
             project_id = data.project.id
-            url = f"https://data.riverscapes.net/p/{project_id}/datasets"
+            url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
             menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
         else:
             menu.addAction(
@@ -842,7 +886,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         menu.addSeparator()
         if isinstance(data.project, RemoteProject):
             project_id = data.project.id
-            url = f"https://data.riverscapes.net/p/{project_id}/datasets"
+            url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
             menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
         else:
             menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(data.project.project_xml_path))
