@@ -687,10 +687,22 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         """
         def _handle_tile_metadata(task: RunGQLQueryTask, resp: Dict):
             if task.success and resp:
+                # Check for tiling error
+                if resp.get('state') == 'TILING_ERROR':
+                    self.settings.log(f"Tile service is in error state for {item_data.data.label}.", Qgis.Warning)
+                    QMessageBox.warning(self, "Add Layer Failed", f"Tile service is in error state on the server. Please check the Riverscapes Data Exchange.")
+                    return
+
                 # Fetch more details from the indexUrl if it exists
                 # This is a workaround because the GQL API doesn't return all metadata yet
 
-                base_url = resp.get('url', '').rstrip('/')
+                url_val = resp.get('url')
+                if not url_val:
+                    self.settings.log(f"Tile service URL is missing for {item_data.data.label}.", Qgis.Warning)
+                    QMessageBox.warning(self, "Add Layer Failed", f"Tile service URL could not be found for {item_data.data.label}.")
+                    return
+
+                base_url = url_val.rstrip('/')
                 map_layer: QRaveMapLayer = item_data.data
                 layer_name = map_layer.layer_name or map_layer.bl_attr.get('nodeId', '')
                 index_url = f"{base_url}/{layer_name}/index.json"
