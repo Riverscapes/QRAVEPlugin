@@ -1,0 +1,31 @@
+query getLayerTiles($rsXPath: String!, $projectId: ID!, $projectTypeId: String!) {
+  getLayerTiles(
+    rsXPath: $rsXPath
+    projectId: $projectId
+    projectTypeId: $projectTypeId
+  ) {
+    url
+    indexUrl
+    state
+    errorMsg
+    rasterStats
+    numFiles
+    layers
+    format
+    originFile {
+      contentType
+      etag
+      localPath
+      size
+    }
+    rsXPath
+    tileType
+    symbologies
+    lastState
+    started
+    duration
+    bounds
+    maxZoom
+    minZoom
+  }
+}

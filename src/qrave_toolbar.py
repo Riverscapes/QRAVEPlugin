@@ -40,6 +40,7 @@ from .dock_widget import QRAVEDockWidget
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
 from .meta_widget import QRAVEMetaWidget
 from .frm_project_bounds import FrmProjectBounds
+from .remote_project_dialog import RemoteProjectDialog
 
 # initialize Qt resources from file resources.py
 from . import resources
@@ -484,8 +485,13 @@ class QRAVE:
         """
         Open a dialog to enter a project ID or URL
         """
-        from qgis.PyQt.QtWidgets import QInputDialog
-        text, ok = QInputDialog.getText(self.iface.mainWindow(), "Open Remote Project", "Enter Project ID or URL:", text="ac104f27-93b7-4e47-b279-7a7dad8ccf1d")
+        dialog = RemoteProjectDialog(self.iface.mainWindow())
+        if dialog.exec_():
+            text = dialog.get_text()
+            ok = True
+        else:
+            text = ""
+            ok = False
         
         if ok and text:
             # Extract project ID from URL if necessary

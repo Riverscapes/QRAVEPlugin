@@ -427,6 +427,32 @@ class DataExchangeAPI(QObject):
 
         return self.api.run_query(self._load_query('downloadFile'), {'projectId': project_id, 'filePath': remote_path}, _get_download_url)
 
+    def get_layer_tiles(self, project_id: str, project_type_id: str, rs_xpath: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
+        """ Get the tile service metadata for a layer
+        """
+        def _get_layer_tiles(task: RunGQLQueryTask):
+            ret_obj = None
+            if task.response and not task.error:
+                ret_obj = task.response['data']['getLayerTiles']
+            return callback(task, ret_obj)
+
+        return self.api.run_query(self._load_query('getLayerTiles'), {'projectId': project_id, 'projectTypeId': project_type_id, 'rsXPath': rs_xpath}, _get_layer_tiles)
+
+    def get_web_symbology(self, project_type_id: str, name: str, is_raster: bool, callback: Callable[[RunGQLQueryTask, Dict], None]):
+        """ Get the web symbology for a layer
+        """
+        def _get_web_symbology(task: RunGQLQueryTask):
+            ret_obj = None
+            if task.response and not task.error:
+                ret_obj = task.response['data']['getWebSymbology']
+            return callback(task, ret_obj)
+
+        return self.api.run_query(self._load_query('getWebSymbology'), {
+            'projectTypeId': project_type_id,
+            'name': name,
+            'isRaster': is_raster
+        }, _get_web_symbology)
+
     def download_file(self, project_id: str, remote_path: str, local_path: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
         """ Download the project file
 

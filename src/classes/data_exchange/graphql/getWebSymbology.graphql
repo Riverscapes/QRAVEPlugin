@@ -1,0 +1,11 @@
+query getWebSymbology($projectTypeId: String, $name: String!, $isRaster: Boolean) {
+  getWebSymbology(projectTypeId: $projectTypeId, name: $name, isRaster: $isRaster) {
+    name
+    state
+    legend
+    rampType
+    mapboxJson
+    url
+    error
+  }
+}

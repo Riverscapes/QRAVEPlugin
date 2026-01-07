@@ -155,7 +155,8 @@ class RemoteProject:
                 'type': leaf.get('layerType'),
                 'symbology': leaf.get('symbology'),
                 'transparency': str(leaf.get('transparency', 0)),
-                'rsXPath': leaf.get('rsXPath')
+                'rsXPath': leaf.get('rsXPath'),
+                'nodeId': leaf.get('nodeId')
             }
             
             # Match leaf to dataset metadata
