@@ -10,7 +10,9 @@
         "pluginVersion": null,
         "basemapRegion": "United States",
         "dockLocation": "left",
-        "localBLFolder": null
+        "localBLFolder": null,
+        "dockVisible": false,
+        "dockHeight": 600
     },
     "constants": {
         "logCategory": "Riverscapes Viewer",

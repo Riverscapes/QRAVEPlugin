@@ -316,6 +316,13 @@ class QRAVE:
                 lastVersion, __version__), MESSAGE_CATEGORY, level=Qgis.Info)
             self.settings.setValue('pluginVersion', __version__)
 
+        # Restore the dock widget visibility if it was open last time
+        if self.settings.getValue('dockVisible') is True:
+            # Note that toggle_widget will also restore the height
+            self.toggle_widget(forceOn=True)
+            if self.dockwidget is not None:
+                self.dockwidget.reload_tree()
+
     def onProjectLoad(self, doc):
         # If the project has the plugin enabled then restore it.
         qrave_enabled, type_conversion_ok = self.qproject.readEntry(
@@ -325,6 +332,7 @@ class QRAVE:
         if type_conversion_ok and qrave_enabled == '1':
             self.dockwidget.fix_broken_project_paths()
             self.toggle_widget(forceOn=True)
+            self.settings.setValue('dockVisible', True)
             if self.dockwidget is not None:
                 self.dockwidget.reload_tree()
 
@@ -333,6 +341,7 @@ class QRAVE:
         if self.metawidget is not None:
             self.metawidget.hide()
         if self.dockwidget is not None:
+            self._save_dock_height()
             self.dockwidget.hide()
 
         # disconnects
@@ -357,6 +366,7 @@ class QRAVE:
             self.metawidget.deleteLater()
 
         if self.dockwidget is not None:
+            self._save_dock_height()
             self.dockwidget.hide()
             self.iface.removeDockWidget(self.dockwidget)
             self.dockwidget.deleteLater()
@@ -399,12 +409,15 @@ class QRAVE:
             self.iface.addDockWidget(dock_location, self.dockwidget)
             self.iface.addDockWidget(dock_location, self.metawidget)
             self.dockwidget.show()
+            self._restore_dock_height()
 
         else:
             if self.dockwidget is not None:
                 if self.dockwidget.isHidden():
                     self.dockwidget.show()
+                    self._restore_dock_height()
                 elif forceOn is False:
+                    self._save_dock_height()
                     self.dockwidget.hide()
 
         # The metawidget always starts hidden
@@ -414,8 +427,25 @@ class QRAVE:
         if self.dockwidget is not None and not self.dockwidget.isHidden():
             self.qproject.writeEntry(
                 CONSTANTS['settingsCategory'], 'enabled', True)
+            self.settings.setValue('dockVisible', True)
         else:
             self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'enabled')
+            self.settings.setValue('dockVisible', False)
+
+    def _save_dock_height(self):
+        """Save the height of the dock widget to settings."""
+        if self.dockwidget is not None:
+            h = self.dockwidget.height()
+            # If the widget is hidden, height() might return 0 or its last size.
+            # We only save if it's positive.
+            if h > 0:
+                self.settings.setValue('dockHeight', h)
+
+    def _restore_dock_height(self):
+        """Restore the height of the dock widget from settings."""
+        saved_height = self.settings.getValue('dockHeight')
+        if saved_height and self.dockwidget:
+            self.iface.mainWindow().resizeDocks([self.dockwidget], [saved_height], Qt.Vertical)
 
     def net_sync_load(self, force=False):
         """
