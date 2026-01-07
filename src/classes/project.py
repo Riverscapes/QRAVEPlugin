@@ -352,6 +352,10 @@ class Project:
             desc_el = new_proj_el.find('Description')
             layer_description = desc_el.text.strip() if desc_el is not None and desc_el.text else None
 
+            # Construct the rsXPath for this element
+            rs_xpath = get_xml_xpath(new_proj_el)
+            bl_attr['rsXPath'] = rs_xpath
+
             map_layer = QRaveMapLayer(curr_label, layer_type, layer_uri, bl_attr, meta, layer_name, description=layer_description)
             curr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), Qt.UserRole)
 
@@ -365,12 +369,12 @@ class Project:
                     'Missing File',
                     'Error finding file with path={}'.format(map_layer.layer_uri),
                     Qgis.Warning)
-                curr_item.setData(QBrush(Qt.red), Qt.ForegroundRole)
+                curr_item.setData(QBrush(Qt.gray), Qt.ForegroundRole)
                 curr_item_font = curr_item.font()
                 curr_item_font.setItalic(True)
                 curr_item.setFont(curr_item_font)
 
-                curr_item.setToolTip('File not found: {}'.format(map_layer.layer_uri))
+                curr_item.setToolTip('File is not available locally: {}'.format(map_layer.layer_uri))
             elif map_layer.layer_uri:
                 curr_item.setToolTip(map_layer.layer_uri)
 
@@ -438,3 +442,23 @@ def xpath_findref(root_el, ref_str, xpath_str):
         return
     else:
         return origin[0]
+
+
+def get_xml_xpath(el: lxml.etree._Element) -> str:
+    """Construct a Riverscapes-style XPath for an XML element
+
+    Args:
+        el (lxml.etree._Element): The element to construct the path for
+
+    Returns:
+        str: The constructed XPath
+    """
+    rs_xpath = ''
+    curr = el
+    while curr is not None:
+        node_id = curr.attrib.get('id')
+        node_id_str = f'#{node_id}' if node_id else ''
+        sep = '/' if rs_xpath else ''
+        rs_xpath = f"{curr.tag}{node_id_str}{sep}{rs_xpath}"
+        curr = curr.getparent()
+    return rs_xpath

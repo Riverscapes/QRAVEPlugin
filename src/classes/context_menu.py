@@ -73,6 +73,10 @@ class ContextMenu(QMenu):
             'Open Report',
             ':/plugins/qrave_toolbar/description.svg'
         ),
+        'ADD_WEB_TILES_TO_MAP': (
+            "Add WebTiles to Map",
+            ':/plugins/qrave_toolbar/data-exchange-icon.svg',
+        ),
     }
 
     # def __init__(self):
