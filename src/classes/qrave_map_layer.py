@@ -1,8 +1,23 @@
 from __future__ import annotations
 import os
+import json
 
 from typing import Dict
-from qgis.core import Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer
+from qgis.core import (Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsVectorTileLayer, 
+                       QgsRectangle, QgsCoordinateReferenceSystem, QgsCoordinateTransform, 
+                       QgsReferencedRectangle, QgsLayerMetadata)
+
+# Some builds of QGIS do not have the specialized MapboxGL renderer
+try:
+    from qgis.core import QgsVectorTileMapboxGLRenderer
+except ImportError:
+    QgsVectorTileMapboxGLRenderer = None
+
+# Most builds have the style converter
+try:
+    from qgis.core import QgsMapBoxGlStyleConverter
+except ImportError:
+    QgsMapBoxGlStyleConverter = None
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QStandardItem
 from .rspaths import parse_rel_path
@@ -186,34 +201,19 @@ class QRaveMapLayer():
             return chosen_qml
 
     @staticmethod
-    def add_layer_to_map(item: QStandardItem):
+    def _prepare_parent_group(item: QStandardItem):
+        """ Prepare the parent group for a layer in the tree
         """
-        Add a layer to the map
-        :param layer:
-        :return:
-        """
-
-        # No multiselect so there is only ever one item
-        pt_data: ProjectTreeData = item.data(Qt.UserRole)
-        project = pt_data.project
-        map_layer: QRaveMapLayer = pt_data.data
-
-        settings = Settings()
-
         # Loop over all the parent group layers for this raster
         # ensuring they are in the tree in correct, nested order
         ancestry = []
         ancestry_order = []
-        if map_layer.exists is True:
-            parent = item.parent()
-            while parent is not None and len(ancestry) < 50:
-                pos, order = QRaveMapLayer._getlayerposition(parent)
-                ancestry.append((parent.text(), pos))
-                ancestry_order.append((parent.text(), order))
-                parent = parent.parent()
-        else:
-            # Layer does not exist. do not try to put it on the map
-            return
+        parent = item.parent()
+        while parent is not None and len(ancestry) < 50:
+            pos, order = QRaveMapLayer._getlayerposition(parent)
+            ancestry.append((parent.text(), pos))
+            ancestry_order.append((parent.text(), order))
+            parent = parent.parent()
 
         ancestry.reverse()
         ancestry_order.reverse()
@@ -229,7 +229,31 @@ class QRaveMapLayer():
                     pos += 1
             parentGroup = QRaveMapLayer._addgrouptomap(agroup, pos, parentGroup)
 
-        assert parentGroup, "All rasters should be nested and so parentGroup should be instantiated by now"
+        if not parentGroup:
+            parentGroup = QgsProject.instance().layerTreeRoot()
+
+        return parentGroup, ancestry
+
+    @staticmethod
+    def add_layer_to_map(item: QStandardItem):
+        """
+        Add a layer to the map
+        :param layer:
+        :return:
+        """
+
+        # No multiselect so there is only ever one item
+        pt_data: ProjectTreeData = item.data(Qt.UserRole)
+        project = pt_data.project
+        map_layer: QRaveMapLayer = pt_data.data
+
+        settings = Settings()
+
+        if map_layer.exists is False:
+            # Layer does not exist. do not try to put it on the map
+            return
+
+        parentGroup, ancestry = QRaveMapLayer._prepare_parent_group(item)
 
         # Loop over all the parent group layers for this raster
         # ensuring they are in the tree in correct, nested order
@@ -324,6 +348,175 @@ class QRaveMapLayer():
         # if the layer already exists trigger a refresh
         else:
             QgsProject.instance().mapLayersByName(map_layer.label)[0].triggerRepaint()
+
+    @staticmethod
+    def add_remote_vector_layer_to_map(item: QStandardItem, tile_service: Dict):
+        """ Add a remote vector tile layer to the map
+        """
+        pt_data: ProjectTreeData = item.data(Qt.UserRole)
+        map_layer: QRaveMapLayer = pt_data.data
+        settings = Settings()
+
+        parentGroup, ancestry = QRaveMapLayer._prepare_parent_group(item)
+
+        # Check if exists
+        existing_layers = QgsProject.instance().mapLayersByName(map_layer.label)
+        layers_ancestry = [QRaveMapLayer.get_layer_ancestry(lyr) for lyr in existing_layers]
+
+        exists = False
+        for lyr in layers_ancestry:
+            if len(lyr) == len(ancestry) and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
+                exists = True
+                break
+        
+        if exists:
+            QgsProject.instance().mapLayersByName(map_layer.label)[0].triggerRepaint()
+            return
+
+        # Construct Tile URL
+        base_url = tile_service.get('url', '').rstrip('/')
+        
+        # TODO: Fix minZoom and maxZoom on the server-side so we don't need to fetch indexUrl manually
+        # For vector layers we use layer_name or nodeId
+        layer_name = map_layer.layer_name
+        if not layer_name:
+            layer_name = map_layer.bl_attr.get('nodeId', '')
+            
+        fmt = tile_service.get('format', 'pbf')
+        
+        # Build the URI
+        # Examples: type=xyz&url=https://.../{z}/{x}/{y}.pbf
+        tile_url = f"{base_url}/{layer_name}/{{z}}/{{x}}/{{y}}.{fmt}"
+
+        rOutput = None
+        if fmt == 'pbf':
+            # Vector Tile URI format: type=xyz&url=...&zmin=...&zmax=...
+            uri = f"type=xyz&url={tile_url}"
+            if tile_service.get('maxZoom') is not None:
+                uri += f"&zmax={tile_service['maxZoom']}"
+            if tile_service.get('minZoom') is not None:
+                uri += f"&zmin={tile_service['minZoom']}"
+            
+            rOutput = QgsVectorTileLayer(uri, map_layer.label)
+        else:
+            settings.log(f"Unsupported format: {fmt}", Qgis.Warning)
+            return
+
+        
+        settings.log(f"Adding remote layer URI: {uri}", Qgis.Info)
+
+        if rOutput and rOutput.isValid():
+            QgsProject.instance().addMapLayer(rOutput, False)
+            parentGroup.insertLayer(item.row(), rOutput)
+
+            # Set extent and metadata AFTER adding to project to ensure they stick
+            bounds = tile_service.get('bounds')
+            if bounds and len(bounds) == 4:
+                try:
+                    rect = QgsRectangle(bounds[0], bounds[1], bounds[2], bounds[3])
+                    src_crs = QgsCoordinateReferenceSystem("EPSG:4326")
+                    dest_crs = rOutput.crs()
+                    if not dest_crs.isValid():
+                        dest_crs = QgsCoordinateReferenceSystem("EPSG:3857")
+                        rOutput.setCrs(dest_crs)
+                    
+                    if src_crs != dest_crs:
+                        transform = QgsCoordinateTransform(src_crs, dest_crs, QgsProject.instance())
+                        rect = transform.transformBoundingBox(rect)
+                        
+                    rOutput.setExtent(rect)
+
+                    metadata = rOutput.metadata()
+                    metadata.setIdentifier(map_layer.label)
+                    metadata.setTitle(map_layer.label)
+                    
+                    spatialExtent = QgsLayerMetadata.SpatialExtent()
+                    spatialExtent.extent = QgsReferencedRectangle(rect, dest_crs)
+                    
+                    extent = QgsLayerMetadata.Extent()
+                    extent.setSpatialExtent([spatialExtent])
+                    metadata.setExtent(extent)
+                    
+                    rOutput.setMetadata(metadata)
+                    settings.log(f"Finalized layer metadata and extent: {rect.toString()}", Qgis.Info)
+                except Exception as e:
+                    settings.log(f'Error finalising metadata: {e}', Qgis.Warning)
+
+            rOutput.triggerRepaint()
+            
+            # Apply Mapbox GL Symbology if present
+            mapbox_json = tile_service.get('mapboxJson')
+            if mapbox_json:
+                try:
+                    # The API might return a full Riverscapes Symbology object or just a list of layers
+                    layers = []
+                    if isinstance(mapbox_json, dict) and 'layerStyles' in mapbox_json:
+                        layers = mapbox_json['layerStyles']
+                    elif isinstance(mapbox_json, list):
+                        layers = mapbox_json
+                    else:
+                        # Fallback if it's already a full Mapbox GL style
+                        layers = mapbox_json.get('layers', [])
+
+                    # Dynamically fix source and source-layer
+                    # QGIS expects these to match the source ID and layer name in the tiles
+                    source_id = 'vector_tiles'
+                    for layer in layers:
+                        layer['source'] = source_id
+                        layer['source-layer'] = layer_name
+
+                    style = {
+                        "version": 8,
+                        "sources": {
+                            source_id: {
+                                "type": "vector",
+                                "tiles": [tile_url]
+                            }
+                        },
+                        "layers": layers
+                    }
+                    style_json = json.dumps(style)
+
+                    # Option 1: Use the specialized native renderer if available
+                    if QgsVectorTileMapboxGLRenderer:
+                        renderer = QgsVectorTileMapboxGLRenderer()
+                        renderer.setStyle(style_json)
+                        rOutput.setRenderer(renderer)
+                        settings.log("Applied Mapbox GL symbology using native renderer", Qgis.Info)
+                    
+                    # Option 2: Fallback to the style converter (more compatible)
+                    # https://qgis.org/pyqgis/master/core/QgsMapBoxGlStyleConverter.html
+                    elif QgsMapBoxGlStyleConverter:
+                        converter = QgsMapBoxGlStyleConverter()
+                        result = converter.convert(style_json)
+                        if result == QgsMapBoxGlStyleConverter.Success:
+                            rOutput.setRenderer(converter.renderer())
+                            settings.log("Applied Mapbox GL symbology using style converter", Qgis.Info)
+                        else:
+                            settings.log(f"Mapbox style conversion failed: {converter.errorMessage()}", Qgis.Warning)
+                    
+                    else:
+                        settings.log("No compatible Mapbox GL renderer found in this QGIS build.", Qgis.Warning)
+
+                except Exception as e:
+                    settings.log(f"Error applying Mapbox GL symbology: {e}", Qgis.Warning)
+
+            rOutput.triggerRepaint()
+            
+            # TODO: Transparency and other settings if needed
+            transparency = 0
+            try:
+                transparency = int(map_layer.bl_attr.get('transparency', 0))
+                if transparency > 0:
+                    if isinstance(rOutput, QgsVectorTileLayer) or isinstance(rOutput, QgsVectorLayer):
+                        if hasattr(rOutput, 'setOpacity'):
+                            rOutput.setOpacity((100 - transparency) / 100.0)
+                    elif isinstance(rOutput, QgsRasterLayer):
+                        rOutput.renderer().setOpacity((100 - transparency) / 100.0)
+            except Exception as e:
+                settings.log(f'Error setting transparency: {e}', Qgis.Warning)
+        else:
+            settings.log(f'Failed to create valid remote layer for {map_layer.label}', Qgis.Critical)
 
     @staticmethod
     def get_layer_ancestry(layer: list):

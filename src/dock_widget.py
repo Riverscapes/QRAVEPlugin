@@ -25,11 +25,13 @@ from __future__ import annotations
 from typing import List, Dict
 import os
 import json
+import requests
 
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl, QTimer
+from qgis.PyQt.QtNetwork import QNetworkRequest
 from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction, QFileDialog, QMessageBox, QApplication
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices
-from qgis.core import Qgis, QgsRasterLayer, QgsVectorLayer, QgsProject
+from qgis.core import Qgis, QgsRasterLayer, QgsVectorLayer, QgsProject, QgsBlockingNetworkRequest
 from qgis.PyQt import uic
 
 from .classes.rspaths import safe_make_abspath, safe_make_relpath
@@ -459,7 +461,17 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # This is the default action for all add-able layers including basemaps
         if isinstance(item_data.data, QRaveMapLayer):
-            if item_data.data.layer_type in [QRaveMapLayer.LayerTypes.FILE, QRaveMapLayer.LayerTypes.REPORT]:
+            # Remote projects handle files and layers differently
+            if isinstance(item_data.project, RemoteProject):
+                if item_data.data.layer_type == QRaveMapLayer.LayerTypes.REPORT:
+                    self.open_remote_report_in_browser(item_data)
+                elif item_data.data.layer_type == QRaveMapLayer.LayerTypes.FILE:
+                    self.open_remote_file_in_browser(item_data)
+                else:
+                    self.fetch_and_add_remote_layer(item, item_data)
+            
+            # Local projects
+            elif item_data.data.layer_type in [QRaveMapLayer.LayerTypes.FILE, QRaveMapLayer.LayerTypes.REPORT]:
                 self.file_system_open(item_data.data.layer_uri)
             else:
                 QRaveMapLayer.add_layer_to_map(item)
@@ -670,6 +682,77 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         report_url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/tiles/{project_type}/{project_id}/{rs_xpath_sani}/index.html"
         QDesktopServices.openUrl(QUrl(report_url))
 
+    def fetch_and_add_remote_layer(self, item: QStandardItem, item_data: ProjectTreeData):
+        """ Fetch tile metadata and add the remote layer to the map
+        """
+        def _handle_tile_metadata(task: RunGQLQueryTask, resp: Dict):
+            if task.success and resp:
+                # Fetch more details from the indexUrl if it exists
+                # This is a workaround because the GQL API doesn't return all metadata yet
+
+                base_url = resp.get('url', '').rstrip('/')
+                map_layer: QRaveMapLayer = item_data.data
+                layer_name = map_layer.layer_name or map_layer.bl_attr.get('nodeId', '')
+                index_url = f"{base_url}/{layer_name}/index.json"
+
+                if index_url:
+                    def _fetch_json(url):
+                        headers = {}
+                        try:
+                            resp_json = requests.get(url, headers=headers, timeout=10)
+                            if resp_json.status_code == 200:
+                                return resp_json.json()
+                            else:
+                                self.settings.log(f"Failed to fetch JSON from {url}. Status: {resp_json.status_code}", Qgis.Warning)
+                        except Exception as e:
+                            self.settings.log(f"Error fetching JSON from {url}: {e}", Qgis.Warning)
+                        return None
+
+                    index_data = _fetch_json(index_url)
+                    
+                    if index_data:
+                        self.settings.log(f"Successfully fetched index metadata from {index_url}", Qgis.Info)
+                        resp.update(index_data)
+                    else:
+                        self.settings.log(f"Failed to fetch valid JSON from indexUrl or fallback: {index_url}", Qgis.Warning)
+
+                # Now fetch symbology
+                def _handle_symbology(symb_task: RunGQLQueryTask, symb_resp: Dict):
+                    if symb_task.success and symb_resp:
+                        resp['mapboxJson'] = symb_resp.get('mapboxJson')
+                        self.settings.log(f"Successfully fetched remote symbology for {item_data.data.label}", Qgis.Info)
+                    else:
+                        self.settings.log(f"No remote symbology found or error for {item_data.data.label}", Qgis.Info)
+                    
+                    QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
+
+                symbology_name = item_data.data.bl_attr.get('symbology')
+                if symbology_name:
+                    project_type_id = item_data.project.project_type
+                    is_raster = item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER
+                    self.dataExchangeAPI.get_web_symbology(project_type_id, symbology_name, is_raster, _handle_symbology)
+                else:
+                    QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
+            else:
+                self.settings.log(f"Error fetching tile metadata: {task.error}", Qgis.Warning)
+                QMessageBox.warning(self, "Add Layer Failed", f"Could not fetch tile metadata for {item_data.data.label}")
+
+        if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
+            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_add_layer_login(task, item, item_data))
+        else:
+            project_type_id = item_data.project.project_type
+            rs_xpath = item_data.data.bl_attr.get('rsXPath', '')
+            if not rs_xpath:
+                self.settings.log("Cannot add layer: rsXPath is missing", Qgis.Warning)
+                return
+            self.dataExchangeAPI.get_layer_tiles(item_data.project.id, project_type_id, rs_xpath, _handle_tile_metadata)
+
+    def _on_add_layer_login(self, task: RefreshTokenTask, item: QStandardItem, item_data: ProjectTreeData):
+        if task.success:
+            self.fetch_and_add_remote_layer(item, item_data)
+        else:
+            QMessageBox.critical(self, "Login Failed", "Could not log in to Riverscapes API for layer addition.")
+
     def _on_download_login(self, task: RefreshTokenTask, item_data: ProjectTreeData):
         if task.success:
             self.open_remote_file_in_browser(item_data)
@@ -724,7 +807,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     loadme = True
 
                 if loadme is True:
-                    data.add_layer_to_map(child)
+                    if isinstance(project_tree_data.project, RemoteProject):
+                        self.fetch_and_add_remote_layer(child, project_tree_data)
+                    else:
+                        data.add_layer_to_map(child)
 
     def _get_children(self, root_item: QStandardItem):
         """Recursion is going to kill us here so do an iterative solution instead
@@ -811,8 +897,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         menu.exec_(self.treeView.viewport().mapToGlobal(position))
 
     def map_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
-        menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(
-            item), enabled=item_data.data.exists)
+        if isinstance(item_data.project, RemoteProject):
+            menu.addAction('ADD_TO_MAP', lambda: self.fetch_and_add_remote_layer(item, item_data))
+        else:
+            menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(
+                item), enabled=item_data.data.exists)
+
         menu.addAction('VIEW_LAYER_META',
                        lambda: self.change_meta(item, item_data, True))
 
@@ -892,7 +982,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(data.project.project_xml_path))
         menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
         menu.addAction('WAREHOUSE_VIEW', lambda: self.project_warehouse_view(data.project), enabled=bool(self.get_warehouse_url(data.project.warehouse_meta)))
-        menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item), enabled=not isinstance(data.project, RemoteProject))
+        menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
         menu.addSeparator()
         menu.addAction('REFRESH_PROJECT_HIERARCHY', self.reload_tree)
         menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY', enabled=False)
