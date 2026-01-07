@@ -724,7 +724,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     else:
                         self.settings.log(f"No remote symbology found or error for {item_data.data.label}", Qgis.Info)
                     
-                    QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
+                    if item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER:
+                        QRaveMapLayer.add_remote_raster_layer_to_map(item, resp)
+                    else:
+                        QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
 
                 symbology_name = item_data.data.bl_attr.get('symbology')
                 if symbology_name:
@@ -732,7 +735,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     is_raster = item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER
                     self.dataExchangeAPI.get_web_symbology(project_type_id, symbology_name, is_raster, _handle_symbology)
                 else:
-                    QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
+                    if item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER:
+                        QRaveMapLayer.add_remote_raster_layer_to_map(item, resp)
+                    else:
+                        QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
             else:
                 self.settings.log(f"Error fetching tile metadata: {task.error}", Qgis.Warning)
                 QMessageBox.warning(self, "Add Layer Failed", f"Could not fetch tile metadata for {item_data.data.label}")
