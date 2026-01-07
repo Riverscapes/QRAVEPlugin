@@ -403,7 +403,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         # Collapsed is an attribute set in the business logic
         # Never expand the QRaveBaseMap object becsause there's a network call involved
         elif isinstance(item_data.data, QRaveBaseMap) \
-                or (isinstance(item_data.data, dict) and 'collapsed' in item_data.data and item_data.data['collapsed'] == 'true'):
+                or (isinstance(item_data.data, dict) and 'collapsed' in item_data.data and str(item_data.data['collapsed']).lower() == 'true'):
             collapsed = True
 
         else:
@@ -438,8 +438,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # Collapsed is an attribute set in the business logic
         # Never expand the QRaveBaseMap object becsause there's a network call involved
-        elif isinstance(item_data.data, QRaveBaseMap):  # \
-            # or (isinstance(item_data.data, dict) and 'collapsed' in item_data.data and item_data.data['collapsed'] == 'true'):
+        elif isinstance(item_data.data, QRaveBaseMap) \
+                or (isinstance(item_data.data, dict) and 'collapsed' in item_data.data and str(item_data.data['collapsed']).lower() == 'true'):
             collapsed = True
 
         else:

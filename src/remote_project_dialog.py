@@ -19,7 +19,7 @@ class RemoteProjectDialog(QDialog):
 
         # Description Label
         self.description = QLabel(
-            "Enter a Riverscapes Project ID or paste a URL from the Riverscapes Warehouse.\n"
+            "Enter a Riverscapes Project ID or paste a URL from the Riverscapes Data Exchange.\n"
             "This will fetch the project metadata and add it to your project list."
         )
         self.description.setWordWrap(True)

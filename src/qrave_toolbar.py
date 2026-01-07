@@ -182,7 +182,7 @@ class QRAVE:
         self.actions.append(self.openProjectAction)
 
         self.openRemoteProjectAction = QAction(QIcon(
-            ':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Remote Project'), self.iface.mainWindow())
+            ':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.tr(u'Open Remote Project'), self.iface.mainWindow())
         self.openRemoteProjectAction.triggered.connect(self.remoteProjectDlg)
         self.openRemoteProjectAction.setStatusTip('Open Remote Riverscapes project')
         self.openRemoteProjectAction.setWhatsThis('Open Remote Riverscapes project')
