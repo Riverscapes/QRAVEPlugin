@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import json
+import urllib.parse
 
 from typing import Dict
 from qgis.core import (Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsVectorTileLayer, 
@@ -391,7 +392,8 @@ class QRaveMapLayer():
         rOutput = None
         if fmt == 'pbf':
             # Vector Tile URI format: type=xyz&url=...&zmin=...&zmax=...
-            uri = f"type=xyz&url={tile_url}"
+            encoded_url = urllib.parse.quote(tile_url, safe='/:?={}')
+            uri = f"type=xyz&url={encoded_url}"
             if tile_service.get('maxZoom') is not None:
                 uri += f"&zmax={tile_service['maxZoom']}"
             if tile_service.get('minZoom') is not None:
@@ -517,6 +519,134 @@ class QRaveMapLayer():
                 settings.log(f'Error setting transparency: {e}', Qgis.Warning)
         else:
             settings.log(f'Failed to create valid remote layer for {map_layer.label}', Qgis.Critical)
+
+    @staticmethod
+    def add_remote_raster_layer_to_map(item: QStandardItem, tile_service: Dict):
+        """ Add a remote raster layer to the map
+        """
+        pt_data: ProjectTreeData = item.data(Qt.UserRole)
+        map_layer: QRaveMapLayer = pt_data.data
+        settings = Settings()
+
+        parentGroup, ancestry = QRaveMapLayer._prepare_parent_group(item)
+
+        # Check if exists
+        existing_layers = QgsProject.instance().mapLayersByName(map_layer.label)
+        layers_ancestry = [QRaveMapLayer.get_layer_ancestry(lyr) for lyr in existing_layers]
+
+        exists = False
+        for lyr in layers_ancestry:
+            if len(lyr) == len(ancestry) and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
+                exists = True
+                break
+        
+        if exists:
+            QgsProject.instance().mapLayersByName(map_layer.label)[0].triggerRepaint()
+            return
+
+        # Symbology logic provided by user
+        symbology_name = map_layer.bl_attr.get('symbology')
+        symbology_key = symbology_name if symbology_name and symbology_name != 'NONE' else 'raster'
+        
+        fmt = tile_service.get('format', 'png')
+        is_cog = fmt == 'COG'
+        base_url = tile_service.get('url', '')
+
+        if is_cog:
+            # COG logic: User says replace {symbology} and remove trailing slash
+            tile_url = base_url.replace('{symbology}', symbology_key).rstrip('/')
+        else:
+            # Construct XYZ URL: {url}{symbology}/{z}/{x}/{y}.{format}
+            # Following user's logic: ${tileService.url}${symbologyKey}/{z}/{x}/{y}.${tileService.format || 'png'}
+            # We ensure base_url ends with / if it doesn't already
+            xyz_base = base_url
+            if not xyz_base.endswith('/'):
+                xyz_base += '/'
+            tile_url = f"{xyz_base}{symbology_key}/{{z}}/{{x}}/{{y}}.{fmt}"
+
+        # Determine if it's an XYZ tile service or a single file
+        # If it has tile placeholders, it's an XYZ service
+        if "{z}" in tile_url or "{x}" in tile_url or "{y}" in tile_url:
+            # Don't forget to encode the URL so that special characters are handled correctly
+            encoded_url = urllib.parse.quote(tile_url, safe='/:?={}')
+            uri = f"type=xyz&url={encoded_url}"
+            provider = "wms"
+        else:
+            # Single file COG or other raster
+            uri = tile_url
+            if uri.startswith('http') and not uri.startswith('/vsicurl/'):
+                uri = f"/vsicurl/{uri}"
+            provider = "gdal"
+
+        settings.log(f"Attempting to add remote raster: {map_layer.label}", Qgis.Info)
+        settings.log(f"  - Format: {fmt} (is_cog: {is_cog})", Qgis.Info)
+        settings.log(f"  - Symbology Key: {symbology_key}", Qgis.Info)
+        settings.log(f"  - Constructed Tile URL: {tile_url}", Qgis.Info)
+        settings.log(f"  - Final URI: {uri}", Qgis.Info)
+        settings.log(f"  - Provider: {provider}", Qgis.Info)
+        
+        rOutput = QgsRasterLayer(uri, map_layer.label, provider)
+
+        if rOutput and rOutput.isValid():
+            QgsProject.instance().addMapLayer(rOutput, False)
+            parentGroup.insertLayer(item.row(), rOutput)
+
+            # Set extent and metadata
+            bounds = tile_service.get('bounds')
+            if bounds and len(bounds) == 4:
+                try:
+                    rect = QgsRectangle(bounds[0], bounds[1], bounds[2], bounds[3])
+                    src_crs = QgsCoordinateReferenceSystem("EPSG:4326")
+                    dest_crs = rOutput.crs()
+                    if not dest_crs.isValid():
+                        dest_crs = QgsCoordinateReferenceSystem("EPSG:3857")
+                        rOutput.setCrs(dest_crs)
+                    
+                    if src_crs != dest_crs:
+                        transform = QgsCoordinateTransform(src_crs, dest_crs, QgsProject.instance())
+                        rect = transform.transformBoundingBox(rect)
+                        
+                    rOutput.setExtent(rect)
+
+                    metadata = rOutput.metadata()
+                    metadata.setIdentifier(map_layer.label)
+                    metadata.setTitle(map_layer.label)
+                    
+                    spatialExtent = QgsLayerMetadata.SpatialExtent()
+                    spatialExtent.extent = QgsReferencedRectangle(rect, dest_crs)
+                    
+                    extent = QgsLayerMetadata.Extent()
+                    extent.setSpatialExtent([spatialExtent])
+                    metadata.setExtent(extent)
+                    
+                    rOutput.setMetadata(metadata)
+                    settings.log(f"  - Set extent: {rect.toString()}", Qgis.Info)
+                except Exception as e:
+                    settings.log(f'Error finalising metadata for raster: {e}', Qgis.Warning)
+
+            # Transparency
+            try:
+                transparency = int(map_layer.bl_attr.get('transparency', 0))
+                if transparency > 0:
+                    rOutput.renderer().setOpacity((100 - transparency) / 100.0)
+                    settings.log(f"  - Set transparency: {transparency}%", Qgis.Info)
+            except Exception as e:
+                settings.log(f'Error setting transparency for raster: {e}', Qgis.Warning)
+
+            rOutput.triggerRepaint()
+            settings.log(f"Successfully added remote raster layer: {map_layer.label}", Qgis.Info)
+        else:
+            settings.log(f'Failed to create valid remote raster layer for {map_layer.label}. isValid() is False.', Qgis.Critical)
+            # Try a fallback without the provider if it failed with it
+            if provider == "gdal":
+                settings.log(f"Retrying without explicit 'gdal' provider...", Qgis.Info)
+                rOutput = QgsRasterLayer(uri, map_layer.label)
+                if rOutput and rOutput.isValid():
+                    QgsProject.instance().addMapLayer(rOutput, False)
+                    parentGroup.insertLayer(item.row(), rOutput)
+                    settings.log(f"Success on retry without provider!", Qgis.Info)
+                else:
+                    settings.log(f"Fallback also failed.", Qgis.Critical)
 
     @staticmethod
     def get_layer_ancestry(layer: list):
