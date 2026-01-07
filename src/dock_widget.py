@@ -746,12 +746,16 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
             self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_add_layer_login(task, item, item_data))
         else:
+            project_id = item_data.project.id if hasattr(item_data.project, 'id') else (item_data.project.warehouse_meta['id'][0] if item_data.project.warehouse_meta and 'id' in item_data.project.warehouse_meta else None)
             project_type_id = item_data.project.project_type
             rs_xpath = item_data.data.bl_attr.get('rsXPath', '')
             if not rs_xpath:
                 self.settings.log("Cannot add layer: rsXPath is missing", Qgis.Warning)
                 return
-            self.dataExchangeAPI.get_layer_tiles(item_data.project.id, project_type_id, rs_xpath, _handle_tile_metadata)
+            if not project_id:
+                self.settings.log("Cannot add layer: project_id is missing", Qgis.Warning)
+                return
+            self.dataExchangeAPI.get_layer_tiles(project_id, project_type_id, rs_xpath, _handle_tile_metadata)
 
     def _on_add_layer_login(self, task: RefreshTokenTask, item: QStandardItem, item_data: ProjectTreeData):
         if task.success:
@@ -906,23 +910,24 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if isinstance(item_data.project, RemoteProject):
             menu.addAction('ADD_TO_MAP', lambda: self.fetch_and_add_remote_layer(item, item_data))
         else:
-            menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(
-                item), enabled=item_data.data.exists)
+            menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(item), enabled=item_data.data.exists)
 
-        menu.addAction('VIEW_LAYER_META',
-                       lambda: self.change_meta(item, item_data, True))
+        menu.addAction('VIEW_LAYER_META', lambda: self.change_meta(item, item_data, True))
+
+        # If the project has a warehouse tag, add "Add WebTiles to map" (for local projects)
+        if not isinstance(item_data.project, RemoteProject) and item_data.project.warehouse_meta and 'id' in item_data.project.warehouse_meta:
+            if item_data.data.bl_attr.get('rsXPath'):
+                menu.addAction('ADD_WEB_TILES_TO_MAP', lambda: self.fetch_and_add_remote_layer(item, item_data))
 
         if bool(self.get_warehouse_url(item_data.data.meta)):
-            menu.addAction('VIEW_WEB_SOURCE',
-                           lambda: self.layer_warehouse_view(item_data))
+            menu.addAction('VIEW_WEB_SOURCE', lambda: self.layer_warehouse_view(item_data))
 
         if isinstance(item_data.project, RemoteProject):
             project_id = item_data.project.id
             url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
             menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
         else:
-            menu.addAction(
-                'BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
+            menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
         self.layerMenuOpen.emit(menu, item, item_data)
 
     def file_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
@@ -936,10 +941,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
             menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
         else:
-            menu.addAction(
-                'OPEN_FILE', lambda: self.file_system_open(item_data.data.layer_uri))
-            menu.addAction(
-                'BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
+            menu.addAction('OPEN_FILE', lambda: self.file_system_open(item_data.data.layer_uri))
+            menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
 
     # Basemap context items
     def basemap_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
@@ -953,13 +956,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
             menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
         else:
-            menu.addAction(
-                'ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
+            menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
         menu.addSeparator()
-        menu.addAction(
-            'COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
-        menu.addAction(
-            'EXPAND_ALL', lambda: self.toggleSubtree(item, True))
+        menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
+        menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(item, True))
 
     # Some folders don't have the 'ADD_ALL_TO_MAP' functionality enabled
     def folder_dumb_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
