@@ -19,6 +19,7 @@
         <file alias="metadata.png">../Images/metadata.svg</file>
         <file alias="close.png">../Images/close.svg</file>
         <file alias="upload_project.svg">../Images/upload_project.svg</file>
+        <file alias="download.svg">../Images/download.svg</file>
 
         <file alias="description.svg">../Images/description.svg</file>
         <file alias="draft.svg">../Images/draft.svg</file>

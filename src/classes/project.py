@@ -365,10 +365,13 @@ class Project:
                 curr_item.setFont(curr_item_font)
                 curr_item.setToolTip('TIN files cannot be loaded in QGIS. File: {}'.format(layer_uri))
             elif not map_layer.exists:
-                settings.msg_bar(
-                    'Missing File',
-                    'Error finding file with path={}'.format(map_layer.layer_uri),
-                    Qgis.Warning)
+                # We are disabling this for now becuase missing files are now allowed
+                # settings.msg_bar(
+                #     'Missing File',
+                #     'Error finding file with path={}'.format(map_layer.layer_uri),
+                #     Qgis.Warning)
+                # We will send it to the console as an error though
+                self.settings.log("Error finding file with path={}".format(map_layer.layer_uri), Qgis.Warning)
                 curr_item.setData(QBrush(Qt.gray), Qt.ForegroundRole)
                 curr_item_font = curr_item.font()
                 curr_item_font.setItalic(True)

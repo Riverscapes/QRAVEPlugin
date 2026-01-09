@@ -4,6 +4,12 @@ query getProject($id: ID!) {
     name
     tags
     deleted
+    createdOn
+    updatedOn
+    projectType {
+      id
+      name
+    }    
     ownedBy {
       ...dbobjSm
       __typename

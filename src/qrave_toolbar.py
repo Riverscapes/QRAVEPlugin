@@ -41,6 +41,7 @@ from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
 from .meta_widget import QRAVEMetaWidget
 from .frm_project_bounds import FrmProjectBounds
 from .remote_project_dialog import RemoteProjectDialog
+from .project_download_dialog import ProjectDownloadDialog
 
 # initialize Qt resources from file resources.py
 from . import resources
@@ -199,6 +200,13 @@ class QRAVE:
         self.browseExchangeProjectsAction.triggered.connect(self.browseExchangeProjects)
         self.actions.append(self.browseExchangeProjectsAction)
 
+        self.downloadProjectAction = QAction(QIcon(
+            ':/plugins/qrave_toolbar/download.svg'), self.tr(u'Download Riverscapes Project'), self.iface.mainWindow())
+        self.downloadProjectAction.triggered.connect(lambda: self.downloadProjectDlg())
+        self.downloadProjectAction.setStatusTip('Download a Riverscapes project from the Data Exchange')
+        self.downloadProjectAction.setWhatsThis('Download a Riverscapes project from the Data Exchange')
+        self.actions.append(self.downloadProjectAction)
+
         self.toolsButton = QToolButton()
         self.toolsButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.toolsButton.setMenu(QMenu())
@@ -290,6 +298,7 @@ class QRAVE:
         # Add a separator and your tools/help submenus if desired
         self.menu.addSeparator()
         self.menu.addAction(self.browseExchangeProjectsAction)
+        self.menu.addAction(self.downloadProjectAction)
         self.menu.addAction(self.openAction)
         self.menu.addMenu(self.toolsButton.menu())
         self.menu.addMenu(self.helpButton.menu())
@@ -510,6 +519,14 @@ class QRAVE:
             if self.dockwidget is None or self.dockwidget.isHidden() is True:
                 self.toggle_widget(forceOn=True)
             self.dockwidget.add_project(dialog_return[0])
+
+    def downloadProjectDlg(self, project_id: str = None, local_path: str = None):
+        """
+        Open the download dialog
+        """
+        dialog = ProjectDownloadDialog(self.iface.mainWindow(), project_id=project_id, local_path=local_path)
+        dialog.projectDownloaded.connect(self.dockwidget.add_project)
+        dialog.exec_()
 
     def remoteProjectDlg(self):
         """

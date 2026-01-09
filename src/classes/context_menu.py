@@ -61,6 +61,10 @@ class ContextMenu(QMenu):
             'Close Project',
             ':/plugins/qrave_toolbar/close.png'
         ),
+        'DOWNLOAD_ADD_PROJECT': (
+            'Download or Update Project',
+            ':/plugins/qrave_toolbar/download.svg'
+        ),
         'WAREHOUSE_VIEW': (
             'View in Data Exchange',
             ':/plugins/qrave_toolbar/data-exchange-icon.svg'
