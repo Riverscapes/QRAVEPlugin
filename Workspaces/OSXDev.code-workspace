@@ -1,9 +1,9 @@
 {
 	"folders": [
-		{
-			"path": ".."
-		}
-	],
+    {
+      "path": ".."
+    }
+  ],
 	"settings": {
 		// FROM: https://gist.github.com/NicolaiMogensen/acfd8723720c4761aefef3cdfc2aa55a
 		// I like changing colors for my projects. QGIS projects are usually green. 

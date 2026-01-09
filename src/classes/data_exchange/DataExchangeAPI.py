@@ -36,7 +36,7 @@ class DEProject:
     class GetProjectFile(namedtuple('GetProjectFile', ['size', 'etag'])):
         pass
 
-    def __init__(self, id, name, deleted, ownedBy, visibility, permissions, tags, files):
+    def __init__(self, id, name, deleted, ownedBy, visibility, permissions, tags, files, createdOn=None, updatedOn=None, projectType=None, summary=None):
         self.id = id
         self.name = name
         self.tags = tags
@@ -44,6 +44,10 @@ class DEProject:
         self.ownedBy = ownedBy
         self.visibility = visibility
         self.permissions = permissions
+        self.createdOn = createdOn
+        self.updatedOn = updatedOn
+        self.projectType = projectType
+        self.summary = summary
         self.files = {f['localPath']: DEProject.GetProjectFile(f['size'], f['etag']) for f in files}
 
 

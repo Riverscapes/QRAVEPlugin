@@ -39,6 +39,7 @@ from .ui.dock_widget import Ui_QRAVEDockWidgetBase
 from .meta_widget import MetaType
 
 from .project_upload_dialog import ProjectUploadDialog
+from .project_download_dialog import ProjectDownloadDialog
 from .classes.qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
 from .classes.context_menu import ContextMenu
 from .classes.project import Project, ProjectTreeData
@@ -290,7 +291,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.qproject.removeEntry(
             CONSTANTS['settingsCategory'], 'qrave_projects')
 
-    @pyqtSlot()
+    @pyqtSlot(str)
     def add_project(self, xml_path: str):
         qrave_projects = self.get_project_settings()
 
@@ -318,7 +319,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             self.add_children_to_map(
                 new_project.qproject, new_project.views[new_project.default_view])
 
-    @pyqtSlot()
+    @pyqtSlot(dict)
     def add_remote_project(self, gql_data: Dict):
         qrave_projects = self.get_project_settings()
         
@@ -991,6 +992,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(None, True))
         menu.addSeparator()
         menu.addAction('UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
+        if not isinstance(data.project, RemoteProject) and data.project.warehouse_meta and 'id' in data.project.warehouse_meta:
+            menu.addAction('DOWNLOAD_ADD_PROJECT', lambda: self.project_download_load(data.project))
         menu.addSeparator()
         if isinstance(data.project, RemoteProject):
             project_id = data.project.id
@@ -1015,4 +1018,16 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         dialog = ProjectUploadDialog(None, project)
         dialog.exec_()
         # Reload the project after the upload (and even just on upload cancel)
+        self.reload_tree()
+
+    def project_download_load(self, project):
+        """
+        Open the Project Download dialog
+        """
+        project_id = project.warehouse_meta['id'][0] if project.warehouse_meta and 'id' in project.warehouse_meta else None
+        local_path = project.project_xml_path
+        
+        dialog = ProjectDownloadDialog(None, project_id=project_id, local_path=local_path)
+        dialog.projectDownloaded.connect(self.add_project)
+        dialog.exec_()
         self.reload_tree()

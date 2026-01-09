@@ -12,7 +12,8 @@
         "dockLocation": "left",
         "localBLFolder": null,
         "dockVisible": false,
-        "dockHeight": 600
+        "dockHeight": 600,
+        "lastDownloadPath": null
     },
     "constants": {
         "logCategory": "Riverscapes Viewer",
