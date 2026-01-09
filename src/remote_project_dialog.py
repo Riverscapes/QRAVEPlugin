@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import os
 from qgis.PyQt import uic, QtGui
-from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QLabel, QDialogButtonBox, QSizePolicy
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QLabel, QDialogButtonBox, QSizePolicy, QFormLayout, QPushButton
+from qgis.PyQt.QtCore import Qt, QUrl
+
 
 class RemoteProjectDialog(QDialog):
     """
@@ -15,32 +16,40 @@ class RemoteProjectDialog(QDialog):
         super(RemoteProjectDialog, self).__init__(parent)
         self.setWindowTitle("Open Remote Project")
         self.setMinimumWidth(600)
-        
+
         self.layout = QVBoxLayout(self)
 
         # Description Label
         self.description = QLabel(
-            "Enter a Riverscapes Project ID or paste a URL from the Riverscapes Data Exchange.\n"
-            "This will fetch the project metadata and add it to your project list."
+            "Open a riverscapes project from the Riverscapes Data Exchange without downloading it first!\n\n"
+            "Enter a Riverscapes Project ID or paste a URL from the Riverscapes Data Exchange. "
+            "Click OK to open the project and add it to the list. "
+            "Viewing the project layers will use web mapping services instead of local data files."
         )
         self.description.setWordWrap(True)
-        self.description.setStyleSheet("margin-bottom: 10px; color: #555;")
         self.layout.addWidget(self.description)
 
-        # Input Label
-        self.input_label = QLabel("Project ID or URL:")
-        self.layout.addWidget(self.input_label)
+        form_layout = QFormLayout()
+        self.layout.addLayout(form_layout)
 
         # Text Input
         self.line_edit = QLineEdit(self)
         self.line_edit.setText(default_id)
         self.line_edit.setMinimumWidth(500)
         # https://data.riverscapes.net/p/ac104f27-93b7-4e47-b279-7a7dad8ccf1d/
-        self.line_edit.setPlaceholderText("e.g. ac104f27-93b7-4e47-b279-7a7dad8ccf1d or https://data.riverscapes.net/p/ac104f27-93b7-4e47-b279-7a7dad8ccf1d/...")
-        self.layout.addWidget(self.line_edit)
+        self.line_edit.setPlaceholderText("e.g. ac104f27-93b7-4e47-b279-7a7dad8ccf1d or https://data.riverscapes.net/p/ac104f27-93b7-4e47-b279-7a7dad8ccf1d")
+        form_layout.addRow('Project ID or URL', self.line_edit)
 
         # Button Box
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+
+        self.btn_help = QPushButton("Help")
+        self.button_box.addButton(self.btn_help, QDialogButtonBox.HelpRole)
+
+        self.btn_exchange = QPushButton("Data Exchange")
+        self.button_box.addButton(self.btn_exchange, QDialogButtonBox.ActionRole)
+        self.btn_exchange.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QUrl("https://data.riverscapes.net")))
+
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         self.layout.addWidget(self.button_box)
