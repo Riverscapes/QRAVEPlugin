@@ -10,7 +10,7 @@ class RemoteProjectDialog(QDialog):
     """
 
     # def __init__(self, parent=None, default_id="https://data.riverscapes.net/p/ac104f27-93b7-4e47-b279-7a7dad8ccf1d/"):
-    def __init__(self, parent=None, default_id="https://data.riverscapes.net/p/ac104f27-93b7-4e47-b279-7a7dad8ccf1d/"):
+    def __init__(self, parent=None, default_id=""):
         """Constructor."""
         super(RemoteProjectDialog, self).__init__(parent)
         self.setWindowTitle("Open Remote Project")
