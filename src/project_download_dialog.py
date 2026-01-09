@@ -5,8 +5,9 @@ from datetime import datetime
 from typing import List, Dict, Tuple
 from qgis.PyQt.QtWidgets import QDialog, QTreeWidgetItem, QMessageBox, QHeaderView
 from qgis.PyQt.QtCore import pyqtSignal, Qt
-from qgis.PyQt.QtGui import QFont, QBrush
+from qgis.PyQt.QtGui import QFont, QBrush, QColor
 from qgis.core import Qgis
+from rsxml.etag import calculate_etag
 
 from .ui.project_download_dialog import Ui_ProjectDownloadDialog
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProject
@@ -64,18 +65,21 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
         self.treeFiles.header().setSectionsClickable(True)
         self.treeFiles.header().setSortIndicatorShown(True)
         self.treeFiles.header().setStretchLastSection(False)
+        self.treeFiles.setHeaderLabels(["File Path", "Size", "Status"])
         self.treeFiles.header().setSectionResizeMode(0, QHeaderView.Stretch)
         self.treeFiles.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.treeFiles.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         
         # Initial state
         self.btnBack.setEnabled(False)
         self.btnNext.setEnabled(False)
+        self.btnVerifyProject.setEnabled(False)
+        self.btnVerifyProject.setText("Authenticating...")
         
         if self.locked_mode and self.initial_project_id:
             self.txtProjectInput.setText(self.initial_project_id)
             self.txtProjectInput.setReadOnly(True)
-            self.btnVerifyProject.setEnabled(True)
-            self._verify_project() # Auto verify
+            # We don't verify yet, we wait for _on_login
             
             if self.initial_local_path:
                 project_dir = os.path.dirname(self.initial_local_path)
@@ -93,10 +97,17 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
                 self.fileWidget.setFilePath(last_path)
 
     def _on_login(self, task):
+        self.btnVerifyProject.setEnabled(True)
+        self.btnVerifyProject.setText("Verify Project")
+        
         if task.error:
             self._log_msg(f"Login failed: {task.error}", Qgis.Critical)
+            self.lblProjectDetails.setText(f"<b style='color: #c0392b;'>Authentication Error:</b><br>{task.error}")
+            self.frameProjectDetails.show()
         else:
             self._log_msg("Logged in to Data Exchange", Qgis.Info)
+            if self.locked_mode and self.initial_project_id:
+                self._verify_project()
 
     def _log_msg(self, message: str, level: int = Qgis.Info):
         self.log(message, level)
@@ -247,6 +258,8 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             item.setText(0, rel_path)
             item.setText(1, self._human_size(file_info.size))
             item.setTextAlignment(1, Qt.AlignRight | Qt.AlignVCenter)
+            
+            # Default state
             item.setCheckState(0, Qt.Checked)
             item.setData(0, Qt.UserRole, rel_path)
             item.setData(1, Qt.UserRole, file_info.size)  # Store raw size for sorting
@@ -255,6 +268,28 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             local_file_path = os.path.join(target_dir, rel_path) if target_dir else None
             file_exists = local_file_path and os.path.exists(local_file_path)
             
+            status_text = "New"
+            is_locked = False
+            needs_update = False
+            
+            # Comparison logic
+            if file_exists:
+                try:
+                    # S3 Multipart etags have a dash. If no dash, it's a simple MD5.
+                    is_single_part = not re.match(r'.*-[0-9]+$', file_info.etag)
+                    local_etag = calculate_etag(local_file_path, force_single_part=is_single_part)
+                    
+                    if local_etag == file_info.etag:
+                        status_text = "Up to date"
+                        is_locked = True
+                    else:
+                        status_text = "Update available"
+                        needs_update = True
+                except Exception as e:
+                    self.log(f"Error comparing etag for {rel_path}: {e}", Qgis.Warning)
+                    status_text = "Check failed"
+            
+            # Special handling for mandatory manifest
             if rel_path.lower() == 'project.rs.xml':
                 item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
                 item.setToolTip(0, "This file is mandatory and required to open the project in QGIS.")
@@ -262,15 +297,31 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
                 font.setItalic(True)
                 item.setFont(0, font)
                 item.setFont(1, font)
-            elif file_exists:
+                item.setCheckState(0, Qt.Checked) # Always check manifest
+                if status_text == "New":
+                    status_text = "Mandatory"
+            
+            # Apply UI states
+            item.setText(2, status_text)
+            
+            if is_locked:
                 item.setCheckState(0, Qt.Unchecked)
                 item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
-                item.setToolTip(0, "This file has already been downloaded.")
-                item.setForeground(0, QBrush(Qt.gray))
-                item.setForeground(1, QBrush(Qt.gray))
+                item.setToolTip(0, "This file is already up to date.")
+                # Gray out
+                gray = QBrush(Qt.gray)
+                item.setForeground(0, gray)
+                item.setForeground(1, gray)
+                item.setForeground(2, gray)
+                # Strikeout
                 font = item.font(0)
                 font.setStrikeOut(True)
                 item.setFont(0, font)
+            elif needs_update:
+                item.setCheckState(0, Qt.Checked)
+                item.setToolTip(0, "The local file differs from the version on the Data Exchange.")
+                # Blue for updates
+                item.setForeground(2, QBrush(QColor("#2980b9")))
             
         self.treeFiles.setSortingEnabled(True)  # Re-enable
         self.treeFiles.sortByColumn(0, Qt.AscendingOrder)
