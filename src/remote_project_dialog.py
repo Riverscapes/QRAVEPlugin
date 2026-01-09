@@ -21,12 +21,13 @@ class RemoteProjectDialog(QDialog):
 
         # Description Label
         self.description = QLabel(
-            "Open a riverscapes project from the Riverscapes Data Exchange without downloading it first!\n\n"
+            "Open a riverscapes project from the <a href='https://data.riverscapes.net'>Riverscapes Data Exchange</a> without downloading it first!\n\n"
             "Enter a Riverscapes Project ID or paste a URL from the Riverscapes Data Exchange. "
             "Click OK to open the project and add it to the list. "
-            "Viewing the project layers will use web mapping services instead of local data files."
+            "Viewing the project layers will use web mapping services instead of local data files.\n"
         )
         self.description.setWordWrap(True)
+        self.description.setOpenExternalLinks(True)
         self.layout.addWidget(self.description)
 
         form_layout = QFormLayout()
@@ -45,10 +46,6 @@ class RemoteProjectDialog(QDialog):
 
         self.btn_help = QPushButton("Help")
         self.button_box.addButton(self.btn_help, QDialogButtonBox.HelpRole)
-
-        self.btn_exchange = QPushButton("Data Exchange")
-        self.button_box.addButton(self.btn_exchange, QDialogButtonBox.ActionRole)
-        self.btn_exchange.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(QUrl("https://data.riverscapes.net")))
 
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
