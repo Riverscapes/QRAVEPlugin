@@ -215,7 +215,7 @@ class DataExchangeAPI(QObject):
         self.myName = None
         self.myOrgs = []
         self.initialized = False
-        self.api.refresh_token(self._handle_refresh_token)
+        self.api.refresh_token(self._handle_refresh_token, force=True)
         self.stateChange.emit()
 
     @pyqtSlot()

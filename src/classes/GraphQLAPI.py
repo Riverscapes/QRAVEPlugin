@@ -82,7 +82,7 @@ class RunGQLQueryTask(QgsTask):
                         if retries < MAX_RETRIES:
                             self.api.log("Authentication timed out. Fetching new token...")
                             try:
-                                self.api._refresh_token()
+                                self.api._refresh_token(force=True)
                             except Exception as e:
                                 self.api.log(f"Failed to refresh token: {e}")
                                 return  # or handle the error in some other way
@@ -135,9 +135,10 @@ class GraphQLAPIConfig():
 
 
 class RefreshTokenTask(QgsTask):
-    def __init__(self, api):
+    def __init__(self, api, force=False):
         super().__init__('RefreshTokenTask', QgsTask.CanCancel)
         self.api = api
+        self.force = force
         self.success = False
         self.error = None
 
@@ -153,7 +154,7 @@ class RefreshTokenTask(QgsTask):
 
     def run(self):
         try:
-            self.api._refresh_token(True)
+            self.api._refresh_token(self.force)
             self.success = True
             return True
         except Exception as e:
@@ -164,6 +165,10 @@ class RefreshTokenTask(QgsTask):
 class GraphQLAPI(QObject):
 
     stateChange = pyqtSignal()
+    # Shared access token and expiration time
+    _shared_access_token = None
+    _shared_token_expires = None
+    _shared_auth_lock = threading.Lock()
 
     """This class is a wrapper around the GraphQL API. It handles authentication and provides a 
     simple interface for making queries.
@@ -182,6 +187,16 @@ class GraphQLAPI(QObject):
         self.loading = False
 
         self.uri = apiUrl
+        # We use a class-level lock to prevent multiple instances from authenticating at once
+        self._auth_lock = GraphQLAPI._shared_auth_lock
+        
+        if GraphQLAPI._shared_access_token and GraphQLAPI._shared_token_expires:
+            if float(GraphQLAPI._shared_token_expires) > time.time() + 300:
+                self.access_token = GraphQLAPI._shared_access_token
+                expires_in = float(GraphQLAPI._shared_token_expires) - time.time()
+                self.log(f"   Using shared in-memory token (expires in {int(expires_in)}s)")
+                return
+
 
     # Add a destructor to make sure any timeout threads are cleaned up
     def __del__(self):
@@ -236,7 +251,7 @@ class GraphQLAPI(QObject):
         if self.token_timeout:
             self.token_timeout.cancel()
 
-    def refresh_token(self, callback: Callable[[RefreshTokenTask], None] = None):
+    def refresh_token(self, callback: Callable[[RefreshTokenTask], None] = None, force=False):
         """ Refresh the authentication token
 
         Raises:
@@ -245,7 +260,7 @@ class GraphQLAPI(QObject):
         Returns:
             _type_: _description_
         """
-        task = RefreshTokenTask(self)
+        task = RefreshTokenTask(self, force=force)
         task.taskCompleted.connect(lambda: callback(task))
         task.taskTerminated.connect(lambda: callback(task))
         QgsApplication.taskManager().addTask(task)
@@ -262,64 +277,85 @@ class GraphQLAPI(QObject):
             _type_: _description_
         """
         self.log(f"Authenticating on GraphQL API: {self.uri}")
-        if self.token_timeout:
-            self.token_timeout.cancel()
+        if self._auth_lock.locked():
+            self.log("   Authentication already in progress. Waiting for lock...")
+        
+        with self._auth_lock:
+            if self.token_timeout:
+                self.token_timeout.cancel()
 
-        # On development there's no reason to actually go get a token
-        if self.dev_headers and len(self.dev_headers) > 0:
+            # On development there's no reason to actually go get a token
+            if self.dev_headers and len(self.dev_headers) > 0:
+                return self
+
+            # Check again inside the lock if someone else already fetched a token
+            if GraphQLAPI._shared_access_token and GraphQLAPI._shared_token_expires:
+                if float(GraphQLAPI._shared_token_expires) > time.time() + 300:
+                    self.access_token = GraphQLAPI._shared_access_token
+                    self.log("   Token was fetched by another process. Using it.")
+                    return self
+
+            if self.access_token and not force:
+                self.log("   Token already exists. Not refreshing.")
+                return self
+
+            # If this is a user workflow then we need to pop open a web browser
+            code_verifier = self._generate_random(128)
+            code_challenge = self._generate_challenge(code_verifier)
+            state = self._generate_random(32)
+
+            redirect_url = f"http://localhost:{self.config.port}/rscli/"
+            login_url = urlparse(f"https://{self.config.domain}/authorize")
+            query_params = {
+                "client_id": self.config.clientId,
+                "response_type": "code",
+                "scope": self.config.scope,
+                "state": state,
+                "audience": self.config.audience,
+                "redirect_uri": redirect_url,
+                "code_challenge": code_challenge,
+                "code_challenge_method": "S256",
+            }
+            login_url = login_url._replace(query=urlencode(query_params))
+
+            self.loading = True
+            self.stateChange.emit()
+
+            # Now open the browser so we can authenticate
+            auth_url = QUrl(urlunparse(login_url))
+            # self.log(f"Opening browser for authentication: {auth_url}", Qgis.Info)
+            QDesktopServices.openUrl(auth_url)
+
+            auth_code = self._wait_for_auth_code()
+            authentication_url = f"https://{self.config.domain}/oauth/token"
+
+            data = {
+                "grant_type": "authorization_code",
+                "client_id": self.config.clientId,
+                "code_verifier": code_verifier,
+                "code": auth_code,
+                "redirect_uri": redirect_url,
+            }
+
+            response = requests.post(authentication_url, headers={"content-type": "application/x-www-form-urlencoded"}, data=data, timeout=60)
+            response.raise_for_status()
+            res = response.json()
+            
+            self.access_token = res["access_token"]
+            expires_at = time.time() + res["expires_in"]
+            
+            # Update shared state
+            GraphQLAPI._shared_access_token = self.access_token
+            GraphQLAPI._shared_token_expires = expires_at
+            # Set up a timer to refresh the token 60 seconds before it expires
+            self.token_timeout = threading.Timer(res["expires_in"] - 60, self._refresh_token)
+            self.token_timeout.daemon = True
+            self.token_timeout.start()
+            
+            self.log("SUCCESSFUL Browser Authentication", Qgis.Success)
+            self.loading = False
+            self.stateChange.emit()
             return self
-
-        if self.access_token and not force:
-            self.log("   Token already exists. Not refreshing.")
-            return self
-
-        # If this is a user workflow then we need to pop open a web browser
-        code_verifier = self._generate_random(128)
-        code_challenge = self._generate_challenge(code_verifier)
-        state = self._generate_random(32)
-
-        redirect_url = f"http://localhost:{self.config.port}/rscli/"
-        login_url = urlparse(f"https://{self.config.domain}/authorize")
-        query_params = {
-            "client_id": self.config.clientId,
-            "response_type": "code",
-            "scope": self.config.scope,
-            "state": state,
-            "audience": self.config.audience,
-            "redirect_uri": redirect_url,
-            "code_challenge": code_challenge,
-            "code_challenge_method": "S256",
-        }
-        login_url = login_url._replace(query=urlencode(query_params))
-
-        self.loading = True
-        self.stateChange.emit()
-
-        # Now open the browser so we can authenticate
-        auth_url = QUrl(urlunparse(login_url))
-        # self.log(f"Opening browser for authentication: {auth_url}", Qgis.Info)
-        QDesktopServices.openUrl(auth_url)
-
-        auth_code = self._wait_for_auth_code()
-        authentication_url = f"https://{self.config.domain}/oauth/token"
-
-        data = {
-            "grant_type": "authorization_code",
-            "client_id": self.config.clientId,
-            "code_verifier": code_verifier,
-            "code": auth_code,
-            "redirect_uri": redirect_url,
-        }
-
-        response = requests.post(authentication_url, headers={"content-type": "application/x-www-form-urlencoded"}, data=data, timeout=60)
-        response.raise_for_status()
-        res = response.json()
-        self.token_timeout = threading.Timer(res["expires_in"] - 60, self._refresh_token)
-        self.token_timeout.start()
-        self.access_token = res["access_token"]
-        self.log("SUCCESSFUL Browser Authentication", Qgis.Success)
-        self.loading = False
-        self.stateChange.emit()
 
     def _wait_for_auth_code(self):
         """ Wait for the auth code to come back from the server using a simple HTTP server
@@ -436,9 +472,9 @@ class GraphQLAPI(QObject):
 
             start_time = time.time()
 
-            # Loop for up to 60 seconds
+            # Loop for up to 120 seconds
             counter = 0
-            while time.time() - start_time < 10:
+            while time.time() - start_time < 120:
                 # If the server thread is still running, shut it down
                 # self.log(f"Waiting for auth code...")
                 if not server_thread.is_alive():

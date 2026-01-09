@@ -47,6 +47,7 @@ from .classes.remote_project import RemoteProject
 from .classes.basemaps import BaseMaps, QRaveBaseMap
 from .classes.settings import Settings, CONSTANTS
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
+from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
 
 
 ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
@@ -81,6 +82,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # If a project fails to load we track it and don't autorefresh it.
         self.failed_loads = []
+        self._remote_project_cache = {}
+        self._fetching_projects = set()
 
         self.model = QStandardItemModel()
 
@@ -169,7 +172,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         for project_name, _basename, project_path in qrave_projects:
             if project_path.startswith('remote:'):
                 project_id = project_path[7:]
-                if hasattr(self, '_remote_project_cache') and project_id in self._remote_project_cache:
+                if project_id in self._remote_project_cache:
                     project = RemoteProject(self._remote_project_cache[project_id])
                     project.load()
                     if project.qproject:
@@ -181,6 +184,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                         else:
                             self.expand_children_recursive(
                                 self.model.indexFromItem(project.qproject))
+                else:
+                    self.show_loading(project_name)
+                    self.fetch_missing_remote_project(project_id)
                 continue
 
             project = Project(project_path)
@@ -782,6 +788,35 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         else:
             QMessageBox.critical(self, "Login Failed", "Could not log in to Riverscapes API for download.")
 
+    def fetch_missing_remote_project(self, project_id: str):
+        if project_id in self._fetching_projects:
+            return
+        self._fetching_projects.add(project_id)
+
+        if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
+            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_missing_remote_fetch_login(task, project_id))
+        else:
+            self.dataExchangeAPI.get_remote_project(project_id, self._on_missing_remote_project_fetched)
+
+    def _on_missing_remote_fetch_login(self, task: RefreshTokenTask, project_id: str):
+        if task.success:
+            self.dataExchangeAPI.get_remote_project(project_id, self._on_missing_remote_project_fetched)
+        else:
+            if project_id in self._fetching_projects:
+                self._fetching_projects.remove(project_id)
+            self.settings.log(f"Login failed while fetching missing remote project: {project_id}", Qgis.Warning)
+
+    def _on_missing_remote_project_fetched(self, task: RunGQLQueryTask, response: Dict):
+        project_id = task.variables.get('id')
+        if project_id in self._fetching_projects:
+            self._fetching_projects.remove(project_id)
+
+        if task.success and response and 'data' in response and response['data']['project']:
+            self._remote_project_cache[project_id] = response
+            self.reload_tree()
+        else:
+            self.settings.log(f"Failed to fetch missing remote project: {project_id}", Qgis.Warning)
+
     def toggleSubtree(self, item: QStandardItem = None, expand=True):
 
         def _recurse(curritem):
@@ -950,9 +985,6 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             else:
                 menu.addAction('OPEN_FILE', lambda: self.open_remote_file_in_browser(item_data))
             
-            project_id = item_data.project.id
-            url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
-            menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
         else:
             menu.addAction('OPEN_FILE', lambda: self.file_system_open(item_data.data.layer_uri))
             menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
@@ -964,11 +996,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
     # Folder-level context menu
     def folder_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
-        if isinstance(data.project, RemoteProject):
-            project_id = data.project.id
-            url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
-            menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
-        else:
+        if not isinstance(data.project, RemoteProject):
             menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
         menu.addSeparator()
         menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
@@ -995,11 +1023,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if not isinstance(data.project, RemoteProject) and data.project.warehouse_meta and 'id' in data.project.warehouse_meta:
             menu.addAction('DOWNLOAD_ADD_PROJECT', lambda: self.project_download_load(data.project))
         menu.addSeparator()
-        if isinstance(data.project, RemoteProject):
-            project_id = data.project.id
-            url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
-            menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
-        else:
+        if not isinstance(data.project, RemoteProject):
             menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(data.project.project_xml_path))
         menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
         menu.addAction('WAREHOUSE_VIEW', lambda: self.project_warehouse_view(data.project), enabled=bool(self.get_warehouse_url(data.project.warehouse_meta)))
