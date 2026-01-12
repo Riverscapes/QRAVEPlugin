@@ -4,8 +4,8 @@ import math
 from datetime import datetime
 from typing import List, Dict, Tuple
 from qgis.PyQt.QtWidgets import QDialog, QTreeWidgetItem, QMessageBox, QHeaderView
-from qgis.PyQt.QtCore import pyqtSignal, Qt
-from qgis.PyQt.QtGui import QFont, QBrush, QColor
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QUrl
+from qgis.PyQt.QtGui import QFont, QBrush, QColor, QDesktopServices
 from qgis.core import Qgis
 from rsxml.etag import calculate_etag
 
@@ -14,16 +14,10 @@ from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProject
 from .classes.data_exchange.downloader import DownloadQueue
 from .classes.GraphQLAPI import RunGQLQueryTask
 from .classes.settings import Settings
+from .classes.util import get_project_details_html
+from .file_selection_widget import ProjectFileSelectionWidget
 
-class SortableTreeWidgetItem(QTreeWidgetItem):
-    def __lt__(self, other):
-        column = self.treeWidget().sortColumn()
-        if column == 1:  # Size column
-            size_raw_self = self.data(column, Qt.UserRole)
-            size_raw_other = other.data(column, Qt.UserRole)
-            if isinstance(size_raw_self, (int, float)) and isinstance(size_raw_other, (int, float)):
-                return size_raw_self < size_raw_other
-        return super().__lt__(other)
+# Removed SortableTreeWidgetItem - now in file_selection_widget.py
 
 class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
     projectDownloaded = pyqtSignal(str)
@@ -51,24 +45,21 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
         self.txtProjectInput.textChanged.connect(self._reset_validation)
         self.fileWidget.fileChanged.connect(self._validate_folder)
         self.txtFolderName.textChanged.connect(self._validate_folder)
+        self.btnHelp.clicked.connect(self.showHelp)
         
-        self.btnSelectAll.clicked.connect(self._select_all_files)
-        self.btnDeselectAll.clicked.connect(self._deselect_all_files)
+        # Replace UI selection area with shared widget
+        self.btnSelectAll.hide()
+        self.btnDeselectAll.hide()
+        self.treeFiles.hide()
         
+        self.fileSelection = ProjectFileSelectionWidget()
+        self.layout3.addWidget(self.fileSelection)
+
         self.queue.progress_signal.connect(self._on_file_progress)
         self.queue.overall_progress_signal.connect(self._on_overall_progress)
         self.queue.complete_signal.connect(self._on_download_complete)
-        
-        # Enable sorting on tree widget
-        self.treeFiles.setSortingEnabled(True)
-        self.treeFiles.setAlternatingRowColors(True)
-        self.treeFiles.header().setSectionsClickable(True)
-        self.treeFiles.header().setSortIndicatorShown(True)
-        self.treeFiles.header().setStretchLastSection(False)
-        self.treeFiles.setHeaderLabels(["File Path", "Size", "Status"])
-        self.treeFiles.header().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.treeFiles.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.treeFiles.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+
+        # Initial state
         
         # Initial state
         self.btnBack.setEnabled(False)
@@ -109,6 +100,11 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             if self.locked_mode and self.initial_project_id:
                 self._verify_project()
 
+    def showHelp(self):
+        from .classes.settings import CONSTANTS
+        help_url = CONSTANTS['webUrl'].rstrip('/') + '/software-help/help-qgis-downloader/'
+        QDesktopServices.openUrl(QUrl(help_url))
+
     def _log_msg(self, message: str, level: int = Qgis.Info):
         self.log(message, level)
 
@@ -143,66 +139,8 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             self.btnNext.setEnabled(False)
             return
 
-        if project:
             self.project = project
-            
-            # Extract names from nested objects
-            p_type = project.projectType.get('name', 'Unknown Type') if project.projectType else 'Unknown Type'
-            owner = project.ownedBy.get('name', 'Unknown Owner') if project.ownedBy else 'Unknown Owner'
-            
-            # Format dates
-            def pretty_date(iso_str):
-                if not iso_str: return "Unknown"
-                try:
-                    # Generic ISO parsing
-                    dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
-                    return dt.strftime('%B %d, %Y')
-                except Exception:
-                    return iso_str
-
-            created = pretty_date(project.createdOn)
-            updated = pretty_date(project.updatedOn)
-            
-            # Visibility styling
-            vis_color = "#27ae60" if project.visibility == "PUBLIC" else "#e67e22"
-            
-            # Tags styling
-            tags_html = ""
-            if project.tags:
-                tags_list = [f"<span style='background-color: #f1f1f1; color: #555; border-radius: 3px; padding: 1px 4px; margin-right: 6px;'>{t}</span>" for t in project.tags]
-                tags_html = f"<div style='margin-top: 8px;'>{' '.join(tags_list)}</div>"
-
-            html = f"""
-            <div style="font-family: sans-serif;">
-                <div style="font-size: 14pt; font-weight: bold; color: #2c3e50;">{project.name}</div>
-                <div style="font-size: 10pt; color: #7f8c8d; margin-bottom: 10px;">{p_type}</div>
-                
-                <table border="0" cellpadding="3" cellspacing="0" style="width: 100%;">
-                    <tr><td style="color: #95a5a6; width: 90px;">Owner:</td><td><b>{owner}</b></td></tr>
-                    <tr><td style="color: #95a5a6;">Visibility:</td><td><span style="color: {vis_color}; font-weight: bold;">{project.visibility}</span></td></tr>
-                    <tr><td style="color: #95a5a6;">Created:</td><td>{created}</td></tr>
-                    <tr><td style="color: #95a5a6;">Updated:</td><td>{updated}</td></tr>
-                    <tr><td style="color: #95a5a6;">Total Files:</td><td>{len(project.files)}</td></tr>
-                </table>
-            """
-            
-            if project.summary:
-                html += f"""
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; color: #34495e;">
-                    {project.summary}
-                </div>
-                """
-                
-            if tags_html:
-                html += f"""
-                <div style="margin-top: 10px; padding-top: 5px; border-top: 1px solid #eee;">
-                    Tags: {tags_html}
-                </div>
-                """
-                
-            html += "</div>"
-            
-            self.lblProjectDetails.setText(html)
+            self.lblProjectDetails.setText(get_project_details_html(project))
             self.btnNext.setEnabled(True)
 
             # If we're in locked mode (updating), we skip straight to step 3 once we've verified
@@ -250,24 +188,14 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
         return os.path.join(parent, name)
 
     def _populate_file_tree(self):
-        self.treeFiles.setSortingEnabled(False)  # Disable while populating
-        self.treeFiles.clear()
+        self.fileSelection.set_sorting_enabled(False)
+        self.fileSelection.clear()
         if not self.project:
             return
             
         target_dir = self._get_target_dir()
             
         for rel_path, file_info in self.project.files.items():
-            item = SortableTreeWidgetItem(self.treeFiles)
-            item.setText(0, rel_path)
-            item.setText(1, self._human_size(file_info.size))
-            item.setTextAlignment(1, Qt.AlignRight | Qt.AlignVCenter)
-            
-            # Default state
-            item.setCheckState(0, Qt.Checked)
-            item.setData(0, Qt.UserRole, rel_path)
-            item.setData(1, Qt.UserRole, file_info.size)  # Store raw size for sorting
-            
             # Check if file exists locally
             local_file_path = os.path.join(target_dir, rel_path) if target_dir else None
             file_exists = local_file_path and os.path.exists(local_file_path)
@@ -275,94 +203,55 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             status_text = "New"
             is_locked = False
             needs_update = False
+            highlight_color = None
+            tooltip = None
             
             # Comparison logic
             if file_exists:
                 try:
                     # S3 Multipart etags have a dash. If no dash, it's a simple MD5.
                     is_single_part = not re.match(r'.*-[0-9]+$', file_info.etag)
+                    from rsxml.etag import calculate_etag
                     local_etag = calculate_etag(local_file_path, force_single_part=is_single_part)
                     
                     if local_etag == file_info.etag:
                         status_text = "Up to date"
                         is_locked = True
+                        tooltip = "This file is already up to date."
                     else:
                         status_text = "Update available"
                         needs_update = True
+                        highlight_color = "#2980b9"
+                        tooltip = "The local file differs from the version on the Data Exchange."
                 except Exception as e:
                     self.log(f"Error comparing etag for {rel_path}: {e}", Qgis.Warning)
                     status_text = "Check failed"
             
             # Special handling for mandatory manifest
+            is_mandatory = False
             if rel_path.lower() == 'project.rs.xml':
-                item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
-                item.setToolTip(0, "This file is mandatory and required to open the project in QGIS.")
-                font = item.font(0)
-                font.setItalic(True)
-                item.setFont(0, font)
-                item.setFont(1, font)
-                item.setCheckState(0, Qt.Checked) # Always check manifest
+                is_mandatory = True
+                tooltip = "This file is mandatory and required to open the project in QGIS."
                 if status_text == "New":
                     status_text = "Mandatory"
             
-            # Apply UI states
-            item.setText(2, status_text)
+            self.fileSelection.add_file_item(
+                rel_path=rel_path,
+                size=file_info.size,
+                status_text=status_text,
+                checked=not is_locked or is_mandatory,
+                is_locked=is_locked,
+                is_mandatory=is_mandatory,
+                highlight_color=highlight_color,
+                tooltip=tooltip
+            )
             
-            if is_locked:
-                item.setCheckState(0, Qt.Unchecked)
-                item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
-                item.setToolTip(0, "This file is already up to date.")
-                # Gray out
-                gray = QBrush(Qt.gray)
-                item.setForeground(0, gray)
-                item.setForeground(1, gray)
-                item.setForeground(2, gray)
-                # Strikeout
-                font = item.font(0)
-                font.setStrikeOut(True)
-                item.setFont(0, font)
-            elif needs_update:
-                item.setCheckState(0, Qt.Checked)
-                item.setToolTip(0, "The local file differs from the version on the Data Exchange.")
-                # Blue for updates
-                item.setForeground(2, QBrush(QColor("#2980b9")))
-            
-        self.treeFiles.setSortingEnabled(True)  # Re-enable
-        self.treeFiles.sortByColumn(0, Qt.AscendingOrder)
+        self.fileSelection.set_sorting_enabled(True)
+        self.fileSelection.sort_by_column(0, Qt.AscendingOrder)
 
-    def _select_all_files(self):
-        self._set_all_check_state(Qt.Checked)
+    # Removed _select_all_files, _deselect_all_files, _set_all_check_state - now in file_selection_widget.py
 
-    def _deselect_all_files(self):
-        self._set_all_check_state(Qt.Unchecked)
-
-    def _set_all_check_state(self, state: Qt.CheckState):
-        root = self.treeFiles.invisibleRootItem()
-        for i in range(root.childCount()):
-            item = root.child(i)
-            if item.flags() & Qt.ItemIsUserCheckable:
-                item.setCheckState(0, state)
-
-    def _human_size(self, nbytes):
-        if nbytes == 0:
-            return '0 B'
-        suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
-        i = 0
-        while nbytes >= 1024 and i < len(suffixes)-1:
-            nbytes /= 1024.
-            i += 1
-            
-        # Calculate precision for 2 significant digits
-        precision = 2 - int(math.floor(math.log10(abs(nbytes)))) - 1
-        nbytes = round(nbytes, precision)
-            
-        # Format to string, avoid unnecessary decimals for large numbers
-        if nbytes >= 10:
-            f = str(int(nbytes))
-        else:
-            f = ("%.1f" % nbytes).rstrip('0').rstrip('.')
-            
-        return '%s %s' % (f, suffixes[i])
+    # Removed _human_size - now in file_selection_widget.py
 
     def _next_step(self):
         curr = self.stackedWidget.currentIndex()
@@ -410,12 +299,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
         self.btnNext.setEnabled(False)
         self.btnCancel.setText("Cancel Download")
         
-        selected_files = []
-        root = self.treeFiles.invisibleRootItem()
-        for i in range(root.childCount()):
-            item = root.child(i)
-            if item.checkState(0) == Qt.Checked:
-                selected_files.append(item.data(0, Qt.UserRole))
+        selected_files = self.fileSelection.get_selected_files()
         
         if not selected_files:
             QMessageBox.warning(self, "No files selected", "Please select at least one file to download.")
@@ -467,13 +351,13 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
         _get_next_url()
 
     def _on_file_progress(self, rel_path, downloaded, total):
-        self.lblProgressDetails.setText(f"Downloading: {rel_path}\n{self._human_size(downloaded)} / {self._human_size(total)}")
+        self.lblProgressDetails.setText(f"Downloading: {rel_path}\n{ProjectFileSelectionWidget.human_size(downloaded)} / {ProjectFileSelectionWidget.human_size(total)}")
 
     def _on_overall_progress(self, downloaded, total):
         if total > 0:
             percent = int((downloaded / total) * 100)
             self.progressBar.setValue(percent)
-            self.lblStatus.setText(f"Overall Progress: {percent}% ({self._human_size(downloaded)} / {self._human_size(total)})")
+            self.lblStatus.setText(f"Overall Progress: {percent}% ({ProjectFileSelectionWidget.human_size(downloaded)} / {ProjectFileSelectionWidget.human_size(total)})")
 
     def _on_download_complete(self):
         if self.queue.failed_tasks:

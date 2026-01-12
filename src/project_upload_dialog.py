@@ -14,9 +14,10 @@ from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, D
 from .classes.GraphQLAPI import RunGQLQueryTask, RefreshTokenTask
 from .classes.settings import CONSTANTS, Settings
 from .classes.project import Project
-from .classes.util import error_level_to_str, humane_bytes
+from .classes.util import error_level_to_str, humane_bytes, get_project_details_html
 from .classes.data_exchange.uploader import UploadQueue, UploadMultiPartFileTask
 from .ui.project_upload_dialog import Ui_Dialog
+from .file_selection_widget import ProjectFileSelectionWidget
 
 
 # BASE is the name we want to use inside the settings keys
@@ -170,14 +171,19 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.flow_state = ProjectUploadDialogStateFlow.LOGGING_IN
         self.loginStatusValue.setText('Logging in... (check your browser)')
 
-        self.startBtn.clicked.connect(self.handle_start_click)
+        # Navigation
+        self.startBtn.clicked.connect(self._next_step)
         self.stopBtn.clicked.connect(self.handle_stop_click)
+        self.btnBack.clicked.connect(self._prev_step)
+        self.btnHelp.clicked.connect(self.showHelp)
 
         self.projectNameValue.setText(self.project_xml.project.find('Name').text)
         # The text should fill the label with ellipses if it's too long
         project_path = self.project_xml.project_xml_path
-        self.projectPathValue.setText(project_path)
         self.projectPathValue.setToolTip(project_path)
+        self.projectPathValue.setText(project_path)
+        
+        self.fileSelection.selectionChanged.connect(self._update_selection_summary)
 
         # 1. Files - we need relative paths to the files
         self.upload_log('Checking for files to upload...', Qgis.Info)
@@ -202,7 +208,13 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         # Top of the form
         ########################################################################
-        self.loginResetBtn.setVisible(allow_user_action)
+        curr = self.stackedWidget.currentIndex()
+        is_step1 = (curr == 0)
+        
+        # Reset button should be visible on Step 1 if we're not currently uploading
+        show_reset = is_step1 and self.flow_state != ProjectUploadDialogStateFlow.UPLOADING
+        self.loginResetBtn.setVisible(show_reset)
+        self.loginResetBtn.setEnabled(allow_user_action or self.flow_state == ProjectUploadDialogStateFlow.LOGGING_IN)
 
         # New Or Update Choice
         ########################################################################
@@ -285,22 +297,31 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             todo_text = 'No differences between local and remote. Nothing to upload'
         self.todoLabel.setText(todo_text)
 
-        # Action buttons at the bottom of the screen
+        # Navigation
         ########################################################################
-
-        # set the ok button text to "Start"
-        self.startBtn.setEnabled(allow_user_action)
-        # We swap the start button with the stop button when we're uploading
-        self.startBtn.setVisible(self.flow_state not in [ProjectUploadDialogStateFlow.UPLOADING])
-        self.stopBtn.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
-        self.stopBtn.setVisible(self.flow_state in [ProjectUploadDialogStateFlow.UPLOADING])
-
-        # User cannot cancel the dialog if uploading is happening. They must first stop the upload
-        self.actionBtnBox.button(QDialogButtonBox.Cancel).setEnabled(self.flow_state not in [
-            ProjectUploadDialogStateFlow.UPLOADING
-        ])
-
+        curr = self.stackedWidget.currentIndex()
+        self.btnBack.setVisible(curr < 2) # Hide back button during/after upload
+        self.btnBack.setEnabled(curr > 0 and allow_user_action)
+        
+        if curr == 0:
+            self.startBtn.setText("Next")
+            # Only enable "Next" if we're in USER_ACTION state (meaning we're logged in and context fetched)
+            self.startBtn.setEnabled(allow_user_action)
+        elif curr == 1:
+            self.startBtn.setText("Start Upload")
+            self.startBtn.setEnabled(allow_user_action)
+        elif curr == 2:
+            self.startBtn.setVisible(False)
+        
         self.viewLogsButton.setEnabled(os.path.isfile(self.upload_log_path))
+        self.viewLogsButton.setVisible(curr == 2)
+        self.stopBtn.setVisible(curr == 2)
+        
+        # Project details card visibility
+        show_card = self.existing_project is not None and is_step1
+        self.frameProjectDetails.setVisible(show_card)
+        if show_card:
+            self.lblProjectDetails.setText(get_project_details_html(self.existing_project))
 
     def reset_upload_state(self):
         # Make sure the state is clear to behin with
@@ -592,6 +613,121 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             for file in self.upload_digest.files.values():
                 self.upload_log(f"  - [CREATE]: {file.rel_path}", Qgis.Info)
             self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+
+    def _next_step(self):
+        curr = self.stackedWidget.currentIndex()
+        if curr == 0:
+            self.stackedWidget.setCurrentIndex(1)
+            self.recalc_local_ops() # Ensure latest ops
+            self._populate_file_selection()
+        elif curr == 1:
+            self.handle_start_click() # Start upload
+        self.recalc_state()
+            
+    def _prev_step(self):
+        curr = self.stackedWidget.currentIndex()
+        if curr == 1:
+            self.stackedWidget.setCurrentIndex(0)
+        self.recalc_state()
+
+    def _populate_file_selection(self):
+        self.fileSelection.set_sorting_enabled(False)
+        self.fileSelection.clear()
+        
+        # Map statuses
+        if not self.new_project:
+            # Modified project
+            for rel_path, file in self.upload_digest.files.items():
+                status = "New"
+                highlight = None
+                checked = True
+                is_locked = False
+                tooltip = None
+                
+                # We need to know if it exists in remote
+                remote_file = self.existing_project.files.get(rel_path) if self.existing_project else None
+                
+                if remote_file:
+                    if remote_file.etag == file.etag:
+                        status = "No change"
+                        checked = False
+                        is_locked = True
+                        tooltip = "This file is already up to date on the Data Exchange."
+                    else:
+                        status = "Update"
+                        highlight = "#2980b9"
+                
+                # project.rs.xml is mandatory
+                is_mandatory = False
+                if rel_path.lower() == 'project.rs.xml':
+                    is_mandatory = True
+                    checked = True
+                    is_locked = False # Allow it to be checked/re-uploaded even if No Change? 
+                    # Actually user said "always be selected".
+                    tooltip = "This file is required for the project structure."
+
+                self.fileSelection.add_file_item(
+                    rel_path=rel_path,
+                    size=file.size,
+                    status_text=status,
+                    checked=checked,
+                    is_locked=is_locked,
+                    is_mandatory=is_mandatory,
+                    highlight_color=highlight,
+                    tooltip=tooltip
+                )
+            
+            # Find deletions
+            if self.existing_project:
+                for rel_path, remote_file in self.existing_project.files.items():
+                    if rel_path not in self.upload_digest.files:
+                        self.fileSelection.add_file_item(
+                            rel_path=rel_path,
+                            size=remote_file.size,
+                            status_text="Delete",
+                            checked=not (self.noDeleteChk.isEnabled() and self.noDeleteChk.isChecked()),
+                            is_locked=self.noDeleteChk.isEnabled() and self.noDeleteChk.isChecked(),
+                            highlight_color="#c0392b"
+                        )
+        else:
+            # New project
+            for rel_path, file in self.upload_digest.files.items():
+                checked = True
+                is_mandatory = False
+                if rel_path.lower() == 'project.rs.xml':
+                    is_mandatory = True
+                
+                self.fileSelection.add_file_item(
+                    rel_path=rel_path,
+                    size=file.size,
+                    status_text="New",
+                    checked=checked,
+                    is_mandatory=is_mandatory
+                )
+        
+        self.fileSelection.set_sorting_enabled(True)
+        self.fileSelection.sort_by_column(0, Qt.AscendingOrder)
+        
+        self._update_selection_summary()
+
+    def _update_selection_summary(self):
+        """ Update the summary line at the bottom of the file selection step """
+        selected = self.fileSelection.get_selected_files()
+        total = self.fileSelection.treeFiles.invisibleRootItem().childCount()
+        count = len(selected)
+        remaining = total - count
+        
+        if count == 1:
+            upload_text = "1 file will be uploaded"
+        else:
+            upload_text = f"{count} files will be uploaded"
+            
+        if remaining == 1:
+            remain_text = "1 file will remain unchanged"
+        else:
+            remain_text = f"{remaining} files will remain unchanged"
+            
+        self.lblSelectionSummary.setText(f"{upload_text}, {remain_text}.")
 
     def handle_new_or_update_change(self, button, checked):
         """ Handler for the radio button group that determines if we're creating a new project or updating an existing one
@@ -913,7 +1049,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
             if changes == 0:
                 self.upload_log('No files to upload. Skipping upload step', Qgis.Info)
-                self.flow_state = ProjectUploadDialogStateFlow.NO_ACTION
+                # If no files to upload, we might still need to finalize (e.g. metadata only change or deletions)
+                # But deletions are handled by request_upload_project's delete logic?
+                # Actually, the uploader queue ONLY handles uploads.
+                self.upload_log('Finalizing metadata/deletions...', Qgis.Info)
+                self.handle_uploads_complete()
             else:
                 self.upload_log('Requesting upload URLs...', Qgis.Info)
                 self.dataExchangeAPI.request_upload_project_files_url(self.upload_digest, self.handle_request_upload_project_files_url)
@@ -933,6 +1073,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
         else:
             self.upload_log('  - SUCCESS: Got the file upload URLs', Qgis.Info)
+            self.stackedWidget.setCurrentIndex(2)
             self.handle_upload_start()
         self.recalc_state()
 
@@ -983,10 +1124,13 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """
         self.upload_log('Starting the ACTUAL file upload process...', Qgis.Info)
 
-        for upFile in self.upload_digest.files.values():
-            if upFile.op in [UploadFile.FileOp.CREATE, UploadFile.FileOp.UPDATE]:
-                abs_path = os.path.join(self.project_xml.project_dir, upFile.rel_path)
-                self.queue.enqueue(upFile.rel_path, abs_path, upload_urls=upFile.urls)
+        selected_files = self.fileSelection.get_selected_files()
+        for rel_path in selected_files:
+            if rel_path in self.upload_digest.files:
+                upFile = self.upload_digest.files[rel_path]
+                if upFile.op in [UploadFile.FileOp.CREATE, UploadFile.FileOp.UPDATE]:
+                    abs_path = os.path.join(self.project_xml.project_dir, upFile.rel_path)
+                    self.queue.enqueue(upFile.rel_path, abs_path, upload_urls=upFile.urls)
 
         self.flow_state = ProjectUploadDialogStateFlow.UPLOADING
         self.recalc_state()
