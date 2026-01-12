@@ -3,7 +3,8 @@ import hashlib
 import requests
 import os
 
-from qgis.core import QgsMessageLog, Qgis, QgsMessageLog
+from datetime import datetime
+from qgis.core import QgsMessageLog, Qgis
 from .settings import CONSTANTS
 
 # BASE is the name we want to use inside the settings keys
@@ -148,3 +149,73 @@ def humane_bytes(size: int, precision: int = 1) -> str:
         precision = 0
 
     return f"{size:.{precision}f} {unit}"
+
+
+def get_project_details_html(project) -> str:
+    """ Generate HTML for project details to be shown in a QLabel.
+    
+    Args:
+        project (DEProject): The project object from DataExchangeAPI
+        
+    Returns:
+        str: HTML string
+    """
+    if not project:
+        return ""
+        
+    # Extract names from nested objects
+    p_type = project.projectType.get('name', 'Unknown Type') if project.projectType else 'Unknown Type'
+    owner = project.ownedBy.get('name', 'Unknown Owner') if project.ownedBy else 'Unknown Owner'
+    
+    # Format dates
+    def pretty_date(iso_str):
+        if not iso_str: return "Unknown"
+        try:
+            # Generic ISO parsing
+            dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
+            return dt.strftime('%B %d, %Y')
+        except Exception:
+            return iso_str
+
+    created = pretty_date(project.createdOn)
+    updated = pretty_date(project.updatedOn)
+    
+    # Visibility styling
+    vis_color = "#27ae60" if project.visibility == "PUBLIC" else "#e67e22"
+    
+    # Tags styling
+    tags_html = ""
+    if project.tags:
+        tags_list = [f"<span style='background-color: #f1f1f1; color: #555; border-radius: 3px; padding: 1px 4px; margin-right: 6px;'>{t}</span>" for t in project.tags]
+        tags_html = f"<div style='margin-top: 8px;'>{' '.join(tags_list)}</div>"
+
+    html = f"""
+    <div style="font-family: sans-serif;">
+        <div style="font-size: 14pt; font-weight: bold; color: #2c3e50;">{project.name}</div>
+        <div style="font-size: 10pt; color: #7f8c8d; margin-bottom: 10px;">{p_type}</div>
+        
+        <table border="0" cellpadding="3" cellspacing="0" style="width: 100%;">
+            <tr><td style="color: #95a5a6; width: 90px;">Owner:</td><td><b>{owner}</b></td></tr>
+            <tr><td style="color: #95a5a6;">Visibility:</td><td><span style="color: {vis_color}; font-weight: bold;">{project.visibility}</span></td></tr>
+            <tr><td style="color: #95a5a6;">Created:</td><td>{created}</td></tr>
+            <tr><td style="color: #95a5a6;">Updated:</td><td>{updated}</td></tr>
+            <tr><td style="color: #95a5a6;">Total Files:</td><td>{len(project.files)}</td></tr>
+        </table>
+    """
+    
+    if project.summary:
+        html += f"""
+        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; color: #34495e;">
+            {project.summary}
+        </div>
+        """
+        
+    if tags_html:
+        html += f"""
+        <div style="margin-top: 10px; padding-top: 5px; border-top: 1px solid #eee;">
+            Tags: {tags_html}
+        </div>
+        """
+        
+    html += "</div>"
+    return html
