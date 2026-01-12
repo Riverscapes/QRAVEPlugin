@@ -204,6 +204,10 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             
             self.lblProjectDetails.setText(html)
             self.btnNext.setEnabled(True)
+
+            # If we're in locked mode (updating), we skip straight to step 3 once we've verified
+            if self.locked_mode:
+                self._next_step()
             
             # Pre-populate folder name if not in locked mode
             if not self.locked_mode:
@@ -363,9 +367,17 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
     def _next_step(self):
         curr = self.stackedWidget.currentIndex()
         if curr == 0: # From Step 1 to 2
-            self.stackedWidget.setCurrentIndex(1)
-            self.btnBack.setEnabled(True)
-            self._validate_folder()
+            if self.locked_mode:
+                # Skip Step 2 (Folder selection) and go straight to Step 3 (File tree)
+                self.stackedWidget.setCurrentIndex(2)
+                self.btnBack.setEnabled(True)
+                self._populate_file_tree()
+                self.btnNext.setText("Download")
+                self.btnNext.setEnabled(True)
+            else:
+                self.stackedWidget.setCurrentIndex(1)
+                self.btnBack.setEnabled(True)
+                self._validate_folder()
         elif curr == 1: # From Step 2 to 3
             self.stackedWidget.setCurrentIndex(2)
             self._populate_file_tree()
@@ -381,9 +393,16 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             self.btnBack.setEnabled(False)
             self.btnNext.setEnabled(True)
         elif curr == 2:
-            self.stackedWidget.setCurrentIndex(1)
-            self.btnNext.setText("Next")
-            self._validate_folder()
+            if self.locked_mode:
+                # Skip back to Step 1
+                self.stackedWidget.setCurrentIndex(0)
+                self.btnBack.setEnabled(False)
+                self.btnNext.setText("Next")
+                self.btnNext.setEnabled(True)
+            else:
+                self.stackedWidget.setCurrentIndex(1)
+                self.btnNext.setText("Next")
+                self._validate_folder()
 
     def _start_download(self):
         self.stackedWidget.setCurrentIndex(3)
