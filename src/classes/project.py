@@ -321,6 +321,10 @@ class Project:
 
             layer_name = None
 
+            # Construct the rsXPath for this element
+            rs_xpath = get_xml_xpath(new_proj_el)
+            bl_attr['rsXPath'] = rs_xpath
+
             # If this is a geopackage it's special
             if new_proj_el.getparent().tag == 'Layers':
                 if self.version == "V1":
@@ -334,6 +338,9 @@ class Project:
                 parent_path_el = new_proj_el.getparent().getparent().find('Path')
                 parent_path = parent_path_el.text if parent_path_el is not None else None
                 layer_uri = os.path.join(self.project_dir, parent_path) if parent_path else None
+
+                # THe XPath for geopackages has everything after the /Layers/.* stripped off
+                bl_attr['rsXPath'] = re.sub(r'/Layers/.*', '', bl_attr['rsXPath'])
             elif bl_type == 'tin':
                 # TIN layers cannot be loaded in QGIS, so just keep them in the tree
                 path_el = new_proj_el.find('Path')
@@ -351,10 +358,6 @@ class Project:
 
             desc_el = new_proj_el.find('Description')
             layer_description = desc_el.text.strip() if desc_el is not None and desc_el.text else None
-
-            # Construct the rsXPath for this element
-            rs_xpath = get_xml_xpath(new_proj_el)
-            bl_attr['rsXPath'] = rs_xpath
 
             map_layer = QRaveMapLayer(curr_label, layer_type, layer_uri, bl_attr, meta, layer_name, description=layer_description)
             curr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), Qt.UserRole)
@@ -410,8 +413,8 @@ def xpathone_withref(root_el, el, xpath_str):
                 return xpath_findref(root_el, ref_str, xpath_str)
 
         settings.log(
-            'Error finding project xml node with path="{}"'.format(xpath_str),
-            Qgis.Warning)
+            'Optional project xml node not found with path="{}"'.format(xpath_str),
+            Qgis.Info)
     else:
         # If the node is found and is not a reference this is the easy case
         if 'ref' in found[0].attrib:
@@ -459,7 +462,7 @@ def get_xml_xpath(el: lxml.etree._Element) -> str:
     rs_xpath = ''
     curr = el
     while curr is not None:
-        node_id = curr.attrib.get('id')
+        node_id = curr.attrib.get('id') or curr.attrib.get('name') or curr.attrib.get('lyrName')
         node_id_str = f'#{node_id}' if node_id else ''
         sep = '/' if rs_xpath else ''
         rs_xpath = f"{curr.tag}{node_id_str}{sep}{rs_xpath}"

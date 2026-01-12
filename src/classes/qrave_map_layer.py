@@ -382,6 +382,9 @@ class QRaveMapLayer():
         layer_name = map_layer.layer_name
         if not layer_name:
             layer_name = map_layer.bl_attr.get('nodeId', '')
+        if not layer_name:
+            # Strip the id off of the xPath. So for Project/Realizations/Realization#REALIZATION1/Datasets/Vector#Ecoregions I want Ecoregions
+            layer_name = map_layer.bl_attr.get('rsXPath', '').split('/')[-1].split('#')[1]
             
         fmt = tile_service.get('format', 'pbf')
         
