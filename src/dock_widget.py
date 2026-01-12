@@ -355,6 +355,17 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         
         self.reload_tree()
 
+        # If this is a fresh load and the setting is set we load the default view
+        new_project = self._get_project_by_name(name)
+        load_default_setting = self.settings.getValue('loadDefaultView')
+        
+        if new_project and load_default_setting \
+            and new_project.default_view is not None \
+                and new_project.default_view in new_project.views \
+                    and new_project.views[new_project.default_view] is not None:
+            view_layers = new_project.views[new_project.default_view]
+            self.add_children_to_map(new_project.qproject, view_layers)
+
     def show_loading(self, label: str):
         """Add a temporary loading item to the tree"""
         # Make sure it's not already there
