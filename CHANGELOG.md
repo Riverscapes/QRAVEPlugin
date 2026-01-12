@@ -1,3 +1,18 @@
+## 1.1.0 ***(January 12, 2026)***
+
+### Added
+- **Remote Project Support**: Browse and interact with projects directly from the Riverscapes Data Exchange without local files.
+- **Improved Download Workflow**: Selective file downloads, etag-based update detection, and a new progress-tracked multi-step UI.
+- **WebTiles & Vector Tiles**: Full support for remote tile services including Mapbox GL symbology for vector layers.
+- **Authentication Persistence**: Remembered Riverscapes login to minimize browser popups.
+- **UI State Persistence**: Dock height and visibility are now preserved across sessions.
+
+### Changed
+- **Redesigned Project Upload**: Updated multi-step workflow for better usability and consistency.
+- **Enhanced Threading**: Implemented thread locking to prevent collisions on asynchronous calls.
+- **Cleaner Dock Lifecycle**: Improved dock window management to prevent duplicates during plugin reloads.
+- **Dependency Update**: Updated `rsxml` to `2.2.1` for improved etag support #121.
+
 ## 1.0.6 ***(December 17, 2025)***
 
 ### Added
