@@ -132,38 +132,46 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     def reload_tree(self):
         # re-initialize our model and reload the projects from file
         # Try not to do this too often if you can
-        expanded_states = {}
+        
+        # Store sets of expanded paths keyed by project name
+        expanded_paths_by_project = {}
 
-        def get_checked_state(idx, output=[]):
+        def get_expanded_paths(idx, parent_path=""):
+            paths = set()
+            
+            # If the current item is expanded, add its path
+            if self.treeView.isExpanded(idx):
+                paths.add(parent_path)
 
             for idy in range(self.model.rowCount(idx)):
-                child = self.model.index(idy, 0, idx)
-                output = get_checked_state(child, output)
+                child_idx = self.model.index(idy, 0, idx)
+                item = self.model.itemFromIndex(child_idx)
+                if item:
+                    # Determine unique path for child
+                    # Use a delimiter (e.g., '///') to avoid collision with folder names
+                    item_name = item.text()
+                    child_path = f"{parent_path}///{item_name}" if parent_path else item_name
+                    paths.update(get_expanded_paths(child_idx, child_path))
 
-            item = self.model.itemFromIndex(idx)
-            if item is None:
-                return output
-            expanded = self.treeView.isExpanded(idx)
-            output.append((item.text(), expanded))
-
-            return output
+            return paths
 
         new_projects = self._get_projects()
 
         for project in self._get_projects():
             if not isinstance(project, str):
                 project_name = project.qproject.text()
-                project_states = []
-                project_states = get_checked_state(
-                    self.model.indexFromItem(project.qproject), project_states)
-                expanded_states[project_name] = project_states
+                paths = get_expanded_paths(self.model.indexFromItem(project.qproject), "")
+                expanded_paths_by_project[project_name] = paths
 
-        basemap_states = None
+        basemap_paths = None
         region = self.settings.getValue('basemapRegion')
         if self.basemaps.regions is not None and len(self.basemaps.regions) > 0:
-            basemap_states = []
-            basemap_states = get_checked_state(self.model.indexFromItem(
-                self.basemaps.regions[region]), basemap_states)
+            if region in self.basemaps.regions:
+                # We need to find the basemap item in the current model
+                item = self.basemaps.regions[region]
+                idx = self.model.indexFromItem(item)
+                if idx.isValid():
+                    basemap_paths = get_expanded_paths(idx, "")
 
         self.model.clear()
 
@@ -178,9 +186,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     if project.qproject:
                         project.qproject.setText(project_name)
                         self.model.appendRow(project.qproject)
-                        if project_name in expanded_states.keys():
-                            self.restore_expaned_state(self.model.indexFromItem(
-                                project.qproject), expanded_states[project_name])
+                        if project_name in expanded_paths_by_project:
+                            self.restore_expanded_state(self.model.indexFromItem(
+                                project.qproject), expanded_paths_by_project[project_name], "")
                         else:
                             self.expand_children_recursive(
                                 self.model.indexFromItem(project.qproject))
@@ -198,9 +206,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     and project.loadable is True:
                 project.qproject.setText(project_name)
                 self.model.appendRow(project.qproject)
-                if project_name in expanded_states.keys():
-                    self.restore_expaned_state(self.model.indexFromItem(
-                        project.qproject), expanded_states[project_name])
+                if project_name in expanded_paths_by_project:
+                    self.restore_expanded_state(self.model.indexFromItem(
+                        project.qproject), expanded_paths_by_project[project_name], "")
                 else:
                     self.expand_children_recursive(
                         self.model.indexFromItem(project.qproject))
@@ -218,9 +226,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 and region is not None and len(region) > 0 \
                 and region in self.basemaps.regions.keys():
             self.model.appendRow(self.basemaps.regions[region])
-            if basemap_states is not None:
-                self.restore_expaned_state(self.model.indexFromItem(
-                    self.basemaps.regions[region]), basemap_states)
+            if basemap_paths is not None:
+                self.restore_expanded_state(self.model.indexFromItem(
+                    self.basemaps.regions[region]), basemap_paths, "")
             else:
                 self.expand_children_recursive(
                     self.model.indexFromItem(self.basemaps.regions[region]))
@@ -430,45 +438,39 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if not self.treeView.isExpanded(idx) and not collapsed:
             self.treeView.setExpanded(idx, True)
 
-    def restore_expaned_state(self, idx: QModelIndex = None, states: List[dict] = None):
-        """Expand all the children of a QTreeView node. Do it recursively
-        TODO: Recursion might not be the best for large trees here.
-
+    def restore_expanded_state(self, idx: QModelIndex, expanded_paths: set, current_path=""):
+        """Expand all the children of a QTreeView node based on saved paths.
+        
         Args:
-            idx (QModelIndex, optional): [description]. Defaults to None.
-            force: ignore the "collapsed" business logic attribute
+            idx (QModelIndex): The index to start restoring from
+            expanded_paths (set): Set of path strings (e.g. "Root///Folder A") that should be expanded
+            current_path (str): The path of the current item
         """
-        if idx is None:
-            idx = self.treeView.rootIndex()
+        if idx is None or not idx.isValid():
+            return
 
+        # Recurse first so we can expand straight down
         for idy in range(self.model.rowCount(idx)):
-            child = self.model.index(idy, 0, idx)
-            self.restore_expaned_state(child, states)
+            child_idx = self.model.index(idy, 0, idx)
+            child_item = self.model.itemFromIndex(child_idx)
+            if child_item:
+                item_name = child_item.text()
+                child_path = f"{current_path}///{item_name}" if current_path else item_name
+                self.restore_expanded_state(child_idx, expanded_paths, child_path)
 
         item = self.model.itemFromIndex(idx)
         item_data = item.data(Qt.UserRole) if item is not None else None
 
-        # NOTE: This is pretty verbose on purpose
-
-        # This thing needs to have data or it defaults to being expanded
-        if item_data is None or item_data.data is None:
-            collapsed = False
-
-        # Collapsed is an attribute set in the business logic
-        # Never expand the QRaveBaseMap object becsause there's a network call involved
-        elif isinstance(item_data.data, QRaveBaseMap) \
-                or (isinstance(item_data.data, dict) and 'collapsed' in item_data.data and str(item_data.data['collapsed']).lower() == 'true'):
-            collapsed = True
-
-        else:
-            collapsed = False
-
-        name = item.text()
-        state = next(
-            (item_state[1] for item_state in states if item_state[0] == name), None)
-
-        if not self.treeView.isExpanded(idx) and not collapsed and state is True:
-            self.treeView.setExpanded(idx, True)
+        # Determine if we should forcefully collapse (e.g. BaseMaps to avoid network hits)
+        is_basemap = False
+        if item_data and item_data.data:
+            if isinstance(item_data.data, QRaveBaseMap):
+                is_basemap = True
+        
+        # If the path is in our set, the user had it expanded.
+        if current_path in expanded_paths and not is_basemap:
+            if not self.treeView.isExpanded(idx):
+                self.treeView.setExpanded(idx, True)
 
     def default_tree_action(self, idx: QModelIndex):
         if not idx.isValid():
