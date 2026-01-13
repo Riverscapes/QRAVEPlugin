@@ -434,8 +434,29 @@ class QRAVE:
             self.metawidget.hide()
 
         if self.dockwidget is not None and not self.dockwidget.isHidden():
-            self.qproject.writeEntry(
-                CONSTANTS['settingsCategory'], 'enabled', True)
+            
+            # Check if the project is already enabled. 'readEntry' might return '1' or True/False
+            qrave_enabled, type_conversion_ok = self.qproject.readEntry(
+                CONSTANTS['settingsCategory'],
+                'enabled'
+            )
+            already_enabled = type_conversion_ok and (qrave_enabled == '1' or qrave_enabled is True)
+            
+            # If we are just restoring the window state on startup (forceOn=True) and the project 
+            # is a clean/new project, we should NOT write to the project to avoid dirtying it.
+            # This prevents the "Do you want to save..." dialog when opening QGIS with the plugin active.
+            is_pristine = not self.qproject.fileName() and not self.qproject.isDirty()
+            
+            should_write = True
+            if already_enabled:
+                should_write = False
+            elif forceOn and is_pristine:
+                should_write = False
+
+            if should_write:
+                self.qproject.writeEntry(
+                    CONSTANTS['settingsCategory'], 'enabled', True)
+            
             self.settings.setValue('dockVisible', True)
         else:
             self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'enabled')
