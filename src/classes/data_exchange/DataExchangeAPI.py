@@ -275,6 +275,23 @@ class DataExchangeAPI(QObject):
 
         return self.api.run_query(self._load_query('getProject'), {'id': project_id}, _parse_project)
 
+
+    def get_dataset_metadata(self, project_id: str, limit: int, offset: int, callback: Callable[[RunGQLQueryTask, Dict], None]):
+        """ Get the metadata and descriptions for datasets
+        """
+        def _parse_dataset_metadata(task: RunGQLQueryTask):
+            ret_obj = None
+            if task.response and not task.error:
+                ret_obj = task.response['data']['project']['datasets']
+            
+            return callback(task, ret_obj)
+
+        return self.api.run_query(self._load_query('webRaveDatasetMetadata'), {
+            'projectId': project_id,
+            'dsLimit': limit,
+            'dsOffset': offset
+        }, _parse_dataset_metadata)
+
     def get_remote_project(self, project_id: str, callback: Callable[[RunGQLQueryTask, Dict], None]):
         """ Get the tree and metadata for a remote project
 
