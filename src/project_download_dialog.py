@@ -14,7 +14,7 @@ from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProject
 from .classes.data_exchange.downloader import DownloadQueue
 from .classes.GraphQLAPI import RunGQLQueryTask
 from .classes.settings import Settings
-from .classes.util import get_project_details_html
+from .classes.util import get_project_details_html, extract_project_id
 from .file_selection_widget import ProjectFileSelectionWidget
 
 # Removed SortableTreeWidgetItem - now in file_selection_widget.py
@@ -120,9 +120,17 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             return
             
         # Extract ID from URL if necessary
-        # Pattern: https://data.riverscapes.net/p/ac104f27-93b7-4e47-b279-7a7dad8ccf1d/
-        match = re.search(r'/p/([a-f0-9\-]+)', project_id_raw)
-        project_id = match.group(1) if match else project_id_raw
+        project_id = extract_project_id(project_id_raw)
+        
+        if not project_id:
+             # If we couldn't extract an ID, it might be an invalid URL or format.
+             # We'll fail early here or let it try to fetch if it looks like a crude ID.
+             # But extract_project_id returns None for invalid formats, so we should probably warn.
+             # However, let's behave similar to before: if it fails, maybe just use raw? 
+             # No, the requirement is to be robust. If it returns None, it's invalid.
+             self.lblProjectDetails.setText("<b style='color: #c0392b;'>Invalid Project ID or URL</b>")
+             self.frameProjectDetails.show()
+             return
         
         self.frameProjectDetails.show()
         self.lblProjectDetails.setText("<i>Verifying project...</i>")

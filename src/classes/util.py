@@ -1,7 +1,8 @@
-from typing import Dict
+from typing import Dict, Optional
 import hashlib
 import requests
 import os
+import re
 
 from datetime import datetime
 from qgis.core import QgsMessageLog, Qgis
@@ -219,3 +220,48 @@ def get_project_details_html(project) -> str:
         
     html += "</div>"
     return html
+
+
+def extract_project_id(input_str: str) -> Optional[str]:
+    """ Extract a project GUID from a raw string or a Riverscapes URL.
+    
+    Handles:
+        - Raw GUID: 6a3210a1-8f4a-4536-a4ac-c4fe5002f83e
+        - Project URL: https://data.riverscapes.net/p/6a3210a1-8f4a-4536-a4ac-c4fe5002f83e/
+        - Viewer URL: https://data.riverscapes.net/rv/6a3210a1-8f4a-4536-a4ac-c4fe5002f83e
+        
+    Rejects:
+        - Collection URL: /c/...
+        - Dataset URL: /d/...
+        - Organization URL: /o/...
+        - User URL: /u/...
+
+    Args:
+        input_str (str): The input string to parse
+
+    Returns:
+        Optional[str]: The extracted GUID or None if not found/invalid
+    """
+    if not input_str:
+        return None
+        
+    input_str = input_str.strip()
+    
+    # 1. Check for basic UUID pattern first
+    uuid_pattern = r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'
+    
+    # Check if the input is just a UUID
+    if re.fullmatch(uuid_pattern, input_str):
+        return input_str
+        
+    # 2. Check for URL patterns
+    # Valid: /p/<guid>, /rv/<guid>
+    # Note: We use specific prefixes to avoid matching other resource types like /c/, /d/, etc.
+    
+    url_pattern = r'(?:https?://[^/]+)?/(?:p|rv)/(' + uuid_pattern + r')(?:[/?]|$)'
+    
+    match = re.search(url_pattern, input_str)
+    if match:
+        return match.group(1)
+        
+    return None
