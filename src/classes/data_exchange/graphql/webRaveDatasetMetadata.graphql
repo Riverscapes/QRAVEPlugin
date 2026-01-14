@@ -1,0 +1,46 @@
+query webRaveDatasetMetadata($projectId: ID!, $dsLimit: Int!, $dsOffset: Int!) {
+  project(id: $projectId) {
+    id
+    datasets(limit: $dsLimit, offset: $dsOffset) {
+      items {
+        id
+        rsXPath
+        description
+        meta {
+          key
+          value
+          type
+          locked
+          ext
+        }
+        layers {
+          name
+          extRef
+          lyrName
+          citation
+          description
+          summary
+          meta {
+            key
+            value
+            type
+            locked
+            ext
+          }
+          refProject {
+            id
+            name
+            projectType {
+              id
+              name
+              logo
+            }
+          }
+        }        
+      }
+      limit
+      offset
+      total
+    }
+  }
+}

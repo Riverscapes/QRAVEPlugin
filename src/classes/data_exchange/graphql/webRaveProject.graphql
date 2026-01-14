@@ -42,9 +42,9 @@ query webRaveProject($id: ID!, $dsLimit: Int!, $dsOffset: Int!) {
     }
     datasets(limit: $dsLimit, offset: $dsOffset) {
       items {
+
         id
         rsXPath
-        summary
         refProject {
           ...DatasetProjectSource
         }
@@ -53,13 +53,6 @@ query webRaveProject($id: ID!, $dsLimit: Int!, $dsOffset: Int!) {
           refProject {
             ...DatasetProjectSource
           }
-        }
-        meta {
-          key
-          value
-          type
-          locked
-          ext
         }
       }
       limit

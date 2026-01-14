@@ -362,6 +362,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self._remote_project_cache[test_project.id] = gql_data
         
         self.reload_tree()
+        self.fetch_dataset_metadata(test_project.id)
 
         # If this is a fresh load and the setting is set we load the default view
         new_project = self._get_project_by_name(name)
@@ -530,12 +531,15 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             pos ([type]): [description]
         """
         indexes = self.treeView.selectedIndexes()
+    
+        if len(indexes) < 1:
+            return
 
         # No multiselect so there is only ever one item
         item = self.model.itemFromIndex(indexes[0])
         data_item: ProjectTreeData = item.data(Qt.UserRole)
 
-        if len(indexes) < 1 or data_item.project is None or not data_item.project.exists:
+        if data_item.project is None or not data_item.project.exists:
             return
 
         # Update the metadata if we need to
@@ -827,8 +831,81 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if task.success and response and 'data' in response and response['data']['project']:
             self._remote_project_cache[project_id] = response
             self.reload_tree()
+            # Now fetch the metadata asynchronously
+            self.fetch_dataset_metadata(project_id)
         else:
             self.settings.log(f"Failed to fetch missing remote project: {project_id}", Qgis.Warning)
+
+    def fetch_dataset_metadata(self, project_id: str, offset=0, limit=50):
+        """Fetch metadata for datasets in chunks"""
+        self.settings.log(f"Fetching dataset metadata for {project_id} (offset={offset}, limit={limit})", Qgis.Info)
+        
+        def _handle_metadata(task: RunGQLQueryTask, datasets_data: Dict):
+            if task.success and datasets_data:
+                items = datasets_data.get('items', [])
+                total = datasets_data.get('total', 0)
+                
+                # 1. Update the cache
+                if project_id in self._remote_project_cache:
+                    cached_proj = self._remote_project_cache[project_id]
+                    # We need to deeply merge the metadata into the cached dataset items
+                    # This is O(N*M) but N and M are small (50 items per page)
+                    # We expect the cache to have all items from the initial load (limited to 50? Wait.)
+                    # The initial load has dsLimit: 50. 
+                    # If the project has > 50 datasets, we only have 50 in the cache initially?
+                    # The user said "The issue is that if we request Metadata ... we will time out".
+                    # If we paginate, we are better.
+                    # BUT `webRaveProject.graphql` takes `dsLimit`.
+                    # DataExchangeAPI.get_remote_project sets limit=50.
+                    # So we only have the first 50 datasets in the project structure initially.
+                    # If we fetch metadata for *more* than 50, we might need to append them to the cache?
+                    # Or does RemoteProject only show the first 50?
+                    
+                    # RemoteProject uses `self.data.get('datasets', {}).get('items', [])`.
+                    # If the tree has leaves referencing datasets that are NOT in the first 50 items,
+                    # they won't be in `dataset_meta_map`.
+                    # So we should probably fetch metadata for ALL datasets and update the map.
+                    # The `RemoteProject` tree leaves are the source of truth for what layers exist.
+                    # `datasets` list helps with metadata.
+                    
+                    # Update cache logic:
+                    if 'data' in cached_proj and 'project' in cached_proj['data']:
+                        proj_data = cached_proj['data']['project']
+                        if 'datasets' not in proj_data:
+                            proj_data['datasets'] = {'items': []}
+                        
+                        cached_items = proj_data['datasets']['items']
+                        # Create a map for easier update
+                        cached_map = {i['id']: i for i in cached_items if 'id' in i}
+                        
+                        for new_item in items:
+                            if new_item['id'] in cached_map:
+                                cached_map[new_item['id']].update(new_item)
+                            else:
+                                cached_items.append(new_item)
+                
+                # 2. Update the active project object
+                # Find the project in the tree (it might be multiple times if copied, but usually one remote project per ID)
+                projects = self._get_projects()
+                for proj in projects:
+                    if isinstance(proj, RemoteProject) and proj.id == project_id:
+                        proj.update_dataset_metadata(items)
+                        # Also refresh the metadata panel if the user has an item selected from this project
+                        # We can just emit dataChange or verify current selection
+                        self.item_change(None)
+
+                # 3. Fetch next page
+                if len(items) > 0 and offset + len(items) < total:
+                    self.fetch_dataset_metadata(project_id, offset + len(items), limit)
+            else:
+                self.settings.log(f"Failed to fetch dataset metadata for {project_id}: {task.error}", Qgis.Warning)
+
+        if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
+            # Should have been initialized by get_remote_project call, but just in case
+            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self.fetch_dataset_metadata(project_id, offset, limit))
+        else:
+            self.dataExchangeAPI.get_dataset_metadata(project_id, limit, offset, _handle_metadata)
+
 
     def toggleSubtree(self, item: QStandardItem = None, expand=True):
 

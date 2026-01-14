@@ -41,6 +41,7 @@ class RemoteProject:
 
         # Map datasets for metadata lookup
         self._build_dataset_maps()
+        self.dataset_item_map = {}
 
     def load(self):
         """Build the tree from GraphQL data"""
@@ -195,6 +196,16 @@ class RemoteProject:
             else:
                 self.qproject.appendRow(item)
 
+            # Add to the item map so we can update it later
+            if rs_xpath:
+                if rs_xpath not in self.dataset_item_map:
+                    self.dataset_item_map[rs_xpath] = []
+                self.dataset_item_map[rs_xpath].append(item)
+            if node_id:
+                if node_id not in self.dataset_item_map:
+                    self.dataset_item_map[node_id] = []
+                self.dataset_item_map[node_id].append(item)
+
     def _build_views(self):
         views_data = self.tree_data.get('views', [])
         if not views_data:
@@ -221,3 +232,68 @@ class RemoteProject:
             curr_item.appendRow(view_item)
 
         self.qproject.appendRow(curr_item)
+
+    def update_dataset_metadata(self, new_datasets: List[Dict]):
+        """Update metadata and description for datasets from async fetch"""
+        count = 0
+        for ds in new_datasets:
+            dataset_meta = self._extract_meta(ds.get('meta', []))
+            # In the new query we use 'description' but fallback to 'summary' if needed
+            dataset_desc = ds.get('description', ds.get('summary', ''))
+            
+            ds_info = {'meta': dataset_meta, 'description': dataset_desc}
+            
+            xpath = ds.get('rsXPath')
+            ds_id = ds.get('id')
+            
+            # Update the map
+            if xpath:
+                self.dataset_meta_map[xpath] = ds_info
+            if ds_id:
+                self.dataset_meta_map[ds_id] = ds_info
+                
+            # Update items
+            tree_items = []
+            if xpath and xpath in self.dataset_item_map:
+                tree_items.extend(self.dataset_item_map[xpath])
+            if ds_id and ds_id in self.dataset_item_map:
+                tree_items.extend(self.dataset_item_map[ds_id])
+                
+            # Filter duplicates safely
+            unique_items = []
+            for item in tree_items:
+                if item not in unique_items:
+                    unique_items.append(item)
+            tree_items = unique_items
+
+            # Prepare layer lookup map for this dataset
+            ds_layers = ds.get('layers', [])
+            layers_map = {l['lyrName']: l for l in ds_layers if 'lyrName' in l}
+
+            for item in tree_items:
+                tree_data = item.data(Qt.UserRole)
+                if tree_data and isinstance(tree_data.data, QRaveMapLayer):
+                    layer = tree_data.data
+                    
+                    # Default to using dataset metadata
+                    meta_to_use = dataset_meta
+                    desc_to_use = dataset_desc
+                    
+                    # If the dataset has layers and this item matches a layer name, use specific layer metadata
+                    if layer.layer_name and layer.layer_name in layers_map:
+                        layer_data = layers_map[layer.layer_name]
+                        layer_meta = self._extract_meta(layer_data.get('meta', []))
+                        layer_desc = layer_data.get('description', layer_data.get('summary', ''))
+                        
+                        # Override if layer has specific metadata
+                        if layer_meta:
+                            meta_to_use = layer_meta
+                        if layer_desc:
+                            desc_to_use = layer_desc
+
+                    layer.meta = meta_to_use
+                    layer.description = desc_to_use
+                    # We don't need to setData again because we modified the object in place
+                    count += 1
+        
+        self.settings.log(f"RemoteProject {self.id}: Updated metadata for {count} dataset references", Qgis.Info)
