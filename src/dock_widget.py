@@ -1033,7 +1033,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(None, True))
         menu.addSeparator()
         menu.addAction('UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
-        if not isinstance(data.project, RemoteProject) and data.project.warehouse_meta and 'id' in data.project.warehouse_meta:
+        if isinstance(data.project, RemoteProject) or (data.project.warehouse_meta and 'id' in data.project.warehouse_meta):
             menu.addAction('DOWNLOAD_ADD_PROJECT', lambda: self.project_download_load(data.project))
         menu.addSeparator()
         if not isinstance(data.project, RemoteProject):
@@ -1061,8 +1061,14 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         """
         Open the Project Download dialog
         """
-        project_id = project.warehouse_meta['id'][0] if project.warehouse_meta and 'id' in project.warehouse_meta else None
-        local_path = project.project_xml_path
+        project_id = None
+        local_path = None
+        
+        if isinstance(project, RemoteProject):
+            project_id = project.id
+        else:
+            project_id = project.warehouse_meta['id'][0] if project.warehouse_meta and 'id' in project.warehouse_meta else None
+            local_path = project.project_xml_path
         
         dialog = ProjectDownloadDialog(None, project_id=project_id, local_path=local_path)
         dialog.projectDownloaded.connect(self.add_project)

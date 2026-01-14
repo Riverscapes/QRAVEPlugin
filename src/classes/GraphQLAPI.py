@@ -92,6 +92,11 @@ class RunGQLQueryTask(QgsTask):
                         else:
                             self.api.log("Failed to authenticate after multiple attempts.")
                             return  # or handle the error in some other way
+                    
+                    # Log the error to the console
+                    for err in resp_json['errors']:
+                        self.api.log(f"GraphQL Error: {err['message']}", Qgis.Critical)
+                        
                     raise GraphQLAPIException(
                         f"Query failed to run by returning code of {request.status_code}. ERRORS: {json.dumps(resp_json, indent=4, sort_keys=True)}")
                 else:
@@ -99,12 +104,15 @@ class RunGQLQueryTask(QgsTask):
                     self.success = True
                     return True
             else:
+                self.api.log(f"Query failed with code {request.status_code}: {self.query}", Qgis.Critical)
                 raise GraphQLAPIException(
                     f"Query failed to run by returning code of {request.status_code}. {self.query} {json.dumps(self.variables)}")
         except GraphQLAPIException as e:
+            self.api.log(f"GraphQLAPIException: {e}", Qgis.Critical)
             self.error = e
             return False
         except Exception as e:
+            self.api.log(f"GraphQL Unknown Error: {e}", Qgis.Critical)
             self.error = e
             return False
 

@@ -139,6 +139,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             self.btnNext.setEnabled(False)
             return
 
+        if project:
             self.project = project
             self.lblProjectDetails.setText(get_project_details_html(project))
             self.btnNext.setEnabled(True)
@@ -147,8 +148,8 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             if self.locked_mode:
                 self._next_step()
             
-            # Pre-populate folder name if not in locked mode
-            if not self.locked_mode:
+            # Pre-populate folder name if not in locked mode or if it's a remote project (no local path)
+            if not self.locked_mode or (self.locked_mode and not self.initial_local_path):
                 folder_name = re.sub(r'[^a-zA-Z0-9_\- ]', '', project.name).strip().replace(' ', '_')
                 self.txtFolderName.setText(folder_name)
         else:
@@ -171,9 +172,20 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
         self.settings.setValue('lastDownloadPath', parent)
         
         full_path = os.path.join(parent, name)
-        if os.path.exists(full_path) and not self.locked_mode:
+        
+        # Check for existence. 
+        # If locked mode AND existing path (update), we usually skip this step.
+        # If locked mode AND NO existing path (remote download), we treat it like a new download (warn if exists).
+        
+        if os.path.exists(full_path):
+            # If we are strictly updating an existing project, we shouldn't be here (Step 2 skipped).
+            # So if we are here, it means we are either:
+            # 1. New download 
+            # 2. Remote download (locked ID but picking folder)
+            
+            # In both cases, warn about existing folder.
             self.btnNext.setEnabled(False)
-            self.lblFolderStatus.setText("A folder with this name already exists.\nIf you're trying to update an existing project please load it into the Viewer first\nand then right click on it to \"Download or Update Project\".")
+            self.lblFolderStatus.setText("A folder with this name already exists.\nIf you are updating an existing local project, please use the context menu on that project.")
         else:
             self.btnNext.setEnabled(True)
             self.lblFolderStatus.setText("")
@@ -256,7 +268,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
     def _next_step(self):
         curr = self.stackedWidget.currentIndex()
         if curr == 0: # From Step 1 to 2
-            if self.locked_mode:
+            if self.locked_mode and self.initial_local_path:
                 # Skip Step 2 (Folder selection) and go straight to Step 3 (File tree)
                 self.stackedWidget.setCurrentIndex(2)
                 self.btnBack.setEnabled(True)
@@ -264,6 +276,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
                 self.btnNext.setText("Download")
                 self.btnNext.setEnabled(True)
             else:
+                # Normal flow or RemoteProject download (locked but no path)
                 self.stackedWidget.setCurrentIndex(1)
                 self.btnBack.setEnabled(True)
                 self._validate_folder()
