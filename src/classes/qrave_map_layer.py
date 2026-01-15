@@ -439,7 +439,7 @@ class QRaveMapLayer():
                     spatialExtent.extent = QgsReferencedRectangle(rect, dest_crs)
                     
                     extent = QgsLayerMetadata.Extent()
-                    extent.setSpatialExtent([spatialExtent])
+                    extent.setSpatialExtents([spatialExtent])
                     metadata.setExtent(extent)
                     
                     rOutput.setMetadata(metadata)
@@ -619,7 +619,7 @@ class QRaveMapLayer():
                     spatialExtent.extent = QgsReferencedRectangle(rect, dest_crs)
                     
                     extent = QgsLayerMetadata.Extent()
-                    extent.setSpatialExtent([spatialExtent])
+                    extent.setSpatialExtents([spatialExtent])
                     metadata.setExtent(extent)
                     
                     rOutput.setMetadata(metadata)
