@@ -72,6 +72,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.qproject.cleared.connect(self.close_all)
 
         self.qproject.homePathChanged.connect(self.project_homePathChanged)
+        self.qproject.readProject.connect(self.reload_tree)
 
         self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
         self.treeView.customContextMenuRequested.connect(self.open_menu)
