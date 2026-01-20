@@ -136,6 +136,7 @@ class DownloadQueue(QObject):
             self.active_tasks[task.rel_path] = task
             # Use a closure to capture the task
             task.taskCompleted.connect(lambda t=task: self._on_task_completed(t))
+            task.taskTerminated.connect(lambda t=task: self._on_task_completed(t))
             QgsApplication.taskManager().addTask(task)
 
         if not self.active_tasks and not self.pending_tasks:
@@ -145,8 +146,7 @@ class DownloadQueue(QObject):
         if task.rel_path in self.active_tasks:
             del self.active_tasks[task.rel_path]
         
-        if task.status() != QgsTask.Complete:
-            self.failed_tasks.append(task.rel_path)
+            if task.status() != QgsTask.Complete:
+                self.failed_tasks.append(task.rel_path)
             
-        if not self.is_cancelled:
             self._process_queue()
