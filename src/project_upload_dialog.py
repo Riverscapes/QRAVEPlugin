@@ -38,7 +38,10 @@ class ProjectUploadDialogStateFlow:
     WAITING_FOR_COMPLETION = 'WAITING_FOR_COMPLETION'
     COMPLETED = 'COMPLETED'
     ERROR = 'ERROR'
+    COMPLETED = 'COMPLETED'
+    ERROR = 'ERROR'
     NO_ACTION = 'NO_ACTION'
+    CANCELLED = 'CANCELLED'
 
 # Once we click the start upload button there is going to be a chain of callbacks:
 
@@ -200,7 +203,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """
 
         self.loading = self.dataExchangeAPI.api.loading
-        allow_user_action = not self.loading and self.flow_state in [ProjectUploadDialogStateFlow.USER_ACTION]
+        allow_user_action = not self.loading and self.flow_state in [
+            ProjectUploadDialogStateFlow.USER_ACTION,
+            ProjectUploadDialogStateFlow.CANCELLED,
+            ProjectUploadDialogStateFlow.ERROR,
+            ProjectUploadDialogStateFlow.NO_ACTION
+        ]
 
         can_update_project = self.warehouse_id is not None \
             and self.existing_project is not None \
@@ -295,13 +303,21 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             todo_text = 'Upload complete'
         elif self.flow_state == ProjectUploadDialogStateFlow.NO_ACTION:
             todo_text = 'No differences between local and remote. Nothing to upload'
+        elif self.flow_state == ProjectUploadDialogStateFlow.CANCELLED:
+            todo_text = 'Upload Aborted. You can restart the upload.'
         self.todoLabel.setText(todo_text)
 
         # Navigation
         ########################################################################
+        # Navigation
+        ########################################################################
         curr = self.stackedWidget.currentIndex()
-        self.btnBack.setVisible(curr < 2) # Hide back button during/after upload
-        self.btnBack.setEnabled(curr > 0 and allow_user_action)
+        self.btnBack.setVisible(curr < 2 or self.flow_state in [ProjectUploadDialogStateFlow.CANCELLED, ProjectUploadDialogStateFlow.ERROR]) # Hide back button during/after upload
+        
+        # Back button is enabled if we're not on the first page AND either we're in USER_ACTION 
+        # or we're in a terminal state like CANCELLED or ERROR
+        can_go_back = curr > 0 and (allow_user_action or self.flow_state in [ProjectUploadDialogStateFlow.CANCELLED, ProjectUploadDialogStateFlow.ERROR])
+        self.btnBack.setEnabled(can_go_back)
         
         if curr == 0:
             self.startBtn.setText("Next")
@@ -311,11 +327,20 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.startBtn.setText("Start Upload")
             self.startBtn.setEnabled(allow_user_action)
         elif curr == 2:
-            self.startBtn.setVisible(False)
-        
+            self.startBtn.setVisible(self.flow_state in [ProjectUploadDialogStateFlow.CANCELLED, ProjectUploadDialogStateFlow.ERROR])
+            self.startBtn.setEnabled(True)
+            self.startBtn.setText("Restart Upload")
+
         self.viewLogsButton.setEnabled(os.path.isfile(self.upload_log_path))
         self.viewLogsButton.setVisible(curr == 2)
-        self.stopBtn.setVisible(curr == 2)
+        
+        # Disable the "Cancel" button while uploading. The user MUST click STOP first
+        cancel_btn = self.actionBtnBox.button(QDialogButtonBox.Cancel)
+        if cancel_btn:
+            cancel_btn.setEnabled(self.flow_state != ProjectUploadDialogStateFlow.UPLOADING)
+
+        self.stopBtn.setVisible(curr == 2 and self.flow_state == ProjectUploadDialogStateFlow.UPLOADING)
+        self.stopBtn.setEnabled(self.flow_state == ProjectUploadDialogStateFlow.UPLOADING)
         
         # Project details card visibility
         show_card = self.existing_project is not None and is_step1
@@ -622,12 +647,21 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self._populate_file_selection()
         elif curr == 1:
             self.handle_start_click() # Start upload
+        elif curr == 2:
+            if self.flow_state in [ProjectUploadDialogStateFlow.CANCELLED, ProjectUploadDialogStateFlow.ERROR]:
+                self.handle_start_click()
         self.recalc_state()
             
     def _prev_step(self):
         curr = self.stackedWidget.currentIndex()
         if curr == 1:
             self.stackedWidget.setCurrentIndex(0)
+            if self.flow_state in [ProjectUploadDialogStateFlow.CANCELLED, ProjectUploadDialogStateFlow.ERROR]:
+                self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+        elif curr == 2:
+            if self.flow_state in [ProjectUploadDialogStateFlow.CANCELLED, ProjectUploadDialogStateFlow.ERROR]:
+                self.stackedWidget.setCurrentIndex(1)
+                self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
         self.recalc_state()
 
     def _populate_file_selection(self):
@@ -942,6 +976,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         response = qm.exec_()
         if response == QMessageBox.Yes:
             # New let's kick off project validation. We need 3 things to do this: 1. The XML, 2. The files, 3. The owner
+            self.flow_state = ProjectUploadDialogStateFlow.VALIDATING
+            self.recalc_state()
 
             with open(self.project_xml.project_xml_path, 'r') as f:
                 xml = lxml.etree.parse(self.project_xml.project_xml_path).getroot()
@@ -960,7 +996,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
     def handle_stop_click(self):
         self.queue.cancel_all()
-        self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+        self.flow_state = ProjectUploadDialogStateFlow.CANCELLED
         self.recalc_state()
 
     def handle_project_validation(self, task: RunGQLQueryTask, validation_obj: DEValidation):
@@ -1151,7 +1187,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Reset all state back to the beginning so we can click "start" again if we want
         self.reset_upload_state()
 
-        self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
+        self.flow_state = ProjectUploadDialogStateFlow.CANCELLED
         self.recalc_state()
 
     def handle_finalize(self, task: RunGQLQueryTask, job_status_obj: Dict[str, any]):
