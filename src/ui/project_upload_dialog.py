@@ -79,9 +79,6 @@ class Ui_Dialog(object):
         self.optModifyProject = QtWidgets.QRadioButton("Modify existing project")
         self.optModifyProject.setChecked(True)
         self.horizontalLayout_2.addWidget(self.optModifyProject)
-        self.noDeleteChk = QtWidgets.QCheckBox("No remote delete")
-        self.noDeleteChk.setToolTip("Do not delete remote files even if they are not present locally")
-        self.horizontalLayout_2.addWidget(self.noDeleteChk)
         self.viewExistingBtn = QtWidgets.QToolButton()
         self.viewExistingBtn.setText("Visit")
         self.horizontalLayout_2.addWidget(self.viewExistingBtn)
@@ -192,6 +189,16 @@ class Ui_Dialog(object):
         
         self.openWebProjectBtn = QtWidgets.QPushButton("View In Data Exchange")
         self.layoutStep3.addWidget(self.openWebProjectBtn)
+        
+        self.lblUploadComplete = QtWidgets.QLabel("Project upload complete! Click 'Ok' to close this window.")
+        font_complete = QtGui.QFont()
+        font_complete.setBold(True)
+        font_complete.setPointSize(11)
+        self.lblUploadComplete.setFont(font_complete)
+        self.lblUploadComplete.setAlignment(QtCore.Qt.AlignCenter)
+        self.lblUploadComplete.setStyleSheet("color: #27ae60;") # A nice success green
+        self.layoutStep3.addWidget(self.lblUploadComplete)
+
         self.layoutStep3.addStretch()
         self.stackedWidget.addWidget(self.step3)
 
