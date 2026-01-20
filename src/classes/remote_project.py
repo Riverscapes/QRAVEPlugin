@@ -42,6 +42,12 @@ class RemoteProject:
         # Map datasets for metadata lookup
         self._build_dataset_maps()
         self.dataset_item_map = {}
+        self._icon_cache = {}
+
+    def _get_icon(self, path: str) -> QIcon:
+        if path not in self._icon_cache:
+            self._icon_cache[path] = QIcon(path)
+        return self._icon_cache[path]
 
     def load(self):
         """Build the tree from GraphQL data"""
@@ -88,7 +94,7 @@ class RemoteProject:
         branches = self.tree_data.get('branches', [])
         
         # Create the root item
-        self.qproject = QStandardItem(QIcon(':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.name)
+        self.qproject = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.name)
         self.qproject.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self), Qt.UserRole)
 
         # Map to store items by their id (bid for branches, id for leaves)
@@ -104,7 +110,7 @@ class RemoteProject:
                 pid = branch.get('pid') or 'root'
                 
                 if pid in items_map:
-                    item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), branch.get('label'))
+                    item = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/BrowseFolder.png'), branch.get('label'))
                     item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data={'collapsed': branch.get('collapsed')}), Qt.UserRole)
                     items_map[pid].appendRow(item)
                     items_map[bid] = item
@@ -115,7 +121,7 @@ class RemoteProject:
                 # This means some branches have missing parents or a circular dependency
                 # Fallback to root for them
                 for branch in pending_branches:
-                    item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), branch.get('label'))
+                    item = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/BrowseFolder.png'), branch.get('label'))
                     item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data={'collapsed': branch.get('collapsed')}), Qt.UserRole)
                     self.qproject.appendRow(item)
                     items_map[branch.get('bid')] = item
@@ -143,7 +149,7 @@ class RemoteProject:
             elif bl_type == 'tin':
                 icon_path = ':/plugins/qrave_toolbar/layers/tin.svg'
 
-            item = QStandardItem(QIcon(icon_path), leaf.get('label'))
+            item = QStandardItem(self._get_icon(icon_path), leaf.get('label'))
             
             # Map GraphQL leaf to QRaveMapLayer
             # In remote projects, layer_uri might be a URL or we might not have it locally
@@ -211,7 +217,7 @@ class RemoteProject:
         if not views_data:
             return
 
-        curr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), "Project Views")
+        curr_item = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/BrowseFolder.png'), "Project Views")
         curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW_FOLDER, project=self), Qt.UserRole)
 
         for view in views_data:
@@ -221,7 +227,7 @@ class RemoteProject:
             if not name or not view_id:
                 continue
 
-            view_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/view.svg'), name)
+            view_item = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/view.svg'), name)
             view_layers = view.get('layers', [])
             view_layer_ids = [l.get('id') for l in view_layers if l.get('visible')]
             self.views[view_id] = view_layer_ids
