@@ -39,6 +39,12 @@ class ProjectFileSelectionWidget(QWidget):
         self.selectionLayout.addWidget(self.btnSelectAll)
         self.selectionLayout.addWidget(self.btnDeselectAll)
         self.selectionLayout.addStretch()
+        
+        from qgis.PyQt.QtWidgets import QCheckBox
+        self.chkAllowDelete = QCheckBox("Delete remote files that are not present locally")
+        self.chkAllowDelete.setChecked(False)
+        self.selectionLayout.addWidget(self.chkAllowDelete)
+        
         self.layout.addLayout(self.selectionLayout)
 
         # Tree widget
@@ -57,7 +63,24 @@ class ProjectFileSelectionWidget(QWidget):
         # Connect signals
         self.btnSelectAll.clicked.connect(self.select_all)
         self.btnDeselectAll.clicked.connect(self.deselect_all)
+        self.chkAllowDelete.toggled.connect(self._handle_delete_toggle)
         self.treeFiles.itemChanged.connect(lambda item, col: self.selectionChanged.emit())
+
+    def set_allow_delete_visible(self, visible: bool):
+        self.chkAllowDelete.setVisible(visible)
+
+    def _handle_delete_toggle(self, checked: bool):
+        root = self.treeFiles.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            if item.text(2) == "Delete":
+                if checked:
+                    item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                    item.setCheckState(0, Qt.Checked)
+                else:
+                    item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
+                    item.setCheckState(0, Qt.Unchecked)
+        self.selectionChanged.emit()
 
     def clear(self):
         self.treeFiles.clear()

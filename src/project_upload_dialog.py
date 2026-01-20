@@ -237,12 +237,10 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.optModifyProject.setEnabled(False)
             self.viewExistingBtn.setEnabled(False)
             self.selectUpdate = False
-            self.noDeleteChk.setEnabled(False)
         # Only if the warehouse_id exists AND the project retieval is successful AND the acccess is correct can we enable the modify option
         else:
             self.optModifyProject.setEnabled(allow_user_action)
             self.viewExistingBtn.setEnabled(allow_user_action)
-            self.noDeleteChk.setEnabled(allow_user_action and self.optModifyProject.isChecked())
 
         # Project Ownership
         ########################################################################
@@ -283,6 +281,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         # We only show the "View in Data Exchange" button if we're sure the upload has succeeded
         self.openWebProjectBtn.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.COMPLETED])
+        self.lblUploadComplete.setVisible(self.flow_state == ProjectUploadDialogStateFlow.COMPLETED)
 
         todo_text = ''
         if self.flow_state == ProjectUploadDialogStateFlow.LOGGING_IN:
@@ -338,6 +337,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         cancel_btn = self.actionBtnBox.button(QDialogButtonBox.Cancel)
         if cancel_btn:
             cancel_btn.setEnabled(self.flow_state != ProjectUploadDialogStateFlow.UPLOADING)
+            if self.flow_state == ProjectUploadDialogStateFlow.COMPLETED:
+                cancel_btn.setText('Ok')
+                cancel_btn.setEnabled(True)
+            else:
+                cancel_btn.setText('Cancel')
 
         self.stopBtn.setVisible(curr == 2 and self.flow_state == ProjectUploadDialogStateFlow.UPLOADING)
         self.stopBtn.setEnabled(self.flow_state == ProjectUploadDialogStateFlow.UPLOADING)
@@ -684,8 +688,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 if remote_file:
                     if remote_file.etag == file.etag:
                         status = "No change"
-                        checked = False
-                        is_locked = True
+                        checked = True
+                        is_locked = False 
                         tooltip = "This file is already up to date on the Data Exchange."
                     else:
                         status = "Update"
@@ -712,15 +716,19 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 )
             
             # Find deletions
+            allow_delete = self.fileSelection.chkAllowDelete.isChecked()
             if self.existing_project:
                 for rel_path, remote_file in self.existing_project.files.items():
                     if rel_path not in self.upload_digest.files:
+                        is_locked = not allow_delete
+                        checked = allow_delete # If allowed to delete, we check it by default (meaning "Select for deletion")
+                        
                         self.fileSelection.add_file_item(
                             rel_path=rel_path,
                             size=remote_file.size,
                             status_text="Delete",
-                            checked=not (self.noDeleteChk.isEnabled() and self.noDeleteChk.isChecked()),
-                            is_locked=self.noDeleteChk.isEnabled() and self.noDeleteChk.isChecked(),
+                            checked=checked,  
+                            is_locked=is_locked,
                             highlight_color="#c0392b"
                         )
         else:
@@ -747,21 +755,76 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
     def _update_selection_summary(self):
         """ Update the summary line at the bottom of the file selection step """
         selected = self.fileSelection.get_selected_files()
-        total = self.fileSelection.treeFiles.invisibleRootItem().childCount()
-        count = len(selected)
-        remaining = total - count
+        all_items = []
+        root = self.fileSelection.treeFiles.invisibleRootItem()
+        for i in range(root.childCount()):
+            all_items.append(root.child(i))
+
+        upload_count = 0
+        delete_count = 0
+        keep_count = 0
         
-        if count == 1:
-            upload_text = "1 file will be uploaded"
-        else:
-            upload_text = f"{count} files will be uploaded"
+        for item in all_items:
+            # rel_path = item.data(0, Qt.UserRole)
+            status = item.text(2)
+            checked = item.checkState(0) == Qt.Checked
             
-        if remaining == 1:
-            remain_text = "1 file will remain unchanged"
-        else:
-            remain_text = f"{remaining} files will remain unchanged"
+            if status == "Delete":
+                if checked:
+                    delete_count += 1
+                else:
+                    keep_count += 1
+            elif status == "No change":
+                if checked:
+                    keep_count += 1
+                else:
+                    delete_count += 1
+            else:
+                # New or Update
+                if checked:
+                    upload_count += 1
+                else:
+                    # If it existed remotely it's a delete, if it was only local it's a skip
+                    # For simplicity in summary we'll just count it as "skip/unchanged" if it's not being uploaded
+                    # Actually, if it's local only and unchecked, it just won't be in the project remote.
+                    keep_count += 1
             
-        self.lblSelectionSummary.setText(f"{upload_text}, {remain_text}.")
+        summary_parts = []
+        if upload_count > 0:
+            summary_parts.append(f"{upload_count} file{'s' if upload_count != 1 else ''} will be uploaded")
+        if delete_count > 0:
+            summary_parts.append(f"{delete_count} file{'s' if delete_count != 1 else ''} will be deleted")
+        if keep_count > 0:
+            summary_parts.append(f"{keep_count} file{'s' if keep_count != 1 else ''} will remain unchanged")
+            
+        self.lblSelectionSummary.setText(", ".join(summary_parts) + ".")
+
+    def _reconcile_selections_with_digest(self):
+        """ Reconcile the user's selections in the widget with the upload digest """
+        # Copy current local files info
+        local_files = {rel_path: (file.size, file.etag) for rel_path, file in self.upload_digest.files.items()}
+        
+        # Reset the digest
+        self.upload_digest.reset()
+        
+        # Loop through widget items
+        root = self.fileSelection.treeFiles.invisibleRootItem()
+        for i in range(root.childCount()):
+            item = root.child(i)
+            rel_path = item.data(0, Qt.UserRole)
+            status = item.text(2)
+            checked = item.checkState(0) == Qt.Checked
+            
+            if status == "Delete":
+                # Only add if UNchecked (meaning "Keep")
+                if not checked and self.existing_project and rel_path in self.existing_project.files:
+                    remote_file = self.existing_project.files[rel_path]
+                    self.upload_digest.add_file(rel_path, remote_file.size, remote_file.etag)
+            else:
+                # Add if Checked
+                if checked and rel_path in local_files:
+                    size, etag = local_files[rel_path]
+                    self.upload_digest.add_file(rel_path, size, etag)
 
     def handle_new_or_update_change(self, button, checked):
         """ Handler for the radio button group that determines if we're creating a new project or updating an existing one
@@ -975,7 +1038,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
 
         response = qm.exec_()
         if response == QMessageBox.Yes:
-            # New let's kick off project validation. We need 3 things to do this: 1. The XML, 2. The files, 3. The owner
+            # Before validation, we need to finalize what we're actually sending
+            self._reconcile_selections_with_digest()
             self.flow_state = ProjectUploadDialogStateFlow.VALIDATING
             self.recalc_state()
 
@@ -1042,7 +1106,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 self.dataExchangeAPI.request_upload_project(
                     files=self.upload_digest,
                     tags=self.tags,
-                    no_delete=self.noDeleteChk.isEnabled() and self.noDeleteChk.isChecked(),
+                    no_delete=not self.fileSelection.chkAllowDelete.isChecked(),
                     owner_obj=owner_obj if self.new_project else None,
                     project_id=self.warehouse_id if not self.new_project else None,
                     visibility=self.visibilitySelect.currentText(),

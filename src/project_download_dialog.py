@@ -53,6 +53,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
         self.treeFiles.hide()
         
         self.fileSelection = ProjectFileSelectionWidget()
+        self.fileSelection.set_allow_delete_visible(False)
         self.layout3.addWidget(self.fileSelection)
 
         self.queue.progress_signal.connect(self._on_file_progress)
