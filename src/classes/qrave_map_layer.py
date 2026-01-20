@@ -393,6 +393,7 @@ class QRaveMapLayer():
         tile_url = f"{base_url}/{layer_name}/{{z}}/{{x}}/{{y}}.{fmt}"
 
         rOutput = None
+        uri = None
         if fmt == 'pbf':
             # Vector Tile URI format: type=xyz&url=...&zmin=...&zmax=...
             encoded_url = urllib.parse.quote(tile_url, safe='/:?={}')
@@ -403,12 +404,18 @@ class QRaveMapLayer():
                 uri += f"&zmin={tile_service['minZoom']}"
             
             rOutput = QgsVectorTileLayer(uri, map_layer.label)
+        elif fmt == 'gpkg':
+            # GeoPackage format - assume it's a file download
+            # Construct the URL: base_url/layer_name.gpkg
+            # We use /vsicurl/ to stream it if possible
+            file_url = f"{base_url}/{layer_name}.gpkg"
+            uri = f"/vsicurl/{file_url}"
+            rOutput = QgsVectorLayer(uri, map_layer.label, "ogr")
         else:
             settings.log(f"Unsupported format: {fmt}", Qgis.Warning)
-            return
 
-        
-        settings.log(f"Adding remote layer URI: {uri}", Qgis.Info)
+        if uri:
+            settings.log(f"Adding remote layer URI: {uri}", Qgis.Info)
 
         if rOutput and rOutput.isValid():
             QgsProject.instance().addMapLayer(rOutput, False)
