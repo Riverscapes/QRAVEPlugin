@@ -404,6 +404,45 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.closingPlugin.emit()
         event.accept()
 
+    def zoom_to_project(self, project: Project | RemoteProject):
+        """Zoom to the project extent"""
+        if not project.bounds:
+            return
+
+        from qgis.core import QgsRectangle, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject
+        from qgis.utils import iface
+
+        if isinstance(project, RemoteProject):
+            # Remote project bounds are [minLng, minLat, maxLng, maxLat]
+            bbox = project.bounds.get('bbox')
+            if bbox and len(bbox) >= 4:
+                rect = QgsRectangle(bbox[0], bbox[1], bbox[2], bbox[3])
+            else:
+                return
+        else:
+            # Local project bounds are dictionary with minLat, minLng, maxLat, maxLng
+            try:
+                rect = QgsRectangle(
+                    project.bounds['minLng'],
+                    project.bounds['minLat'],
+                    project.bounds['maxLng'],
+                    project.bounds['maxLat']
+                )
+            except (KeyError, TypeError):
+                return
+
+        # The project bounds are always in degrees (WGS 84 - EPSG:4326)
+        # We need to transform them to the current map canvas CRS
+        source_crs = QgsCoordinateReferenceSystem("EPSG:4326")
+        dest_crs = iface.mapCanvas().mapSettings().destinationCrs()
+
+        if source_crs != dest_crs:
+            transform = QgsCoordinateTransform(source_crs, dest_crs, QgsProject.instance())
+            rect = transform.transformBoundingBox(rect)
+
+        iface.mapCanvas().setExtent(rect)
+        iface.mapCanvas().refresh()
+
     def expand_children_recursive(self, idx: QModelIndex = None, force=False):
         """Expand all the children of a QTreeView node. Do it recursively
         TODO: Recursion might not be the best for large trees here.
@@ -766,6 +805,15 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     else:
                         QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
 
+                # Inject project bounds if they exist to limit the layer extent
+                if item_data.project.bounds:
+                    from .classes.remote_project import RemoteProject
+                    if isinstance(item_data.project, RemoteProject):
+                        resp['bounds'] = item_data.project.bounds.get('bbox')
+                    else:
+                        b = item_data.project.bounds
+                        resp['bounds'] = [b['minLng'], b['minLat'], b['maxLng'], b['maxLat']]
+
                 symbology_name = item_data.data.bl_attr.get('symbology')
                 if symbology_name:
                     project_type_id = item_data.project.project_type
@@ -1109,6 +1157,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     def project_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
         menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(None, False))
         menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(None, True))
+        menu.addAction('ZOOM_TO_PROJECT', lambda: self.zoom_to_project(data.project), enabled=data.project.has_bounds)
         menu.addSeparator()
         menu.addAction('UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
         if isinstance(data.project, RemoteProject) or (data.project.warehouse_meta and 'id' in data.project.warehouse_meta):

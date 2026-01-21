@@ -9,6 +9,10 @@ class ContextMenu(QMenu):
             "Expand All Child Nodes",
             ':/plugins/qrave_toolbar/expand.png',
         ),
+        'ZOOM_TO_PROJECT': (
+            "Zoom Map to Project",
+            ':/plugins/qrave_toolbar/bounds',
+        ),
         'COLLAPSE_ALL': (
             "Collapse All Child Nodes",
             ':/plugins/qrave_toolbar/collapse.png',

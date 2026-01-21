@@ -27,10 +27,10 @@ class RemoteProject:
         self.project_type = self.data.get('projectType', {}).get('id')
         self.meta = self._extract_meta(self.data.get('meta', []))
         self.warehouse_meta = {
-            'id': (self.id, 'string'),
             'apiUrl': (CONSTANTS['DE_API_URL'], 'string')
         }
         
+        self.bounds = self.data.get('bounds')
         self.default_view = self.tree_data.get('defaultView')
         self.views = {}
         
@@ -53,6 +53,14 @@ class RemoteProject:
         """Build the tree from GraphQL data"""
         self._build_tree()
         self._build_views()
+
+    @property
+    def has_bounds(self) -> bool:
+        """Check if the project has valid bounds"""
+        if not self.bounds:
+            return False
+        bbox = self.bounds.get('bbox')
+        return bool(bbox and len(bbox) >= 4)
 
     def _extract_meta(self, meta_list: List[Dict]):
         meta = {}
