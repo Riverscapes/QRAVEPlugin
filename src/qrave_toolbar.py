@@ -18,9 +18,10 @@ from time import time
 from functools import partial
 from pathlib import Path
 import re
+import urllib.parse
 
 from qgis.utils import showPluginHelp
-from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis, QgsMapLayer
+from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis, QgsMapLayer, QgsVectorTileLayer
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl, pyqtSignal
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
@@ -224,6 +225,12 @@ class QRAVE:
         )
         self.raveOptionsAction.triggered.connect(self.options_load)
 
+        self.addConusDgoLayerAction = QAction(
+            self.tr('Add CONUS DGO Layer to map'),
+            self.iface.mainWindow()
+        )
+        self.addConusDgoLayerAction.triggered.connect(self.addConusDgoLayer)
+
         self.net_sync_action = QAction(
             QIcon(':/plugins/qrave_toolbar/refresh.png'),
             self.tr('Update resources'),
@@ -250,6 +257,8 @@ class QRAVE:
         self.generate_project_bounds.triggered.connect(
             lambda: self.show_project_bounds())
 
+        m_tools.addAction(self.addConusDgoLayerAction)
+        m_tools.addSeparator()
         m_tools.addAction(self.net_sync_action)
         m_tools.addAction(self.find_resources_action)
         m_tools.addSeparator()
@@ -702,3 +711,22 @@ class QRAVE:
         search_url = f"{CONSTANTS['warehouseUrl']}/s?type=Project&bounded=1&view=map&geo={center.x()}%2C{center.y()}%2C{zoom}"
         # Open the URL in the default web browser
         QDesktopServices.openUrl(QUrl(search_url))
+
+    def addConusDgoLayer(self):
+        """Add the CONUS DGO vector tile layer to the map."""
+        url = "https://api.reports.riverscapes.net/dgoTiles/{z}/{x}/{y}.pbf"
+        # Vector Tile URI format: type=xyz&url=...&zmin=...&zmax=...
+        encoded_url = urllib.parse.quote(url, safe='/:?={}')
+        uri = f"type=xyz&url={encoded_url}&zmin=10&zmax=12"
+        
+        layer = QgsVectorTileLayer(uri, "CONUS DGO Layer")
+        
+        if layer.isValid():
+            # Set minimum scale to 1:400,000 (layer will not render beyond this scale)
+            layer.setScaleBasedVisibility(True)
+            layer.setMinimumScale(400000)
+            
+            QgsProject.instance().addMapLayer(layer)
+            self.settings.log("Added CONUS DGO Layer to map", Qgis.Success)
+        else:
+            self.settings.log("Failed to load CONUS DGO Layer", Qgis.Critical)
