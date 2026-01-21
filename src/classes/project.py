@@ -38,6 +38,7 @@ class Project:
 
         self.project_xml_path = os.path.abspath(project_xml_path)
         self.project = None
+        self.bounds = None
         self.loadable = False
         self.load_errs = False
         self.project_type = None
@@ -99,10 +100,37 @@ class Project:
                     self.warehouse_meta = self.extract_warehouse(wh_tag)
 
             self.project_type = self.project.find('ProjectType').text
+            
+            pb_node = self.project.find('ProjectBounds')
+            if pb_node is not None:
+                bbox_node = pb_node.find('BoundingBox')
+                if bbox_node is not None:
+                    try:
+                        # Helper to safely extract floats from expected child nodes
+                        def _get_f(parent, tag):
+                            node = parent.find(tag)
+                            return float(node.text) if node is not None and node.text else None
+
+                        extracted = {
+                            'minLat': _get_f(bbox_node, 'MinLat'),
+                            'minLng': _get_f(bbox_node, 'MinLng'),
+                            'maxLat': _get_f(bbox_node, 'MaxLat'),
+                            'maxLng': _get_f(bbox_node, 'MaxLng')
+                        }
+                        # Only set self.bounds if all values were successfully parsed
+                        if all(v is not None for v in extracted.values()):
+                            self.bounds = extracted
+                    except (ValueError, TypeError):
+                        self.bounds = None
 
             realizations = self.project.find('Realizations')
             if realizations is None:
                 raise Exception('Could not find the <Realizations> node. Are you sure the xml file you opened is Riverscapes Project? File: {}'.format(self.project_xml_path))
+
+    @property
+    def has_bounds(self) -> bool:
+        """Check if the project has valid bounds"""
+        return self.bounds is not None
 
     def extract_meta(self, nodelist):
         meta = {}
