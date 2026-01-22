@@ -225,6 +225,7 @@ class QRAVE:
         )
         self.raveOptionsAction.triggered.connect(self.options_load)
 
+        # DGO: TEMPORARY FEATURE:::::::::::::
         self.addConusDgoLayerAction = QAction(
             self.tr('Add CONUS DGO Layer to map'),
             self.iface.mainWindow()
@@ -257,8 +258,10 @@ class QRAVE:
         self.generate_project_bounds.triggered.connect(
             lambda: self.show_project_bounds())
 
+        # DGO: TEMPORARY FEATURE:::::::::::::
         m_tools.addAction(self.addConusDgoLayerAction)
         m_tools.addSeparator()
+
         m_tools.addAction(self.net_sync_action)
         m_tools.addAction(self.find_resources_action)
         m_tools.addSeparator()
@@ -712,9 +715,10 @@ class QRAVE:
         # Open the URL in the default web browser
         QDesktopServices.openUrl(QUrl(search_url))
 
+    # DGO: TEMPORARY FEATURE:::::::::::::
     def addConusDgoLayer(self):
         """Add the CONUS DGO vector tile layer to the map."""
-        url = "https://api.reports.riverscapes.net/dgoTiles/{z}/{x}/{y}.pbf"
+        url = "https://api.reports.riverscapes.net/dgoTilesSTAGING/simplified/{z}/{x}/{y}.pbf"
         # Vector Tile URI format: type=xyz&url=...&zmin=...&zmax=...
         encoded_url = urllib.parse.quote(url, safe='/:?={}')
         uri = f"type=xyz&url={encoded_url}&zmin=10&zmax=12"
