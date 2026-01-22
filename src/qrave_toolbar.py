@@ -22,6 +22,7 @@ import urllib.parse
 
 from qgis.utils import showPluginHelp
 from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis, QgsMapLayer, QgsVectorTileLayer
+from qgis.gui import QgsMapLayerAction, QgsGui
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl, pyqtSignal
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
@@ -43,6 +44,8 @@ from .meta_widget import QRAVEMetaWidget
 from .frm_project_bounds import FrmProjectBounds
 from .remote_project_dialog import RemoteProjectDialog
 from .project_download_dialog import ProjectDownloadDialog
+# Import the new ChartDockWidget
+from .chart_dock_widget import ChartDockWidget
 
 # initialize Qt resources from file resources.py
 from . import resources
@@ -78,6 +81,7 @@ class QRAVE:
 
         self.dockwidget = QRAVEDockWidget()
         self.metawidget = QRAVEMetaWidget()
+        self.chart_dock = None
 
         # Populated on load from a URL
         self.acknowledgements = None
@@ -85,7 +89,12 @@ class QRAVE:
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
         # initialize locale
-        locale = QSettings().value('locale/userLocale')[0:2]
+        locale = QSettings().value('locale/userLocale', 'en')
+        # Handle potential QVariant return
+        if not isinstance(locale, str):
+            locale = str(locale)
+        locale = locale[0:2]
+
         locale_path = os.path.join(
             self.plugin_dir,
             'i18n',
@@ -392,6 +401,11 @@ class QRAVE:
             self.iface.removeDockWidget(self.dockwidget)
             self.dockwidget.deleteLater()
 
+        if self.chart_dock is not None:
+            self.chart_dock.hide()
+            self.iface.removeDockWidget(self.chart_dock)
+            self.chart_dock.deleteLater()
+
         for action in self.actions:
             self.iface.removePluginMenu(
                 self.tr(u'&Riverscapes Viewer Plugin'),
@@ -424,7 +438,7 @@ class QRAVE:
 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
-            dock_location  = Qt.LeftDockWidgetArea if self.settings.getValue('dockLocation') == "left" else Qt.RightDockWidgetArea
+            dock_location = Qt.LeftDockWidgetArea if self.settings.getValue('dockLocation') == "left" else Qt.RightDockWidgetArea
 
             # show the dockwidget
             self.iface.addDockWidget(dock_location, self.dockwidget)
@@ -446,19 +460,19 @@ class QRAVE:
             self.metawidget.hide()
 
         if self.dockwidget is not None and not self.dockwidget.isHidden():
-            
+
             # Check if the project is already enabled. 'readEntry' might return '1' or True/False
             qrave_enabled, type_conversion_ok = self.qproject.readEntry(
                 CONSTANTS['settingsCategory'],
                 'enabled'
             )
             already_enabled = type_conversion_ok and (qrave_enabled == '1' or qrave_enabled is True)
-            
-            # If we are just restoring the window state on startup (forceOn=True) and the project 
+
+            # If we are just restoring the window state on startup (forceOn=True) and the project
             # is a clean/new project, we should NOT write to the project to avoid dirtying it.
             # This prevents the "Do you want to save..." dialog when opening QGIS with the plugin active.
             is_pristine = not self.qproject.fileName() and not self.qproject.isDirty()
-            
+
             should_write = True
             if already_enabled:
                 should_write = False
@@ -468,7 +482,7 @@ class QRAVE:
             if should_write:
                 self.qproject.writeEntry(
                     CONSTANTS['settingsCategory'], 'enabled', True)
-            
+
             self.settings.setValue('dockVisible', True)
         else:
             self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'enabled')
@@ -572,13 +586,13 @@ class QRAVE:
         else:
             text = ""
             ok = False
-        
+
         if ok and text:
             # Extract project ID from URL if necessary
             project_id = text.strip()
             if '/' in project_id:
                 project_id = project_id.rstrip('/').split('/')[-1]
-            
+
             # Validate that this is a proper guid like 4dd028c6-3e9f-4b14-a317-fe74903ed279
             if not re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', project_id):
                 QMessageBox.warning(self.iface.mainWindow(), "Invalid Project ID", "The project ID you entered is invalid.")
@@ -618,7 +632,7 @@ class QRAVE:
                 err_msg += f"\n\nAPI Errors:\n{json.dumps(response['errors'], indent=2)}"
             elif response and 'data' in response and response['data']['project'] is None:
                 err_msg += "\n\nNote: The API returned null for this project ID. It may be private or deleted."
-            
+
             QMessageBox.warning(self.iface.mainWindow(), "Project Not Found", err_msg)
 
     def closeAllProjects(self):
@@ -722,15 +736,74 @@ class QRAVE:
         # Vector Tile URI format: type=xyz&url=...&zmin=...&zmax=...
         encoded_url = urllib.parse.quote(url, safe='/:?={}')
         uri = f"type=xyz&url={encoded_url}&zmin=10&zmax=12"
-        
+
         layer = QgsVectorTileLayer(uri, "CONUS DGO Layer")
-        
+
         if layer.isValid():
             # Set minimum scale to 1:400,000 (layer will not render beyond this scale)
             layer.setScaleBasedVisibility(True)
             layer.setMinimumScale(400000)
-            
+
             QgsProject.instance().addMapLayer(layer)
             self.settings.log("Added CONUS DGO Layer to map", Qgis.Success)
+
+            # Add context menu action
+            # Use SingleFeature and MultipleFeatures so it appears when clicking features with Identify tool
+            # QgsMapLayerAction specific layer constructor requires QgsVectorLayer. For Vector Tiles, use generic constructor.
+            if not hasattr(self, 'dgo_select_action'):
+                targets = QgsMapLayerAction.Targets(QgsMapLayerAction.SingleFeature | QgsMapLayerAction.MultipleFeatures)
+                self.dgo_select_action = QgsMapLayerAction("Select Entire Level Path", self.iface.mainWindow(), targets)
+                self.dgo_select_action.triggeredForFeatures.connect(self.select_level_path)
+                QgsGui.mapLayerActionRegistry().addMapLayerAction(self.dgo_select_action)
+
+            # Open the Chart Dock Widget
+            if self.chart_dock is None:
+                self.chart_dock = ChartDockWidget(self.iface, self.iface.mainWindow())
+                self.iface.addDockWidget(Qt.BottomDockWidgetArea, self.chart_dock)
+
+            self.chart_dock.show()
         else:
             self.settings.log("Failed to load CONUS DGO Layer", Qgis.Critical)
+
+    def select_level_path(self, layer, features):
+        """
+        Select all features in the layer that match the level_path of the triggered feature.
+        """
+        if layer.name() != "CONUS DGO Layer":
+            return
+
+        if not features:
+            return
+
+        # Assuming we just use the first feature if multiple were identified/selected
+        target_feature = features[0]
+
+        # Check if 'level_path' exists
+        if 'level_path' not in target_feature.attributeMap():
+            self.settings.log("Feature does not have 'level_path' attribute", Qgis.Warning)
+            return
+
+        level_path = target_feature['level_path']
+        self.settings.log(f"Selecting features with level_path = {level_path}", Qgis.Info)
+
+        # Vector Tile Layers do not support global querying easily.
+        # We will attempt selectByExpression if available (QGIS >= 3.3x with support),
+        # otherwise we might scan available features if possible, or warn.
+
+        # Note: In most QGIS builds, Vector Tile layers don't have full vector capabilities.
+        # However, we can try to find visible features, or check if selectByExpression is monkey-patched or supported.
+
+        if hasattr(layer, 'selectByExpression'):
+            # This is the ideal path for vector layers or supported providers
+            layer.selectByExpression(f"\"level_path\" = '{level_path}'")
+        else:
+            # Fallback for Vector Tiles (often client-side only access)
+            # We can try to select visible features that match.
+            # QgsVectorTileLayer doesn't have getFeatures(). It renders tiles.
+            # But the 'features' argument passed here came from somewhere (Identify tool?), so QGIS knows about them.
+
+            # If we simply want to "add to selection" what is on screen:
+            # But we can't iterate the whole "layer" if it's tiles.
+            self.settings.log("Select by expression not supported on this layer type.", Qgis.Warning)
+            QMessageBox.information(self.iface.mainWindow(), "Not Supported",
+                                    "Selecting all features by attribute is not fully supported for Vector Tile layers in this version.")
