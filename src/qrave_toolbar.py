@@ -23,6 +23,7 @@ from time import time
 import urllib.parse
 
 from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsProject, QgsVectorTileLayer
+from qgis.gui import QgsGui, QgsMapLayerAction
 from qgis.PyQt.QtCore import QCoreApplication, QSettings, QTranslator, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMenu, QMessageBox, QToolButton
@@ -32,6 +33,9 @@ from ..__version__ import __version__
 # initialize Qt resources from file resources.py
 from . import resources  # noqa: F401 — registers Qt icons/images as a side effect
 from .about_dialog import AboutDialog
+
+# Import the new ChartDockWidget
+from .chart_dock_widget import ChartDockWidget
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
 from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
 from .classes.map import get_map_center, get_zoom_level
@@ -96,6 +100,7 @@ class QRAVE:
 
         self.dockwidget = QRAVEDockWidget()
         self.metawidget = QRAVEMetaWidget()
+        self.chart_dock = None
 
         # Populated on load from a URL
         self.acknowledgements = None
@@ -429,6 +434,11 @@ class QRAVE:
             self.dockwidget.hide()
             self.iface.removeDockWidget(self.dockwidget)
             self.dockwidget.deleteLater()
+
+        if self.chart_dock is not None:
+            self.chart_dock.hide()
+            self.iface.removeDockWidget(self.chart_dock)
+            self.chart_dock.deleteLater()
 
         for action in self.actions:
             self.iface.removePluginMenu(self.tr("&Riverscapes Viewer Plugin"), action)
@@ -821,5 +831,63 @@ class QRAVE:
 
             QgsProject.instance().addMapLayer(layer)
             self.settings.log("Added CONUS DGO Layer to map", Qgis.Success)
+
+            # Add context menu action
+            # Use SingleFeature and MultipleFeatures so it appears when clicking features with Identify tool
+            # QgsMapLayerAction specific layer constructor requires QgsVectorLayer. For Vector Tiles, use generic constructor.
+            if not hasattr(self, "dgo_select_action"):
+                targets = QgsMapLayerAction.Targets(QgsMapLayerAction.SingleFeature | QgsMapLayerAction.MultipleFeatures)
+                self.dgo_select_action = QgsMapLayerAction("Select Entire Level Path", self.iface.mainWindow(), targets)
+                self.dgo_select_action.triggeredForFeatures.connect(self.select_level_path)
+                QgsGui.mapLayerActionRegistry().addMapLayerAction(self.dgo_select_action)
+
+            # Open the Chart Dock Widget
+            if self.chart_dock is None:
+                self.chart_dock = ChartDockWidget(self.iface, self.iface.mainWindow())
+                self.iface.addDockWidget(Qt.BottomDockWidgetArea, self.chart_dock)
+
+            self.chart_dock.show()
         else:
             self.settings.log("Failed to load CONUS DGO Layer", Qgis.Critical)
+
+    def select_level_path(self, layer, features):
+        """
+        Select all features in the layer that match the level_path of the triggered feature.
+        """
+        if layer.name() != "CONUS DGO Layer":
+            return
+
+        if not features:
+            return
+
+        # Assuming we just use the first feature if multiple were identified/selected
+        target_feature = features[0]
+
+        # Check if 'level_path' exists
+        if "level_path" not in target_feature.attributeMap():
+            self.settings.log("Feature does not have 'level_path' attribute", Qgis.Warning)
+            return
+
+        level_path = target_feature["level_path"]
+        self.settings.log(f"Selecting features with level_path = {level_path}", Qgis.Info)
+
+        # Vector Tile Layers do not support global querying easily.
+        # We will attempt selectByExpression if available (QGIS >= 3.3x with support),
+        # otherwise we might scan available features if possible, or warn.
+
+        # Note: In most QGIS builds, Vector Tile layers don't have full vector capabilities.
+        # However, we can try to find visible features, or check if selectByExpression is monkey-patched or supported.
+
+        if hasattr(layer, "selectByExpression"):
+            # This is the ideal path for vector layers or supported providers
+            layer.selectByExpression(f"\"level_path\" = '{level_path}'")
+        else:
+            # Fallback for Vector Tiles (often client-side only access)
+            # We can try to select visible features that match.
+            # QgsVectorTileLayer doesn't have getFeatures(). It renders tiles.
+            # But the 'features' argument passed here came from somewhere (Identify tool?), so QGIS knows about them.
+
+            # If we simply want to "add to selection" what is on screen:
+            # But we can't iterate the whole "layer" if it's tiles.
+            self.settings.log("Select by expression not supported on this layer type.", Qgis.Warning)
+            QMessageBox.information(self.iface.mainWindow(), "Not Supported", "Selecting all features by attribute is not fully supported for Vector Tile layers in this version.")
