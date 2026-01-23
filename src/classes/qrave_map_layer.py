@@ -384,7 +384,11 @@ class QRaveMapLayer():
             layer_name = map_layer.bl_attr.get('nodeId', '')
         if not layer_name:
             # Strip the id off of the xPath. So for Project/Realizations/Realization#REALIZATION1/Datasets/Vector#Ecoregions I want Ecoregions
-            layer_name = map_layer.bl_attr.get('rsXPath', '').split('/')[-1].split('#')[1]
+            xpath = map_layer.bl_attr.get('rsXPath', '')
+            if '#' in xpath:
+                layer_name = xpath.split('/')[-1].split('#')[1]
+            else:
+                layer_name = xpath.split('/')[-1]
             
         fmt = tile_service.get('format', 'pbf')
         
@@ -460,22 +464,33 @@ class QRaveMapLayer():
             mapbox_json = tile_service.get('mapboxJson')
             if mapbox_json:
                 try:
-                    # The API might return a full Riverscapes Symbology object or just a list of layers
-                    layers = []
-                    if isinstance(mapbox_json, dict) and 'layerStyles' in mapbox_json:
-                        layers = mapbox_json['layerStyles']
-                    elif isinstance(mapbox_json, list):
-                        layers = mapbox_json
-                    else:
-                        # Fallback if it's already a full Mapbox GL style
-                        layers = mapbox_json.get('layers', [])
+                    # If it's a string, parse it
+                    if isinstance(mapbox_json, str):
+                        try:
+                            mapbox_json = json.loads(mapbox_json)
+                        except json.JSONDecodeError:
+                            settings.log(f"Failed to parse mapboxJson string for {map_layer.label}", Qgis.Warning)
+                            mapbox_json = None
 
-                    # Dynamically fix source and source-layer
-                    # QGIS expects these to match the source ID and layer name in the tiles
-                    source_id = 'vector_tiles'
-                    for layer in layers:
-                        layer['source'] = source_id
-                        layer['source-layer'] = layer_name
+                    if mapbox_json:
+                        # The API might return a full Riverscapes Symbology object or just a list of layers
+                        layers = []
+                        if isinstance(mapbox_json, dict):
+                            if 'layerStyles' in mapbox_json:
+                                layers = mapbox_json['layerStyles']
+                            elif 'layers' in mapbox_json:
+                                layers = mapbox_json['layers']
+                        elif isinstance(mapbox_json, list):
+                            layers = mapbox_json
+
+                        if layers:
+                            # Dynamically fix source and source-layer
+                            # QGIS expects these to match the source ID and layer name in the tiles
+                            source_id = 'vector_tiles'
+                            for layer in layers:
+                                if isinstance(layer, dict):
+                                    layer['source'] = source_id
+                                    layer['source-layer'] = layer_name
 
                     style = {
                         "version": 8,
@@ -503,7 +518,8 @@ class QRaveMapLayer():
                         result = converter.convert(style_json)
                         if result == QgsMapBoxGlStyleConverter.Success:
                             rOutput.setRenderer(converter.renderer())
-                            settings.log("Applied Mapbox GL symbology using style converter", Qgis.Info)
+                            rOutput.setLabeling(converter.labeling())
+                            settings.log("Applied Mapbox GL symbology and labeling using style converter", Qgis.Info)
                         else:
                             settings.log(f"Mapbox style conversion failed: {converter.errorMessage()}", Qgis.Warning)
                     
