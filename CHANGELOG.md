@@ -1,3 +1,16 @@
+## 1.1.1 ***(January 23, 2026)***
+
+### Added
+- Tile layers now zoom to extent and new context menu option for projects #209
+- Adding more explicit zooming logic on project load #215
+
+### Fixed
+- Putting the upload controls into a scrollable window fixes #210
+- Fixed metadata persistence #212
+- Reworked the tree parsing to avoid duplicate items and infinite loops #211
+- Better metadata type handling #213
+- Added better Mapbox styling. Colours still wrong for point layers #214
+
 ## 1.1.0 ***(January 12, 2026)***
 
 ### Added
