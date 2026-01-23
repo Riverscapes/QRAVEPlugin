@@ -191,30 +191,40 @@ def get_project_details_html(project) -> str:
         tags_html = f"<div style='margin-top: 8px;'>{' '.join(tags_list)}</div>"
 
     html = f"""
-    <div style="font-family: sans-serif;">
-        <div style="font-size: 14pt; font-weight: bold; color: #2c3e50;">{project.name}</div>
-        <div style="font-size: 10pt; color: #7f8c8d; margin-bottom: 10px;">{p_type}</div>
+    <div style="font-family: sans-serif; line-height: 1.2;">
+        <div style="font-size: 11pt; font-weight: bold; color: #2c3e50;">{project.name}</div>
+        <div style="font-size: 8pt; color: #7f8c8d; margin-bottom: 6px;">{p_type} • {len(project.files)} files</div>
         
-        <table border="0" cellpadding="3" cellspacing="0" style="width: 100%;">
-            <tr><td style="color: #95a5a6; width: 90px;">Owner:</td><td><b>{owner}</b></td></tr>
-            <tr><td style="color: #95a5a6;">Visibility:</td><td><span style="color: {vis_color}; font-weight: bold;">{project.visibility}</span></td></tr>
-            <tr><td style="color: #95a5a6;">Created:</td><td>{created}</td></tr>
-            <tr><td style="color: #95a5a6;">Updated:</td><td>{updated}</td></tr>
-            <tr><td style="color: #95a5a6;">Total Files:</td><td>{len(project.files)}</td></tr>
-        </table>
+        <div style="font-size: 8.5pt; color: #34495e;">
+            <table border="0" cellpadding="1" cellspacing="0" style="width: 100%;">
+                <tr>
+                    <td style="color: #95a5a6; width: 45px;">Owner:</td>
+                    <td><b>{owner}</b></td>
+                    <td style="color: #95a5a6; width: 55px; text-align: right;">Visibility:</td>
+                    <td style="text-align: right;"><span style="color: {vis_color}; font-weight: bold;">{project.visibility}</span></td>
+                </tr>
+                <tr>
+                    <td style="color: #95a5a6;">Created:</td>
+                    <td>{created}</td>
+                    <td style="color: #95a5a6; text-align: right;">Updated:</td>
+                    <td style="text-align: right;">{updated}</td>
+                </tr>
+            </table>
+        </div>
     """
     
     if project.summary:
+        # Truncate summary if very long? No, but keep padding tight
         html += f"""
-        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; color: #34495e;">
+        <div style="margin-top: 6px; padding-top: 4px; border-top: 1px solid #eee; color: #555; font-size: 8.5pt;">
             {project.summary}
         </div>
         """
         
     if tags_html:
         html += f"""
-        <div style="margin-top: 10px; padding-top: 5px; border-top: 1px solid #eee;">
-            Tags: {tags_html}
+        <div style="margin-top: 4px; font-size: 8pt;">
+            {tags_html}
         </div>
         """
         
