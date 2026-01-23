@@ -572,7 +572,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         """
         indexes = self.treeView.selectedIndexes()
     
-        if len(indexes) < 1:
+        if len(indexes) < 1 or (pos is not None and not isinstance(pos, QModelIndex)):
             return
 
         # No multiselect so there is only ever one item
@@ -897,37 +897,27 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 # 1. Update the cache
                 if project_id in self._remote_project_cache:
                     cached_proj = self._remote_project_cache[project_id]
-                    # We need to deeply merge the metadata into the cached dataset items
-                    # This is O(N*M) but N and M are small (50 items per page)
-                    # We expect the cache to have all items from the initial load (limited to 50? Wait.)
-                    # The initial load has dsLimit: 50. 
-                    # If the project has > 50 datasets, we only have 50 in the cache initially?
-                    # The user said "The issue is that if we request Metadata ... we will time out".
-                    # If we paginate, we are better.
-                    # BUT `webRaveProject.graphql` takes `dsLimit`.
-                    # DataExchangeAPI.get_remote_project sets limit=50.
-                    # So we only have the first 50 datasets in the project structure initially.
-                    # If we fetch metadata for *more* than 50, we might need to append them to the cache?
-                    # Or does RemoteProject only show the first 50?
                     
-                    # RemoteProject uses `self.data.get('datasets', {}).get('items', [])`.
-                    # If the tree has leaves referencing datasets that are NOT in the first 50 items,
-                    # they won't be in `dataset_meta_map`.
-                    # So we should probably fetch metadata for ALL datasets and update the map.
-                    # The `RemoteProject` tree leaves are the source of truth for what layers exist.
-                    # `datasets` list helps with metadata.
-                    
-                    # Update cache logic:
+                    # Robust lookup of project data in cache
+                    proj_data = None
                     if 'data' in cached_proj and 'project' in cached_proj['data']:
                         proj_data = cached_proj['data']['project']
-                        if 'datasets' not in proj_data:
+                    elif 'project' in cached_proj:
+                        proj_data = cached_proj['project']
+                    else:
+                        proj_data = cached_proj
+                    
+                    if proj_data:
+                        if 'datasets' not in proj_data or proj_data['datasets'] is None:
                             proj_data['datasets'] = {'items': []}
                         
                         cached_items = proj_data['datasets']['items']
                         # Create a map for easier update
-                        cached_map = {i['id']: i for i in cached_items if 'id' in i}
+                        cached_map = {i['id']: i for i in cached_items if i and 'id' in i}
                         
                         for new_item in items:
+                            if not new_item:
+                                continue
                             if new_item['id'] in cached_map:
                                 cached_map[new_item['id']].update(new_item)
                             else:

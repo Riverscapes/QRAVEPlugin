@@ -77,9 +77,12 @@ class RemoteProject:
     def _build_dataset_maps(self):
         # Map datasets for metadata lookup by both rsXPath and ID
         self.dataset_meta_map = {}
-        self.datasets = self.data.get('datasets', {}).get('items', [])
+        datasets_resp = self.data.get('datasets', {})
+        self.datasets = datasets_resp.get('items', []) if datasets_resp else []
         
         for ds in self.datasets:
+            if not ds:
+                continue
             meta = self._extract_meta(ds.get('meta', []))
             summary = ds.get('summary', '')
             
