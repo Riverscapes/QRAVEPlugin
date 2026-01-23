@@ -772,6 +772,13 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 base_url = url_val.rstrip('/')
                 map_layer: QRaveMapLayer = item_data.data
                 layer_name = map_layer.layer_name or map_layer.bl_attr.get('nodeId', '')
+                if not layer_name:
+                    xpath = map_layer.bl_attr.get('rsXPath', '')
+                    if '#' in xpath:
+                        layer_name = xpath.split('/')[-1].split('#')[1]
+                    else:
+                        layer_name = xpath.split('/')[-1]
+                
                 index_url = f"{base_url}/{layer_name}/index.json"
 
                 if index_url:
