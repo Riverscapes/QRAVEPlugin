@@ -140,9 +140,11 @@ class QRAVEMetaWidget(QDockWidget):
             val_item.setToolTip(value)
         val_item.setData(meta_type, Qt.UserRole)
 
-        # Getting ready for custom meta types
-        if (meta_type == 'url' or meta_type == 'image' or meta_type == 'video') and value is not None and value.startswith('http'):
-            val_item.setData(QBrush(Qt.blue), Qt.ForegroundRole)
+        if meta_type is not None:
+            meta_type_lower = meta_type.lower()
+            # Getting ready for custom meta types
+            if (meta_type_lower in ['url', 'link', 'image', 'video']) and value is not None and value.startswith('http'):
+                val_item.setData(QBrush(Qt.blue), Qt.ForegroundRole)
         # val_item.setUnderlineStyle(QTextCharFormat.SingleUnderline)
 
         root_item.appendRow([
@@ -159,7 +161,8 @@ class QRAVEMetaWidget(QDockWidget):
         text = item.text()
 
         if meta_type is not None and text is not None:
-            if (meta_type == 'url' or meta_type == 'image' or meta_type == 'video') and text.startswith('http'):
+            meta_type_lower = meta_type.lower()
+            if (meta_type_lower in ['url', 'link', 'image', 'video']) and text.startswith('http'):
                 qm = QMessageBox
                 result = qm.question(self, 'Riverscapes Viewer', "Visit in browser?", qm.Yes | qm.No)
                 if result == qm.Yes:
@@ -181,7 +184,8 @@ class QRAVEMetaWidget(QDockWidget):
         if item_val is not None:
             row_text = {item_name.text(): item_val.text()}
             meta_type = item_val.data(Qt.UserRole)
-            if meta_type == 'url' or meta_type == 'image' or meta_type == 'video' and item_val.text().startswith('http'):
+            meta_type_lower = meta_type.lower() if meta_type else ""
+            if (meta_type_lower in ['url', 'link', 'image', 'video']) and item_val.text().startswith('http'):
                 self.menu.addAction('Visit URL in Browser', lambda: QDesktopServices.openUrl(QUrl(item_val.text())))
                 self.menu.addSeparator()
             self.menu.addAction('Copy name', lambda: self.copy(item_name.text()))
