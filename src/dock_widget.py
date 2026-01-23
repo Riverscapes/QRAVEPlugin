@@ -328,11 +328,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         # If this is a fresh load and the setting is set we load the default view
         load_default_setting = self.settings.getValue('loadDefaultView')
 
-        if new_project is not None and load_default_setting is True \
-                and new_project.default_view is not None \
-                and new_project.default_view in new_project.views:
-            self.add_children_to_map(
-                new_project.qproject, new_project.views[new_project.default_view])
+        if new_project is not None:
+            self.zoom_to_project(new_project)
+            if load_default_setting is True \
+                    and new_project.default_view is not None \
+                    and new_project.default_view in new_project.views:
+                self.add_children_to_map(new_project.qproject, new_project.views[new_project.default_view])
 
     @pyqtSlot(dict)
     def add_remote_project(self, gql_data: Dict):
@@ -369,12 +370,14 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         new_project = self._get_project_by_name(name)
         load_default_setting = self.settings.getValue('loadDefaultView')
         
-        if new_project and load_default_setting \
-            and new_project.default_view is not None \
-                and new_project.default_view in new_project.views \
-                    and new_project.views[new_project.default_view] is not None:
-            view_layers = new_project.views[new_project.default_view]
-            self.add_children_to_map(new_project.qproject, view_layers)
+        if new_project:
+            self.zoom_to_project(new_project)
+            if load_default_setting \
+                and new_project.default_view is not None \
+                    and new_project.default_view in new_project.views \
+                        and new_project.views[new_project.default_view] is not None:
+                view_layers = new_project.views[new_project.default_view]
+                self.add_children_to_map(new_project.qproject, view_layers)
 
     def show_loading(self, label: str):
         """Add a temporary loading item to the tree"""
