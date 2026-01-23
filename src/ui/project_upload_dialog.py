@@ -5,13 +5,25 @@ from ..file_selection_widget import ProjectFileSelectionWidget
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.resize(600, 700)
+        Dialog.resize(600, 800)
         self.verticalLayoutMain = QtWidgets.QVBoxLayout(Dialog)
         self.verticalLayoutMain.setObjectName("verticalLayoutMain")
 
         # Create stacked widget
         self.stackedWidget = QtWidgets.QStackedWidget(Dialog)
         self.stackedWidget.setObjectName("stackedWidget")
+
+        # Wrap stacked widget in a scroll area
+        self.scrollArea = QtWidgets.QScrollArea(Dialog)
+        self.scrollArea.setWidgetResizable(True)
+        self.scrollArea.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.scrollAreaContent = QtWidgets.QWidget()
+        self.scrollAreaLayout = QtWidgets.QVBoxLayout(self.scrollAreaContent)
+        self.scrollAreaLayout.setContentsMargins(0, 0, 0, 0)
+        
+        self.scrollAreaLayout.addWidget(self.stackedWidget)
+        self.scrollArea.setWidget(self.scrollAreaContent)
+
         
         # =====================================================================
         # Step 1: Form details
@@ -146,7 +158,9 @@ class Ui_Dialog(object):
         self.layoutStep2.addWidget(self.lblStep2)
         
         self.fileSelection = ProjectFileSelectionWidget()
-        self.layoutStep2.addWidget(self.fileSelection)
+        self.fileSelection.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.layoutStep2.addWidget(self.fileSelection, 1) # Add stretch factor 1
+
         
         self.lblSelectionSummary = QtWidgets.QLabel("")
         font_summary = QtGui.QFont()
@@ -187,6 +201,9 @@ class Ui_Dialog(object):
         self.verticalLayout_6.addWidget(self.progressSubLabel)
         self.layoutStep3.addWidget(self.uploadGroup)
         
+        self.uploadGroup.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
+
+        
         self.openWebProjectBtn = QtWidgets.QPushButton("View In Data Exchange")
         self.layoutStep3.addWidget(self.openWebProjectBtn)
         
@@ -202,7 +219,7 @@ class Ui_Dialog(object):
         self.layoutStep3.addStretch()
         self.stackedWidget.addWidget(self.step3)
 
-        self.verticalLayoutMain.addWidget(self.stackedWidget)
+        self.verticalLayoutMain.addWidget(self.scrollArea)
 
         # =====================================================================
         # Error Layout
