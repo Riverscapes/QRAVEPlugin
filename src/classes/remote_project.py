@@ -108,40 +108,52 @@ class RemoteProject:
         self.qproject = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.name)
         self.qproject.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self), Qt.UserRole)
 
-        # Map to store items by their id (bid for branches, id for leaves)
-        items_map = {'root': self.qproject}
+        # Index branches and leaves by pid for efficient recursive lookup
+        branch_map = {}
+        for b in branches:
+            p = b.get('pid', 'root')
+            if p not in branch_map:
+                branch_map[p] = []
+            branch_map[p].append(b)
+
+        leaf_map = {}
+        for l in leaves:
+            p = l.get('pid', 'root')
+            if p not in leaf_map:
+                leaf_map[p] = []
+            leaf_map[p].append(l)
+
+        # Start recursion. Usually roots have pid = -1 in the API results
+        self._recurse_build_tree(-1, self.qproject, branch_map, leaf_map)
         
-        # Build branches first
-        # We might need to iterate multiple times if parents are defined after children
-        pending_branches = list(branches)
-        while pending_branches:
-            progress = False
-            for branch in list(pending_branches):
-                bid = branch.get('bid')
-                pid = branch.get('pid') or 'root'
-                
-                if pid in items_map:
-                    item = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/BrowseFolder.png'), branch.get('label'))
-                    item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data={'collapsed': branch.get('collapsed')}), Qt.UserRole)
-                    items_map[pid].appendRow(item)
-                    items_map[bid] = item
-                    pending_branches.remove(branch)
-                    progress = True
+        # Fallback if -1 didn't catch anything (though usually it should)
+        if self.qproject.rowCount() == 0:
+            self._recurse_build_tree('root', self.qproject, branch_map, leaf_map)
+
+    def _recurse_build_tree(self, pid, parent_item, branch_map, leaf_map):
+        """Recursively build the tree starting from a given pid"""
+        
+        # Build branches
+        for branch in branch_map.get(pid, []):
+            bid = branch.get('bid')
+            label = branch.get('label')
             
-            if not progress and pending_branches:
-                # This means some branches have missing parents or a circular dependency
-                # Fallback to root for them
-                for branch in pending_branches:
-                    item = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/BrowseFolder.png'), branch.get('label'))
-                    item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data={'collapsed': branch.get('collapsed')}), Qt.UserRole)
-                    self.qproject.appendRow(item)
-                    items_map[branch.get('bid')] = item
-                break
+            # Skip the branch if it is at the root level and promote children
+            if pid == -1:
+                self.settings.log(f"Skipping root branch and promoting children: {label}", Qgis.Info)
+                # Recurse from this branch's ID but attach children directly to the parent_item
+                self._recurse_build_tree(bid, parent_item, branch_map, leaf_map)
+                continue
+
+            item = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/BrowseFolder.png'), label)
+            item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data={'collapsed': branch.get('collapsed')}), Qt.UserRole)
+            parent_item.appendRow(item)
+            
+            # Recurse for children of this branch
+            self._recurse_build_tree(bid, item, branch_map, leaf_map)
 
         # Build leaves
-        for leaf in leaves:
-            pid = leaf.get('pid') or 'root'
-            
+        for leaf in leaf_map.get(pid, []):
             # Decide icon based on layer type
             icon_path = ':/plugins/qrave_toolbar/viewer-icon.png'
             bl_type = leaf.get('layerType', '').lower()
@@ -163,11 +175,8 @@ class RemoteProject:
             item = QStandardItem(self._get_icon(icon_path), leaf.get('label'))
             
             # Map GraphQL leaf to QRaveMapLayer
-            # In remote projects, layer_uri might be a URL or we might not have it locally
-            # For now, we'll store the filePath as layer_uri
             layer_uri = leaf.get('filePath')
             
-            # Mock bl_attr from leaf data
             bl_attr = {
                 'id': leaf.get('blLayerId'),
                 'type': leaf.get('layerType'),
@@ -177,7 +186,6 @@ class RemoteProject:
                 'nodeId': leaf.get('nodeId')
             }
             
-            # Match leaf to dataset metadata
             rs_xpath = leaf.get('rsXPath')
             node_id = leaf.get('nodeId')
             
@@ -202,16 +210,10 @@ class RemoteProject:
                 description=description
             )
             
-            # Since this is remote, the file likely doesn't exist locally unless downloaded
-            # The UI highlights missing files in red.
             map_layer.exists = False 
             
             item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), Qt.UserRole)
-            
-            if pid in items_map:
-                items_map[pid].appendRow(item)
-            else:
-                self.qproject.appendRow(item)
+            parent_item.appendRow(item)
 
             # Add to the item map so we can update it later
             if rs_xpath:
