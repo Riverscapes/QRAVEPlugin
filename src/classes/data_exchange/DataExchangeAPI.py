@@ -275,7 +275,7 @@ class DataExchangeAPI(QObject):
             if task.response and not task.error:
                 project_data = task.response['data']['project']
 
-                files_meta = project_data.get('files', {})
+                files_meta = project_data.get('projectFiles', {})
                 total = files_meta.get('total', 0)
                 items = list(files_meta.get('items', []))
 
@@ -291,11 +291,13 @@ class DataExchangeAPI(QObject):
                         })
                         page_task.run()
                         if page_task.response and not page_task.error:
-                            page_items = page_task.response['data']['project'].get('files', {}).get('items', [])
+                            page_items = page_task.response['data']['project'].get('projectFiles', {}).get('items', [])
                             items.extend(page_items)
 
                 # Replace paginated files structure with flat list for DEProject
                 project_data['files'] = items
+                # Just for consistency let's clean up the projectFiles key
+                del project_data['projectFiles']
                 project = DEProject(**project_data)
 
             return callback(task, project)
