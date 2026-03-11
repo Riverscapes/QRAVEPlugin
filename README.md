@@ -69,7 +69,6 @@ pip install pylint autopep8 ptvsd pb-tool
 clone this repo to `riverscapes_viewer_dev` so that `riverscapes_viewer` is what gets used for deployment
 
 
-
 ## On OSX
 
 before you start you need to set two environment variables to tell VSCode where QGIS's version of python is. This will depend on which shell you're using (The default is bash but we tend to use zsh)
@@ -120,7 +119,7 @@ $QGIS_PATH_PYTHON_PATH/pip3 wheel rsxml==2.2.1 -w ./wheels --no-deps
 * [Qt for Python](https://doc.qt.io/qtforpython-5/) - Qt is a C++ library so you need to specify the Python docs. This is where you find help with things like QtGui and QtWidgets
 
 
-## Buildsing the UI files
+## Building the UI files
 
 ```
 pyuic5 -x input.ui -o output.py
@@ -179,6 +178,7 @@ On MacOS
 ```
 https://github.com/planetfederal/qgis-connect-plugin/blob/885773aa0bed618f85bd15d4c67ccbbcf9bee64c/boundlessconnect/gui/connectdockwidget.py#L430
 ```
+
 
 
 
