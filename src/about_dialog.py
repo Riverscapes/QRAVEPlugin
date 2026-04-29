@@ -1,11 +1,7 @@
-import os
-from qgis.PyQt import uic, QtGui
-from qgis.PyQt.QtWidgets import QDialog, QApplication, QLabel, QVBoxLayout, QDialogButtonBox, QGroupBox, QTextBrowser, QSizePolicy, QFormLayout, QGridLayout, QHBoxLayout
-from qgis.PyQt.QtGui import QPixmap
+from qgis.PyQt import QtGui
+from qgis.PyQt.QtWidgets import QDialog, QLabel, QVBoxLayout, QDialogButtonBox, QSizePolicy, QFormLayout, QHBoxLayout
 from qgis.PyQt.QtCore import pyqtSignal, Qt, QSize
-
 from .classes.settings import CONSTANTS
-
 from ..__version__ import __version__
 
 
@@ -25,16 +21,14 @@ class AboutDialog(QDialog):
         self.logo.setPixmap(pixmap)
 
         self.setWindowTitle("About Riverscapes Viewer")
+        self.version.setText(str(__version__))
         self.website.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['webUrl']))
         self.issues.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['issueUrl']))
         self.changelog.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['changelogUrl']))
-        self.version.setText(str(__version__))
-        self.acknowledgements.setText(
-            "This plugin is made possible by the Riverscapes Consortium and the open-source QGIS community."
-        )
+        self.acknowledgements.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['acknowledgementsUrl']))
 
     def setupUi(self):
-        self.resize(550, 200)
+        self.resize(700, 200)
         self.verticalLayout_3 = QVBoxLayout(self)
         self.horizontalLayout = QHBoxLayout()
         # Logo
@@ -87,7 +81,8 @@ class AboutDialog(QDialog):
         self.formLayout.addRow("Changelog", self.changelog)
 
         self.acknowledgements = QLabel(self)
-        self.acknowledgements.setWordWrap(True)
+        self.acknowledgements.setTextFormat(Qt.RichText)
+        self.acknowledgements.setOpenExternalLinks(True)
         self.formLayout.addRow("Acknowledgements", self.acknowledgements)
 
         self.verticalLayout_2.addLayout(self.formLayout)

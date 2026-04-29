@@ -412,7 +412,7 @@ class QRAVE:
 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
-            dock_location  = Qt.LeftDockWidgetArea if self.settings.getValue('dockLocation') == "left" else Qt.RightDockWidgetArea
+            dock_location = Qt.LeftDockWidgetArea if self.settings.getValue('dockLocation') == "left" else Qt.RightDockWidgetArea
 
             # show the dockwidget
             self.iface.addDockWidget(dock_location, self.dockwidget)
@@ -434,19 +434,19 @@ class QRAVE:
             self.metawidget.hide()
 
         if self.dockwidget is not None and not self.dockwidget.isHidden():
-            
+
             # Check if the project is already enabled. 'readEntry' might return '1' or True/False
             qrave_enabled, type_conversion_ok = self.qproject.readEntry(
                 CONSTANTS['settingsCategory'],
                 'enabled'
             )
             already_enabled = type_conversion_ok and (qrave_enabled == '1' or qrave_enabled is True)
-            
-            # If we are just restoring the window state on startup (forceOn=True) and the project 
+
+            # If we are just restoring the window state on startup (forceOn=True) and the project
             # is a clean/new project, we should NOT write to the project to avoid dirtying it.
             # This prevents the "Do you want to save..." dialog when opening QGIS with the plugin active.
             is_pristine = not self.qproject.fileName() and not self.qproject.isDirty()
-            
+
             should_write = True
             if already_enabled:
                 should_write = False
@@ -456,7 +456,7 @@ class QRAVE:
             if should_write:
                 self.qproject.writeEntry(
                     CONSTANTS['settingsCategory'], 'enabled', True)
-            
+
             self.settings.setValue('dockVisible', True)
         else:
             self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'enabled')
@@ -560,13 +560,13 @@ class QRAVE:
         else:
             text = ""
             ok = False
-        
+
         if ok and text:
             # Extract project ID from URL if necessary
             project_id = text.strip()
             if '/' in project_id:
                 project_id = project_id.rstrip('/').split('/')[-1]
-            
+
             # Validate that this is a proper guid like 4dd028c6-3e9f-4b14-a317-fe74903ed279
             if not re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', project_id):
                 QMessageBox.warning(self.iface.mainWindow(), "Invalid Project ID", "The project ID you entered is invalid.")
@@ -606,7 +606,7 @@ class QRAVE:
                 err_msg += f"\n\nAPI Errors:\n{json.dumps(response['errors'], indent=2)}"
             elif response and 'data' in response and response['data']['project'] is None:
                 err_msg += "\n\nNote: The API returned null for this project ID. It may be private or deleted."
-            
+
             QMessageBox.warning(self.iface.mainWindow(), "Project Not Found", err_msg)
 
     def closeAllProjects(self):
@@ -665,10 +665,6 @@ class QRAVE:
         Open the About dialog
         """
         dialog = AboutDialog()
-        if self.acknowledgements is None:
-            self.acknowledgements = '<a href="{0}">{0}</a>'.format('https://viewer.riverscapes.net/about/acknowledgements')
-
-        dialog.acknowledgements.setText(self.acknowledgements)
         dialog.exec_()
 
     def redock_widgets(self):
