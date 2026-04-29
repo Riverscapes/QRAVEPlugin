@@ -22,7 +22,7 @@ class ContextMenu(QMenu):
             ':/plugins/qrave_toolbar/upload_project.svg',
         ),
         'ADD_ALL_TO_MAP': (
-            "Add All Layers To The Map",
+            "Add All Layers to Map",
             ':/plugins/qrave_toolbar/AddToMap.png',
         ),
         'ADD_TO_MAP': (
