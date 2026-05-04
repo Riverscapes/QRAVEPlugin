@@ -15,23 +15,20 @@
 import sys
 import os.path
 from time import time
-from functools import partial
 from pathlib import Path
 import re
 
-from qgis.utils import showPluginHelp
 from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis, QgsMapLayer
 
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl, pyqtSignal
-from qgis.PyQt.QtGui import QIcon, QDesktopServices
+from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt, QUrl
+from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QMessageBox
 
 from .classes.settings import Settings, CONSTANTS
 from .classes.net_sync import NetSync
-from .classes.basemaps import BaseMaps
 from .classes.map import get_map_center, get_zoom_level
 from .icon_utils import qrave_icon
-from .compat import LEFT_DOCK, RIGHT_DOCK, VERTICAL, TOOL_BTN_TEXT_BESIDE
+from .compat import LEFT_DOCK, RIGHT_DOCK, VERTICAL, TOOL_BTN_TEXT_BESIDE, MSGBOX_BTN_YES, MSGBOX_BTN_NO, MSGBOX_ICON_QUESTION, MAPLAYER_VECTOR
 
 
 # Initialize Qt resources from file resources.py
@@ -621,14 +618,14 @@ class QRAVE:
             if len(self.dockwidget._get_projects()) > 0:
                 msgBox = QMessageBox()
                 msgBox.setWindowTitle("Close All Riverscapes Projects?")
-                msgBox.setIcon(QMessageBox.Question)
+                msgBox.setIcon(MSGBOX_ICON_QUESTION)
                 msgBox.setText(
                     "Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
                 # msgBox.setInformativeText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
-                msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-                msgBox.setDefaultButton(QMessageBox.No)
+                msgBox.setStandardButtons(MSGBOX_BTN_YES | MSGBOX_BTN_NO)
+                msgBox.setDefaultButton(MSGBOX_BTN_NO)
                 response = msgBox.exec()
-                if response == QMessageBox.Yes:
+                if response == MSGBOX_BTN_YES:
                     self.dockwidget.close_all()
                     if self.metawidget is not None:
                         self.metawidget.clear_and_hide()
@@ -639,7 +636,7 @@ class QRAVE:
         """
         # Check if there are any Vector layers in the project
         layers = QgsProject.instance().mapLayers()
-        if not any(layer.type() == QgsMapLayer.VectorLayer for layer in layers.values()):
+        if not any(layer.type() == MAPLAYER_VECTOR for layer in layers.values()):
             QMessageBox.information(None, "No layers", "There are no Vector Layers in the map. Please add at least one Vector Layer to the map before generating project bounds.")
             return
 

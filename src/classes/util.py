@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Optional
 import hashlib
 import requests
 import os
@@ -33,7 +33,7 @@ def md5(fname: str) -> str:
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
     except Exception as e:
-        print(e)
+        QgsMessageLog.logMessage(f"Error computing MD5 for {fname}: {e}", MESSAGE_CATEGORY, level=Qgis.Warning)
         return None
 
 

@@ -8,8 +8,8 @@ from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices,
 from qgis.PyQt.QtWidgets import QDockWidget, QMenu, QMessageBox, QWidget, QTextEdit, QVBoxLayout, QTreeView, QAbstractItemView
 from qgis.PyQt.QtCore import pyqtSlot, Qt, QUrl
 
-from .classes.settings import Settings, CONSTANTS
-from .compat import ALIGN_CENTER, FOREGROUND_ROLE, COLOR_BLUE
+from .classes.settings import Settings
+from .compat import ALIGN_CENTER, FOREGROUND_ROLE, COLOR_BLUE, MSGBOX_BTN_YES, MSGBOX_BTN_NO
 
 if hasattr(Qt, 'UserRole'):
     USER_ROLE = Qt.UserRole
@@ -166,9 +166,8 @@ class QRAVEMetaWidget(QDockWidget):
         if meta_type is not None and text is not None:
             meta_type_lower = meta_type.lower()
             if (meta_type_lower in ['url', 'link', 'image', 'video']) and text.startswith('http'):
-                qm = QMessageBox
-                result = qm.question(self, 'Riverscapes Viewer', "Visit in browser?", qm.Yes | qm.No)
-                if result == qm.Yes:
+                result = QMessageBox.question(self, 'Riverscapes Viewer', "Visit in browser?", MSGBOX_BTN_YES | MSGBOX_BTN_NO)
+                if result == MSGBOX_BTN_YES:
                     QDesktopServices.openUrl(QUrl(text))
         else:
             self.copy(text)

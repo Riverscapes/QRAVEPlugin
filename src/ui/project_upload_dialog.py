@@ -1,6 +1,6 @@
 from qgis.PyQt import QtCore, QtGui, QtWidgets
 from ..file_selection_widget import ProjectFileSelectionWidget
-from ..compat import RICH_TEXT, SCROLL_BAR_ALWAYS_OFF, ALIGN_CENTER
+from ..compat import RICH_TEXT, SCROLL_BAR_ALWAYS_OFF, ALIGN_CENTER, DLGBTN_CANCEL
 
 
 class Ui_Dialog(object):
@@ -245,7 +245,7 @@ class Ui_Dialog(object):
         
         self.navLayout.addStretch()
         
-        self.actionBtnBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Cancel)
+        self.actionBtnBox = QtWidgets.QDialogButtonBox(DLGBTN_CANCEL)
         self.navLayout.addWidget(self.actionBtnBox)
         
         self.startBtn = QtWidgets.QPushButton("Next")

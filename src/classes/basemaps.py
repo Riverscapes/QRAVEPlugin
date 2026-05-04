@@ -1,6 +1,5 @@
 from __future__ import annotations
 import os
-import requests
 import urllib.parse
 from typing import Dict
 

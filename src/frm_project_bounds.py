@@ -2,8 +2,9 @@ import json
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
-from qgis.PyQt import QtCore, QtGui, QtWidgets
+from qgis.PyQt import QtWidgets
 from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRectangle, QgsGeometry, QgsFeatureRequest, QgsMapLayer, QgsFeature, QgsVectorFileWriter, QgsCoordinateTransformContext
+from .compat import SPSZ_EXPANDING, SPSZ_MINIMUM, VFW_NO_ERROR
 
 
 class FrmProjectBounds(QtWidgets.QDialog):
@@ -207,7 +208,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
             options
         )
 
-        if error[0] != QgsVectorFileWriter.NoError:
+        if error[0] != VFW_NO_ERROR:
             QgsMessageLog.logMessage(f"Error saving GeoJSON file: {error}", "Project Bounds", Qgis.Critical)
             return
 
@@ -251,7 +252,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
         horiz_layout_rdo.addWidget(self.rdoJSON)
         self.outputFormatGroup.addButton(self.rdoJSON)
 
-        hspacer = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+        hspacer = QtWidgets.QSpacerItem(40, 20, SPSZ_EXPANDING, SPSZ_MINIMUM)
         horiz_layout_rdo.addItem(hspacer)
 
         self.txtOutput = QtWidgets.QTextEdit()
@@ -270,7 +271,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
         horiz_layout_btn = QtWidgets.QHBoxLayout()
         vertLayout.addLayout(horiz_layout_btn)
 
-        spacer = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+        spacer = QtWidgets.QSpacerItem(40, 20, SPSZ_EXPANDING, SPSZ_MINIMUM)
         horiz_layout_btn.addItem(spacer)
 
         self.btnCopy = QtWidgets.QPushButton("Copy")

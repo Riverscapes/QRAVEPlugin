@@ -3,6 +3,7 @@ import time
 import requests
 from qgis.core import QgsTask, QgsApplication, Qgis
 from qgis.PyQt.QtCore import QObject, pyqtSignal
+from ...compat import QGSTASK_CAN_CANCEL, QGSTASK_COMPLETE
 
 MAX_PROGRESS_INTERVAL = 1  # seconds
 
@@ -11,7 +12,7 @@ class DownloadFileTask(QgsTask):
     Task to download a single file from a given URL.
     """
     def __init__(self, rel_path: str, abs_path: str, download_url: str, size: int, log_callback=None, progress_callback=None):
-        super().__init__(f"Downloading {rel_path}", QgsTask.CanCancel)
+        super().__init__(f"Downloading {rel_path}", QGSTASK_CAN_CANCEL)
         self.rel_path = rel_path
         self.abs_path = abs_path
         self.download_url = download_url
@@ -144,7 +145,7 @@ class DownloadQueue(QObject):
         if task.rel_path in self.active_tasks:
             del self.active_tasks[task.rel_path]
         
-            if task.status() != QgsTask.Complete:
+            if task.status() != QGSTASK_COMPLETE:
                 self.failed_tasks.append(task.rel_path)
             
             self._process_queue()

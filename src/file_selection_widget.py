@@ -3,7 +3,7 @@ from typing import List, Optional
 from qgis.PyQt.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTreeWidget, QTreeWidgetItem, QHeaderView
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtGui import QBrush, QColor
-from .compat import CHECKED, UNCHECKED, ITEM_FLAG_CHECKABLE, ALIGN_RIGHT, ALIGN_VCENTER, COLOR_GRAY
+from .compat import CHECKED, UNCHECKED, ITEM_FLAG_CHECKABLE, ALIGN_RIGHT, ALIGN_VCENTER, COLOR_GRAY, HEADER_STRETCH, HEADER_RESIZE_TO_CONTENTS
 
 if hasattr(Qt, 'UserRole'):
     USER_ROLE = Qt.UserRole
@@ -59,9 +59,9 @@ class ProjectFileSelectionWidget(QWidget):
         self.treeFiles.header().setSortIndicatorShown(True)
         self.treeFiles.header().setStretchLastSection(False)
         self.treeFiles.setHeaderLabels(["File Path", "Size", "Status"])
-        self.treeFiles.header().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.treeFiles.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.treeFiles.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.treeFiles.header().setSectionResizeMode(0, HEADER_STRETCH)
+        self.treeFiles.header().setSectionResizeMode(1, HEADER_RESIZE_TO_CONTENTS)
+        self.treeFiles.header().setSectionResizeMode(2, HEADER_RESIZE_TO_CONTENTS)
         self.layout.addWidget(self.treeFiles)
 
         # Connect signals

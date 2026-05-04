@@ -1,9 +1,9 @@
 from qgis.PyQt import QtGui
 from qgis.PyQt.QtWidgets import QDialog, QLabel, QVBoxLayout, QDialogButtonBox, QSizePolicy, QFormLayout, QHBoxLayout
-from qgis.PyQt.QtCore import pyqtSignal, Qt, QSize
+from qgis.PyQt.QtCore import pyqtSignal, QSize
 from .classes.settings import CONSTANTS
 from ..__version__ import __version__
-from .compat import RICH_TEXT, HORIZONTAL, DIALOG_BTN_CLOSE
+from .compat import RICH_TEXT, HORIZONTAL, DIALOG_BTN_CLOSE, SPSZ_FIXED
 from .icon_utils import qrave_icon
 
 
@@ -36,7 +36,7 @@ class AboutDialog(QDialog):
         # Logo
         self.logo = QLabel(self)
         self.logo.setText("LOGO")
-        sizePolicy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        sizePolicy = QSizePolicy(SPSZ_FIXED, SPSZ_FIXED)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.logo.sizePolicy().hasHeightForWidth())

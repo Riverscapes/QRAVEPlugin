@@ -2,11 +2,10 @@ import os
 import re
 from typing import List
 from qgis.PyQt.QtWidgets import QDialog, QMessageBox
-from qgis.PyQt.QtCore import pyqtSignal, Qt, QUrl
+from qgis.PyQt.QtCore import pyqtSignal, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.core import Qgis
-from rsxml.etag import calculate_etag
-from .compat import ASCENDING_ORDER
+from .compat import ASCENDING_ORDER, MSGBOX_BTN_YES, MSGBOX_BTN_NO
 
 from .ui.project_download_dialog import Ui_ProjectDownloadDialog
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProject
@@ -412,7 +411,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
 
     def _handle_cancel(self):
         if self.stackedWidget.currentIndex() == 3 and self.btnCancel.text() == "Cancel Download":
-            if QMessageBox.question(self, "Cancel Download", "Are you sure you want to cancel the download?", QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:
+            if QMessageBox.question(self, "Cancel Download", "Are you sure you want to cancel the download?", MSGBOX_BTN_YES | MSGBOX_BTN_NO) == MSGBOX_BTN_YES:
                 self.fetching_urls_cancelled = True
                 self.queue.cancel_all()
                 self.lblStatus.setText("Download Cancelled.")

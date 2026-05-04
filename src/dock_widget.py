@@ -49,6 +49,7 @@ from .classes.settings import Settings, CONSTANTS
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
 from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
 from .icon_utils import qrave_icon
+from .compat import MSGBOX_BTN_YES, MSGBOX_BTN_NO
 
 
 ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
@@ -277,10 +278,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     self,
                     "Locate Missing Project",
                     f"The Riverscapes project file for '{name}' could not be found at the expected location:\n\n{xml_path}\n\nWould you like to locate it?",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No
+                    MSGBOX_BTN_YES | MSGBOX_BTN_NO,
+                    MSGBOX_BTN_NO
                 )
-                if result != QMessageBox.Yes:
+                if result != MSGBOX_BTN_YES:
                     continue
                 new_path, _ = QFileDialog.getOpenFileName(
                     self, f"Locate missing project file for '{name}'", "", "Riverscapes Project (*.xml);;All Files (*)")
@@ -572,7 +573,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             pass
 
         elif item_data.type == QRaveTreeTypes.PROJECT_VIEW:
-            print("Default View Action")
+            pass
             self.add_view_to_map(item_data)
 
     def item_change(self, pos):

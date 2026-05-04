@@ -7,7 +7,7 @@ from qgis.core import QgsTask, QgsApplication, Qgis
 from qgis.PyQt.QtCore import QObject, QByteArray, QUrl, QIODevice, QFile, QEventLoop, pyqtSignal
 from qgis.PyQt.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from ..util import MULTIPART_CHUNK_SIZE
-from ...compat import NET_CONTENT_LENGTH_HEADER, NET_OP_CANCELED_ERROR, NET_NO_ERROR
+from ...compat import NET_CONTENT_LENGTH_HEADER, NET_OP_CANCELED_ERROR, NET_NO_ERROR, QGSTASK_CAN_CANCEL
 
 MAX_PROGRESS_INTERVAL = 1  # seconds
 
@@ -58,7 +58,7 @@ class UploadMultiPartFileTask(QgsTask):
     cancelled = pyqtSignal()
 
     def __init__(self, rel_path: str, abs_path: str, urls: List[str], ext_prog_callback: Callable[[int], None] = None, log_callback: Callable[[int], None] = None, retries=5):
-        super().__init__(f"Upload {rel_path}", QgsTask.CanCancel)
+        super().__init__(f"Upload {rel_path}", QGSTASK_CAN_CANCEL)
         self.rel_path = rel_path
         self.file_path = abs_path
         self.log = log_callback
@@ -374,7 +374,7 @@ class UploadQueue(QObject):
                 self.active_tasks.remove(task)
                 self.completed_tasks.append(task)
             except Exception as e:
-                print(f"Error removing task: {str(e)}")
+                self.queue_logger(f"Error removing task: {str(e)}", Qgis.Warning)
 
         # Kick off queue processing again
         self.process_queue()

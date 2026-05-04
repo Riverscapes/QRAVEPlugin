@@ -4,7 +4,7 @@ from qgis.PyQt.QtGui import QIcon
 
 from .classes.settings import Settings
 from .classes.basemaps import BaseMaps
-from .compat import HORIZONTAL
+from .compat import HORIZONTAL, SPSZ_MINIMUM_EXPANDING, SPSZ_FIXED, SPSZ_MINIMUM, SPSZ_EXPANDING, DLGBTN_APPLY, DLGBTN_CANCEL, DLGBTN_RESET, DLGBTN_ROLE_APPLY, DLGBTN_ROLE_RESET
 
 
 class OptionsDialog(QDialog):
@@ -56,7 +56,7 @@ class OptionsDialog(QDialog):
     def commit_settings(self, btn):
         role = self.buttonBox.buttonRole(btn)
 
-        if role == QDialogButtonBox.ApplyRole:
+        if role == DLGBTN_ROLE_APPLY:
             self.settings.setValue('basemapsInclude', self.basemapsInclude.isChecked())
             self.settings.setValue('loadDefaultView', self.loadDefaultView.isChecked())
             self.settings.setValue('basemapRegion', self.basemapRegion.currentText())
@@ -67,7 +67,7 @@ class OptionsDialog(QDialog):
             elif self.right_radio.isChecked():
                 self.settings.setValue('dockLocation', 'right')
 
-        elif role == QDialogButtonBox.ResetRole:
+        elif role == DLGBTN_ROLE_RESET:
             self.settings.resetAllSettings()
             self.setValues()
 
@@ -93,7 +93,7 @@ class OptionsDialog(QDialog):
         self.label.setText("Region")
         self.horizontalLayout.addWidget(self.label)
         self.basemapRegion = QComboBox(self)
-        sizePolicy = QSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Fixed)
+        sizePolicy = QSizePolicy(SPSZ_MINIMUM_EXPANDING, SPSZ_FIXED)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.basemapRegion.sizePolicy().hasHeightForWidth())
@@ -139,11 +139,11 @@ class OptionsDialog(QDialog):
         self.hlayout_bl.addWidget(self.btnClearBL)
         self.verticalLayout.addLayout(self.hlayout_bl)
         # Button Box
-        spacerItem = QSpacerItem(20, 154, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        spacerItem = QSpacerItem(20, 154, SPSZ_MINIMUM, SPSZ_EXPANDING)
         self.verticalLayout.addItem(spacerItem)
         self.buttonBox = QDialogButtonBox(self)
         self.buttonBox.setOrientation(HORIZONTAL)
-        self.buttonBox.setStandardButtons(QDialogButtonBox.Apply | QDialogButtonBox.Cancel | QDialogButtonBox.Reset)
+        self.buttonBox.setStandardButtons(DLGBTN_APPLY | DLGBTN_CANCEL | DLGBTN_RESET)
         self.verticalLayout.addWidget(self.buttonBox)
         # Standard buttons
         self.buttonBox.accepted.connect(self.accept)

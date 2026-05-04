@@ -1,14 +1,12 @@
-import traceback
-
 import os
 import json
-import pdb
 from glob import glob
-from time import time, sleep
+from time import time
 from qgis.core import QgsTask, QgsMessageLog, Qgis
 
 from .util import md5, requestDownload
 from .settings import Settings, CONSTANTS
+from ..compat import QGSTASK_CAN_CANCEL
 
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
@@ -17,7 +15,7 @@ MESSAGE_CATEGORY = CONSTANTS['logCategory']
 class NetSync(QgsTask):
 
     def __init__(self, description):
-        super().__init__(description, QgsTask.CanCancel)
+        super().__init__(description, QGSTASK_CAN_CANCEL)
         self.total = 0
         self.iterations = 0
         self.exception = None

@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-import os
-from qgis.PyQt import uic, QtGui
-from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QLabel, QDialogButtonBox, QSizePolicy, QFormLayout, QPushButton
-from qgis.PyQt.QtCore import Qt, QUrl
+from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QLabel, QDialogButtonBox, QFormLayout, QPushButton
+
+from .compat import DLGBTN_OK, DLGBTN_CANCEL, DLGBTN_ROLE_HELP
 
 
 class RemoteProjectDialog(QDialog):
@@ -42,10 +41,10 @@ class RemoteProjectDialog(QDialog):
         form_layout.addRow('Project ID or URL', self.line_edit)
 
         # Button Box
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box = QDialogButtonBox(DLGBTN_OK | DLGBTN_CANCEL)
 
         self.btn_help = QPushButton("Help")
-        self.button_box.addButton(self.btn_help, QDialogButtonBox.HelpRole)
+        self.button_box.addButton(self.btn_help, DLGBTN_ROLE_HELP)
 
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)

@@ -13,7 +13,7 @@ from qgis.core import Qgis
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, DEProject, DEValidation, OwnerInputTuple, UploadFileList, UploadFile
 from .classes.GraphQLAPI import RunGQLQueryTask, RefreshTokenTask
 from .classes.settings import CONSTANTS, Settings
-from .compat import ITEM_FLAG_ENABLED, ASCENDING_ORDER, CHECKED
+from .compat import ITEM_FLAG_ENABLED, ASCENDING_ORDER, CHECKED, DLGBTN_CANCEL, MSGBOX_BTN_YES, MSGBOX_BTN_NO
 from .classes.project import Project
 from .classes.util import error_level_to_str, humane_bytes, get_project_details_html
 from .classes.data_exchange.uploader import UploadQueue, UploadMultiPartFileTask
@@ -339,7 +339,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.viewLogsButton.setVisible(curr == 2)
         
         # Disable the "Cancel" button while uploading. The user MUST click STOP first
-        cancel_btn = self.actionBtnBox.button(QDialogButtonBox.Cancel)
+        cancel_btn = self.actionBtnBox.button(DLGBTN_CANCEL)
         if cancel_btn:
             cancel_btn.setEnabled(self.flow_state != ProjectUploadDialogStateFlow.UPLOADING)
             if self.flow_state == ProjectUploadDialogStateFlow.COMPLETED:
@@ -585,7 +585,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         if index > -1:
             item_data = self.OrgModel.item(index).data(USER_ROLE)
             if item_data is not None:
-                print(f"Selected organization ID: {item_data}")
+                self.settings.log(f"Selected organization ID: {item_data}", Qgis.Info)
                 self.org_id = item_data
 
     def recalc_local_ops(self) -> int:
@@ -1036,13 +1036,13 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         else:
             text += ' as an update to the existing project.'
         qm.setText(text + ' Are you sure?')
-        qm.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        qm.setStandardButtons(MSGBOX_BTN_YES | MSGBOX_BTN_NO)
 
         # Remove the log file if it exists and create a new one
         self.upload_log('User-Initiated project upload starting', Qgis.Info, is_header=True)
 
         response = qm.exec()
-        if response == QMessageBox.Yes:
+        if response == MSGBOX_BTN_YES:
             # Before validation, we need to finalize what we're actually sending
             self._reconcile_selections_with_digest()
             self.flow_state = ProjectUploadDialogStateFlow.VALIDATING
@@ -1092,9 +1092,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                         qm.setDefaultButton(qm.No)
                         qm.setText('The project you are trying to upload has been changed in the warehouse since you downloaded it.')
                         qm.setInformativeText('<strong>Are you sure you want to continue? Saying "yes" will overwrite all changes in the Data Exchange.</strong>')
-                        qm.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                        qm.setStandardButtons(MSGBOX_BTN_YES | MSGBOX_BTN_NO)
                         response = qm.exec()
-                        if response == QMessageBox.No:
+                        if response == MSGBOX_BTN_NO:
                             self.upload_log('  - WARNING: User opted out of the upload due to project changes', Qgis.Warning)
                             self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
                             self.recalc_state()
@@ -1213,7 +1213,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 file_str += biggest_file_relpath
 
         # This would be too busy for the log files. Just dump it to the console for debug purposes
-        print(f"Uploading: {biggest_file_relpath} {progress}%")
+        self.settings.log(f"Uploading: {biggest_file_relpath} {progress}%", Qgis.Info)
 
         # Print "uploaded_bytes of total_bytes" in a human-friendly way showing megabytes or gigabytes with at most one decimal place
         uploaded_str = humane_bytes(uploaded_bytes)

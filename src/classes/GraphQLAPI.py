@@ -15,6 +15,7 @@ import base64
 import logging
 import requests
 from .settings import CONSTANTS
+from ..compat import QGSTASK_CAN_CANCEL
 # Disable all the weird terminal noise from urllib3
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("urllib3").propagate = False
@@ -43,7 +44,7 @@ class GraphQLAPIException(Exception):
 
 class RunGQLQueryTask(QgsTask):
     def __init__(self, api, query, variables):
-        super().__init__('RunGQLQueryTask', QgsTask.CanCancel)
+        super().__init__('RunGQLQueryTask', QGSTASK_CAN_CANCEL)
         self.api = api
         self.query = query
         self.variables = variables
@@ -144,7 +145,7 @@ class GraphQLAPIConfig():
 
 class RefreshTokenTask(QgsTask):
     def __init__(self, api, force=False):
-        super().__init__('RefreshTokenTask', QgsTask.CanCancel)
+        super().__init__('RefreshTokenTask', QGSTASK_CAN_CANCEL)
         self.api = api
         self.force = force
         self.success = False

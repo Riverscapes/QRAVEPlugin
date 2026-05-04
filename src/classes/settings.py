@@ -97,7 +97,7 @@ class Settings(SettingsBorg):
             default = _DEFAULTS[key] if key in _DEFAULTS else None
             value = json.loads(self.s.value(key, default))['v']
         except Exception as e:
-            print(e)
+            QgsMessageLog.logMessage(f"Error reading setting '{key}': {e}", MESSAGE_CATEGORY, level=Qgis.Warning)
             value = None
         return value
 
