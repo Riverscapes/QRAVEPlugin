@@ -1,9 +1,10 @@
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QComboBox, QPushButton, QSizePolicy, QSpacerItem, QGridLayout, QRadioButton, QLineEdit
-from qgis.PyQt.QtCore import pyqtSignal, Qt
+from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtGui import QIcon
 
 from .classes.settings import Settings
 from .classes.basemaps import BaseMaps
+from .compat import HORIZONTAL
 
 
 class OptionsDialog(QDialog):
@@ -141,7 +142,7 @@ class OptionsDialog(QDialog):
         spacerItem = QSpacerItem(20, 154, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.verticalLayout.addItem(spacerItem)
         self.buttonBox = QDialogButtonBox(self)
-        self.buttonBox.setOrientation(Qt.Horizontal)
+        self.buttonBox.setOrientation(HORIZONTAL)
         self.buttonBox.setStandardButtons(QDialogButtonBox.Apply | QDialogButtonBox.Cancel | QDialogButtonBox.Reset)
         self.verticalLayout.addWidget(self.buttonBox)
         # Standard buttons

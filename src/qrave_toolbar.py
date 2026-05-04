@@ -30,6 +30,8 @@ from .classes.settings import Settings, CONSTANTS
 from .classes.net_sync import NetSync
 from .classes.basemaps import BaseMaps
 from .classes.map import get_map_center, get_zoom_level
+from .icon_utils import qrave_icon
+from .compat import LEFT_DOCK, RIGHT_DOCK, VERTICAL, TOOL_BTN_TEXT_BESIDE
 
 
 # Initialize Qt resources from file resources.py
@@ -175,40 +177,37 @@ class QRAVE:
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
         self.qproject.readProject.connect(self.onProjectLoad)
 
-        self.openAction = QAction(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'),
+        self.openAction = QAction(qrave_icon('viewer-icon.svg'),
                                   self.tr(u'Show Riverscapes Viewer Panel'), self.iface.mainWindow())
         self.openAction.triggered.connect(self.toggle_widget)
         self.openAction.setStatusTip('Toggle the project viewer')
         self.openAction.setWhatsThis('Toggle the project viewer')
         self.actions.append(self.openAction)
 
-        self.openProjectAction = QAction(QIcon(
-            ':/plugins/qrave_toolbar/open.svg'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
+        self.openProjectAction = QAction(qrave_icon('open.svg'), self.tr(u'Open Riverscapes Project'), self.iface.mainWindow())
         self.openProjectAction.triggered.connect(self.projectBrowserDlg)
         self.openProjectAction.setStatusTip('Open Riverscapes project')
         self.openProjectAction.setWhatsThis('Open Riverscapes project')
         self.actions.append(self.openProjectAction)
 
-        self.openRemoteProjectAction = QAction(QIcon(
-            ':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.tr(u'Open Remote Project'), self.iface.mainWindow())
+        self.openRemoteProjectAction = QAction(qrave_icon('data-exchange-icon.svg'), self.tr(u'Open Remote Project'), self.iface.mainWindow())
         self.openRemoteProjectAction.triggered.connect(self.remoteProjectDlg)
         self.openRemoteProjectAction.setStatusTip('Open Remote Riverscapes project')
         self.openRemoteProjectAction.setWhatsThis('Open Remote Riverscapes project')
         self.actions.append(self.openRemoteProjectAction)
 
-        self.closeAllProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/close.png'), self.tr(
+        self.closeAllProjectsAction = QAction(qrave_icon('close.png'), self.tr(
             u'Close All Riverscapes Projects'), self.iface.mainWindow())
         self.closeAllProjectsAction.triggered.connect(self.closeAllProjects)
         self.closeAllProjectsAction.setStatusTip('Close all open Riverscapes projects')
         self.closeAllProjectsAction.setWhatsThis('Close all open Riverscapes projects')
         self.actions.append(self.closeAllProjectsAction)
 
-        self.browseExchangeProjectsAction = QAction(QIcon(':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.tr(u'Browse Data Exchange Projects in Map Area'), self.iface.mainWindow())
+        self.browseExchangeProjectsAction = QAction(qrave_icon('data-exchange-icon.svg'), self.tr(u'Browse Data Exchange Projects in Map Area'), self.iface.mainWindow())
         self.browseExchangeProjectsAction.triggered.connect(self.browseExchangeProjects)
         self.actions.append(self.browseExchangeProjectsAction)
 
-        self.downloadProjectAction = QAction(QIcon(
-            ':/plugins/qrave_toolbar/download.svg'), self.tr(u'Download Riverscapes Project'), self.iface.mainWindow())
+        self.downloadProjectAction = QAction(qrave_icon('download.svg'), self.tr(u'Download Riverscapes Project'), self.iface.mainWindow())
         self.downloadProjectAction.triggered.connect(lambda: self.downloadProjectDlg())
         self.downloadProjectAction.setStatusTip('Download a Riverscapes project from the Data Exchange')
         self.downloadProjectAction.setWhatsThis('Download a Riverscapes project from the Data Exchange')
@@ -222,17 +221,17 @@ class QRAVE:
 
         m_tools = self.toolsButton.menu()
         m_tools.setTitle("Tools")
-        m_tools.setIcon(QIcon(':/plugins/qrave_toolbar/tools'))
+        m_tools.setIcon(qrave_icon('tools'))
 
         self.raveOptionsAction = QAction(
-            QIcon(':/plugins/qrave_toolbar/Options.png'),
+            qrave_icon('Options.png'),
             self.tr('Settings'),
             self.iface.mainWindow()
         )
         self.raveOptionsAction.triggered.connect(self.options_load)
 
         self.net_sync_action = QAction(
-            QIcon(':/plugins/qrave_toolbar/refresh.png'),
+            qrave_icon('refresh.png'),
             self.tr('Update resources'),
             self.iface.mainWindow()
         )
@@ -240,14 +239,14 @@ class QRAVE:
             lambda: self.net_sync_load(force=True))
 
         self.find_resources_action = QAction(
-            QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'),
+            qrave_icon('BrowseFolder.png'),
             self.tr('Open Resources folder'),
             self.iface.mainWindow()
         )
         self.find_resources_action.triggered.connect(self.locateResources)
 
         self.generate_project_bounds = QAction(
-            QIcon(':/plugins/qrave_toolbar/bounds'),
+            qrave_icon('bounds'),
             self.tr('Generate Project Bounds'),
             self.iface.mainWindow()
         )
@@ -271,17 +270,17 @@ class QRAVE:
 
         m = self.helpButton.menu()
         m.setTitle("Help")
-        m.setIcon(QIcon(':/plugins/qrave_toolbar/Help.png'))
+        m.setIcon(qrave_icon('Help.png'))
 
         self.helpAction = QAction(
-            QIcon(':/plugins/qrave_toolbar/Help.png'),
+            qrave_icon('Help.png'),
             self.tr('Riverscapes Viewer Online Help'),
             self.iface.mainWindow()
         )
         self.helpAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://viewer.riverscapes.net/software-help/help-qgis/")))
 
         self.about_action = QAction(
-            QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'),
+            qrave_icon('viewer-icon.svg'),
             self.tr('About Riverscapes Viewer'),
             self.iface.mainWindow()
         )
@@ -313,8 +312,8 @@ class QRAVE:
         # Create a single QToolButton with icon and text, and set the menu
         self.viewer_button = QToolButton(self.toolbar)
         self.viewer_button.setText('  Riverscapes Viewer')
-        self.viewer_button.setIcon(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'))
-        self.viewer_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.viewer_button.setIcon(qrave_icon('viewer-icon.svg'))
+        self.viewer_button.setToolButtonStyle(TOOL_BTN_TEXT_BESIDE)
         self.viewer_button.setMenu(self.menu)
         self.viewer_button.setPopupMode(INSTANT_POPUP_MODE)  # Clicking anywhere opens the menu
 
@@ -419,7 +418,7 @@ class QRAVE:
 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
-            dock_location = Qt.LeftDockWidgetArea if self.settings.getValue('dockLocation') == "left" else Qt.RightDockWidgetArea
+            dock_location = LEFT_DOCK if self.settings.getValue('dockLocation') == "left" else RIGHT_DOCK
 
             # show the dockwidget
             self.iface.addDockWidget(dock_location, self.dockwidget)
@@ -482,7 +481,7 @@ class QRAVE:
         """Restore the height of the dock widget from settings."""
         saved_height = self.settings.getValue('dockHeight')
         if saved_height and self.dockwidget:
-            self.iface.mainWindow().resizeDocks([self.dockwidget], [saved_height], Qt.Vertical)
+            self.iface.mainWindow().resizeDocks([self.dockwidget], [saved_height], VERTICAL)
 
     def net_sync_load(self, force=False):
         """
@@ -554,14 +553,14 @@ class QRAVE:
         """
         dialog = ProjectDownloadDialog(self.iface.mainWindow(), project_id=project_id, local_path=local_path)
         dialog.projectDownloaded.connect(self.dockwidget.add_project)
-        dialog.exec_()
+        dialog.exec()
 
     def remoteProjectDlg(self):
         """
         Open a dialog to enter a project ID or URL
         """
         dialog = RemoteProjectDialog(self.iface.mainWindow())
-        if dialog.exec_():
+        if dialog.exec():
             text = dialog.get_text()
             ok = True
         else:
@@ -628,7 +627,7 @@ class QRAVE:
                 # msgBox.setInformativeText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
                 msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
                 msgBox.setDefaultButton(QMessageBox.No)
-                response = msgBox.exec_()
+                response = msgBox.exec()
                 if response == QMessageBox.Yes:
                     self.dockwidget.close_all()
                     if self.metawidget is not None:
@@ -645,7 +644,7 @@ class QRAVE:
             return
 
         dialog = FrmProjectBounds()
-        dialog.exec_()
+        dialog.exec()
 
     def locateResources(self):
         """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
@@ -665,20 +664,20 @@ class QRAVE:
         if self.dockwidget:
             dialog.dataChange.connect(self.dockwidget.dataChange)
             dialog.dataChange.connect(self.redock_widgets)
-        dialog.exec_()
+        dialog.exec()
 
     def about_load(self):
         """
         Open the About dialog
         """
         dialog = AboutDialog()
-        dialog.exec_()
+        dialog.exec()
 
     def redock_widgets(self):
         """Redock the widget according to the saved settings.
         If the widget is hidden, set the new dock location but do not show it.
         """
-        dock_location = Qt.LeftDockWidgetArea if self.settings.getValue('dockLocation') == "left" else Qt.RightDockWidgetArea
+        dock_location = LEFT_DOCK if self.settings.getValue('dockLocation') == "left" else RIGHT_DOCK
 
         # Redock main dockwidget
         if self.dockwidget is not None:

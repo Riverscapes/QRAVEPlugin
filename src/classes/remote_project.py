@@ -1,13 +1,12 @@
 from __future__ import annotations
-import os
-import json
 from typing import Dict, List
 from qgis.core import Qgis
-from qgis.PyQt.QtGui import QStandardItem, QIcon, QBrush
+from qgis.PyQt.QtGui import QStandardItem, QIcon
 from qgis.PyQt.QtCore import Qt
 
 from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
 from .settings import CONSTANTS, Settings
+from ..icon_utils import qrave_icon
 
 if hasattr(Qt, 'UserRole'):
     USER_ROLE = Qt.UserRole
@@ -50,9 +49,10 @@ class RemoteProject:
         self._icon_cache = {}
 
     def _get_icon(self, path: str) -> QIcon:
-        if path not in self._icon_cache:
-            self._icon_cache[path] = QIcon(path)
-        return self._icon_cache[path]
+        alias = path.replace(":/plugins/qrave_toolbar/", "")
+        if alias not in self._icon_cache:
+            self._icon_cache[alias] = qrave_icon(alias)
+        return self._icon_cache[alias]
 
     def load(self):
         """Build the tree from GraphQL data"""
@@ -160,7 +160,7 @@ class RemoteProject:
         # Build leaves
         for leaf in leaf_map.get(pid, []):
             # Decide icon based on layer type
-            icon_path = ':/plugins/qrave_toolbar/viewer-icon.png'
+            icon_path = ':/plugins/qrave_toolbar/viewer-icon.svg'
             bl_type = leaf.get('layerType', '').lower()
             if bl_type == 'polygon':
                 icon_path = ':/plugins/qrave_toolbar/layers/Polygon.png'

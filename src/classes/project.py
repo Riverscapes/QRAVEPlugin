@@ -12,6 +12,8 @@ from qgis.PyQt.QtCore import Qt
 from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
 from .rspaths import parse_rel_path
 from .settings import CONSTANTS, Settings
+from ..icon_utils import qrave_icon
+from ..compat import COLOR_GRAY, FOREGROUND_ROLE
 
 import re
 
@@ -232,7 +234,7 @@ class Project:
         self.default_view = views.attrib['default']
         self.views = {}
 
-        curr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), "Project Views")
+        curr_item = QStandardItem(qrave_icon('BrowseFolder.png'), "Project Views")
         curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW_FOLDER, project=self), USER_ROLE)
 
         for view in self.business_logic.findall('Views/View'):
@@ -242,7 +244,7 @@ class Project:
             if name is None or view_id is None:
                 continue
 
-            view_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/view.svg'), name)
+            view_item = QStandardItem(qrave_icon('view.svg'), name)
             view_layer_ids = [layer.attrib['id'] for layer in view.findall('Layers/Layer')]
             self.views[view_id] = view_layer_ids
             view_item.setData(
@@ -300,10 +302,10 @@ class Project:
         # If there are children then this is a branch
         if children_container is not None:
             if is_root is True:
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'))
+                curr_item.setIcon(qrave_icon('viewer-icon.svg'))
                 curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self, data=dict(children_container.attrib)), USER_ROLE),
             else:
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'))
+                curr_item.setIcon(qrave_icon('BrowseFolder.png'))
                 curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data=dict(children_container.attrib)), USER_ROLE),
 
             for child_node in children_container.xpath('*'):
@@ -313,7 +315,7 @@ class Project:
 
                 # Repeaters are a separate case
                 elif child_node.tag == 'Repeater':
-                    qrepeater = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), child_node.attrib['label'])
+                    qrepeater = QStandardItem(qrave_icon('BrowseFolder.png'), child_node.attrib['label'])
                     qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self, data=dict(children_container.attrib)), USER_ROLE),
                     curr_item.appendRow(qrepeater)
 
@@ -332,21 +334,21 @@ class Project:
         else:
             bl_type = bl_el.attrib['type']
             if bl_type == 'polygon':
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/Polygon.png'))
+                curr_item.setIcon(qrave_icon('layers/Polygon.png'))
             elif bl_type == 'line':
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/Polyline.png'))
+                curr_item.setIcon(qrave_icon('layers/Polyline.png'))
             elif bl_type == 'point':
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/MultiDot.png'))
+                curr_item.setIcon(qrave_icon('layers/MultiDot.png'))
             elif bl_type == 'raster':
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/Raster.png'))
+                curr_item.setIcon(qrave_icon('layers/Raster.png'))
             elif bl_type == 'file':
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/draft.svg'))
+                curr_item.setIcon(qrave_icon('draft.svg'))
             elif bl_type == 'report':
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/description.svg'))
+                curr_item.setIcon(qrave_icon('description.svg'))
             elif bl_type == 'tin':
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/layers/tin.svg'))
+                curr_item.setIcon(qrave_icon('layers/tin.svg'))
             else:
-                curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/viewer-icon.png'))
+                curr_item.setIcon(qrave_icon('viewer-icon.svg'))
 
             # Couldn't find this node. Ignore it.
             meta = self.extract_meta(new_proj_el.findall('MetaData/Meta'))
@@ -407,7 +409,7 @@ class Project:
                 #     Qgis.Warning)
                 # We will send it to the console as an error though
                 self.settings.log("Error finding file with path={}".format(map_layer.layer_uri), Qgis.Warning)
-                curr_item.setData(QBrush(Qt.gray), Qt.ForegroundRole)
+                curr_item.setData(QBrush(COLOR_GRAY), FOREGROUND_ROLE)
                 curr_item_font = curr_item.font()
                 curr_item_font.setItalic(True)
                 curr_item.setFont(curr_item_font)

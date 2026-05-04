@@ -9,6 +9,7 @@ from qgis.PyQt.QtWidgets import QDockWidget, QMenu, QMessageBox, QWidget, QTextE
 from qgis.PyQt.QtCore import pyqtSlot, Qt, QUrl
 
 from .classes.settings import Settings, CONSTANTS
+from .compat import ALIGN_CENTER, FOREGROUND_ROLE, COLOR_BLUE
 
 if hasattr(Qt, 'UserRole'):
     USER_ROLE = Qt.UserRole
@@ -90,7 +91,7 @@ class QRAVEMetaWidget(QDockWidget):
             self.model.setColumnCount(1)
             self.model.setHorizontalHeaderLabels(['Meta Name'])
             no_item = QStandardItem('Folders have no Metadata')
-            no_item.setTextAlignment(Qt.AlignCenter)
+            no_item.setTextAlignment(ALIGN_CENTER)
             no_f = no_item.font()
             no_f.setItalic(True)
             no_item.setFont(no_f)
@@ -109,7 +110,7 @@ class QRAVEMetaWidget(QDockWidget):
                 self.model.setColumnCount(1)
                 self.model.setHorizontalHeaderLabels(['Meta Name'])
                 no_item = QStandardItem('This layer has no Metadata')
-                no_item.setTextAlignment(Qt.AlignCenter)
+                no_item.setTextAlignment(ALIGN_CENTER)
                 no_f = no_item.font()
                 no_f.setItalic(True)
                 no_item.setFont(no_f)
@@ -121,7 +122,7 @@ class QRAVEMetaWidget(QDockWidget):
             self.model.setColumnCount(1)
             self.setWindowTitle('Riverscapes Metadata: {}'.format(label))
             no_item = QStandardItem('This item cannot have metadata')
-            no_item.setTextAlignment(Qt.AlignCenter)
+            no_item.setTextAlignment(ALIGN_CENTER)
             no_f = no_item.font()
             no_f.setItalic(True)
             no_item.setFont(no_f)
@@ -146,7 +147,7 @@ class QRAVEMetaWidget(QDockWidget):
             meta_type_lower = meta_type.lower()
             # Getting ready for custom meta types
             if (meta_type_lower in ['url', 'link', 'image', 'video']) and value is not None and value.startswith('http'):
-                val_item.setData(QBrush(Qt.blue), Qt.ForegroundRole)
+                val_item.setData(QBrush(COLOR_BLUE), FOREGROUND_ROLE)
         # val_item.setUnderlineStyle(QTextCharFormat.SingleUnderline)
 
         root_item.appendRow([
@@ -197,7 +198,7 @@ class QRAVEMetaWidget(QDockWidget):
             ))
         self.menu.addAction('Copy all rows (json)', lambda: self.copy(json.dumps(self.meta, indent=4, sort_keys=True)))
 
-        self.menu.exec_(self.treeView.viewport().mapToGlobal(position))
+        self.menu.exec(self.treeView.viewport().mapToGlobal(position))
 
     def copy(self, data: str):
         self.settings.msg_bar('Item Copied to clipboard:', data, Qgis.Success)

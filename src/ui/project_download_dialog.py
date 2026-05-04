@@ -1,5 +1,6 @@
 from qgis.PyQt import QtCore, QtGui, QtWidgets
 from qgis.gui import QgsFileWidget
+from ..compat import RICH_TEXT, TEXT_BROWSER_INTERACTION
 
 class Ui_ProjectDownloadDialog(object):
     def setupUi(self, Dialog):
@@ -51,8 +52,8 @@ class Ui_ProjectDownloadDialog(object):
         
         self.lblProjectDetails = QtWidgets.QLabel("")
         self.lblProjectDetails.setWordWrap(True)
-        self.lblProjectDetails.setTextFormat(QtCore.Qt.RichText)
-        self.lblProjectDetails.setTextInteractionFlags(QtCore.Qt.TextBrowserInteraction)
+        self.lblProjectDetails.setTextFormat(RICH_TEXT)
+        self.lblProjectDetails.setTextInteractionFlags(TEXT_BROWSER_INTERACTION)
         self.lblProjectDetails.setOpenExternalLinks(True)
         self.layoutProjectDetails.addWidget(self.lblProjectDetails)
         

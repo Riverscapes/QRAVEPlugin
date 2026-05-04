@@ -15,16 +15,20 @@
 			// "editor.background": "#1c2c2a"
 		},
 		"terminal.integrated.env.osx": {
-			"PYTHONPATH": "${env:QGIS4_PATH}/Contents/Resources/python:${env:QGIS4_PATH}/Contents/Resources/python/site-packages:${env:QGIS4_PATH}/Contents/Resources/python/site-packages/PyQt5:${workspaceFolder}/wheels",
-			"PATH": "${env:PATH}:${env:QGIS4_PATH}/Contents/MacOS"
+			"PYTHONPATH": "${env:QGIS4_PATH}/Contents/Resources/qgis/python:${env:QGIS4_PATH}/Contents/Resources/qgis/python/plugins:${env:QGIS4_PATH}/Contents/Resources/python3.11/site-packages:${env:QGIS4_PATH}/Contents/Resources/python3.11/site-packages/PyQt6:${env:QGIS4_PATH}/Contents/PlugIns/PyQt6:${workspaceFolder}/wheels",
+			"PATH": "${env:PATH}:${env:QGIS4_PATH}/Contents/MacOS",
+			"QGIS_PREFIX_PATH": "${env:QGIS4_PATH}/Contents/MacOS"
 		},
 		"python.analysis.extraPaths": [
 			"${workspaceFolder}/wheels",
-			"${env:QGIS4_PATH}/Contents/Resources/python",
-			"${env:QGIS4_PATH}/Contents/Resources/python/site-packages"
+			"${env:QGIS4_PATH}/Contents/Resources/qgis/python",
+			"${env:QGIS4_PATH}/Contents/Resources/qgis/python/plugins",
+			"${env:QGIS4_PATH}/Contents/Resources/python3.11/site-packages",
+			"${env:QGIS4_PATH}/Contents/Resources/python3.11/site-packages/PyQt6",
+			"${env:QGIS4_PATH}/Contents/PlugIns/PyQt6"
 		],
-		"python.defaultInterpreterPath": "${env:QGIS4_PATH}/Contents/MacOS/bin/python3",
-    "terminal.integrated.defaultProfile.linux": "zsh",
+		"python.defaultInterpreterPath": "${env:QGIS4_PATH}/Contents/MacOS/python3.12",
+	    "terminal.integrated.defaultProfile.osx": "zsh",
     "[python]": {
       "editor.tabSize": 4,
       "editor.formatOnSave": true,

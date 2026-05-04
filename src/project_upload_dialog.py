@@ -2,22 +2,22 @@ import os
 import json
 import lxml.etree
 import datetime
-from typing import Tuple, Dict
+from typing import Dict
 
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QButtonGroup, QMessageBox
-from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices, QIcon
+from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QUrl, QTimer
 from qgis.PyQt.QtWidgets import QErrorMessage
-from qgis.core import Qgis, QgsMessageLog
+from qgis.core import Qgis
 
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProfile, DEProject, DEValidation, OwnerInputTuple, UploadFileList, UploadFile
 from .classes.GraphQLAPI import RunGQLQueryTask, RefreshTokenTask
 from .classes.settings import CONSTANTS, Settings
+from .compat import ITEM_FLAG_ENABLED, ASCENDING_ORDER, CHECKED
 from .classes.project import Project
 from .classes.util import error_level_to_str, humane_bytes, get_project_details_html
 from .classes.data_exchange.uploader import UploadQueue, UploadMultiPartFileTask
 from .ui.project_upload_dialog import Ui_Dialog
-from .file_selection_widget import ProjectFileSelectionWidget
 
 if hasattr(Qt, 'UserRole'):
     USER_ROLE = Qt.UserRole
@@ -538,7 +538,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 if org.myRole not in ['OWNER', 'ADMIN', 'CONTRIBUTOR']:
                     if first_usable_idx == -1:
                         first_usable_idx = count_idx
-                    item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+                    item.setFlags(item.flags() & ~ITEM_FLAG_ENABLED)
 
                 self.OrgModel.appendRow(item)
                 count_idx += 1
@@ -753,7 +753,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 )
         
         self.fileSelection.set_sorting_enabled(True)
-        self.fileSelection.sort_by_column(0, Qt.AscendingOrder)
+        self.fileSelection.sort_by_column(0, ASCENDING_ORDER)
         
         self._update_selection_summary()
 
@@ -772,7 +772,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         for item in all_items:
             # rel_path = item.data(0, USER_ROLE)
             status = item.text(2)
-            checked = item.checkState(0) == Qt.Checked
+            checked = item.checkState(0) == CHECKED
             
             if status == "Delete":
                 if checked:
@@ -818,7 +818,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             item = root.child(i)
             rel_path = item.data(0, USER_ROLE)
             status = item.text(2)
-            checked = item.checkState(0) == Qt.Checked
+            checked = item.checkState(0) == CHECKED
             
             if status == "Delete":
                 # Only add if UNchecked (meaning "Keep")
@@ -1041,7 +1041,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         # Remove the log file if it exists and create a new one
         self.upload_log('User-Initiated project upload starting', Qgis.Info, is_header=True)
 
-        response = qm.exec_()
+        response = qm.exec()
         if response == QMessageBox.Yes:
             # Before validation, we need to finalize what we're actually sending
             self._reconcile_selections_with_digest()
@@ -1093,7 +1093,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                         qm.setText('The project you are trying to upload has been changed in the warehouse since you downloaded it.')
                         qm.setInformativeText('<strong>Are you sure you want to continue? Saying "yes" will overwrite all changes in the Data Exchange.</strong>')
                         qm.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-                        response = qm.exec_()
+                        response = qm.exec()
                         if response == QMessageBox.No:
                             self.upload_log('  - WARNING: User opted out of the upload due to project changes', Qgis.Warning)
                             self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION

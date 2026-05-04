@@ -1,5 +1,6 @@
 from qgis.PyQt import QtCore, QtGui, QtWidgets
 from ..file_selection_widget import ProjectFileSelectionWidget
+from ..compat import RICH_TEXT, SCROLL_BAR_ALWAYS_OFF, ALIGN_CENTER
 
 
 class Ui_Dialog(object):
@@ -77,7 +78,7 @@ class Ui_Dialog(object):
         self.layoutProjectDetails = QtWidgets.QVBoxLayout(self.frameProjectDetails)
         self.lblProjectDetails = QtWidgets.QLabel("")
         self.lblProjectDetails.setWordWrap(True)
-        self.lblProjectDetails.setTextFormat(QtCore.Qt.RichText)
+        self.lblProjectDetails.setTextFormat(RICH_TEXT)
         self.lblProjectDetails.setOpenExternalLinks(True)
         self.layoutProjectDetails.addWidget(self.lblProjectDetails)
         self.grdGroupProject.addWidget(self.frameProjectDetails, 3, 0, 1, 2)
@@ -136,7 +137,7 @@ class Ui_Dialog(object):
         self.removeTagButton.setText("Remove")
         self.horizontalLayout_4.addWidget(self.removeTagButton)
         self.tagList = QtWidgets.QListWidget()
-        self.tagList.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.tagList.setHorizontalScrollBarPolicy(SCROLL_BAR_ALWAYS_OFF)
         self.tagList.setFixedHeight(80)
         self.verticalLayout_5.addLayout(self.horizontalLayout_4)
         self.verticalLayout_5.addWidget(self.tagList)
@@ -167,7 +168,7 @@ class Ui_Dialog(object):
         font_summary.setItalic(True)
         font_summary.setPointSize(11)
         self.lblSelectionSummary.setFont(font_summary)
-        self.lblSelectionSummary.setAlignment(QtCore.Qt.AlignCenter)
+        self.lblSelectionSummary.setAlignment(ALIGN_CENTER)
         self.layoutStep2.addWidget(self.lblSelectionSummary)
         
         self.stackedWidget.addWidget(self.step2)
@@ -188,7 +189,7 @@ class Ui_Dialog(object):
         font_todo.setPointSize(11)
         font_todo.setItalic(True)
         self.todoLabel.setFont(font_todo)
-        self.todoLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.todoLabel.setAlignment(ALIGN_CENTER)
         self.verticalLayout_6.addWidget(self.todoLabel)
         
         self.progressBar = QtWidgets.QProgressBar()
@@ -197,7 +198,7 @@ class Ui_Dialog(object):
         
         self.progressSubLabel = QtWidgets.QLabel("...")
         self.progressSubLabel.setFont(font_todo)
-        self.progressSubLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.progressSubLabel.setAlignment(ALIGN_CENTER)
         self.verticalLayout_6.addWidget(self.progressSubLabel)
         self.layoutStep3.addWidget(self.uploadGroup)
         
@@ -212,7 +213,7 @@ class Ui_Dialog(object):
         font_complete.setBold(True)
         font_complete.setPointSize(11)
         self.lblUploadComplete.setFont(font_complete)
-        self.lblUploadComplete.setAlignment(QtCore.Qt.AlignCenter)
+        self.lblUploadComplete.setAlignment(ALIGN_CENTER)
         self.lblUploadComplete.setStyleSheet("color: #27ae60;") # A nice success green
         self.layoutStep3.addWidget(self.lblUploadComplete)
 

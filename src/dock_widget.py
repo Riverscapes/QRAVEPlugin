@@ -29,7 +29,7 @@ import requests
 
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl, QTimer
 from qgis.PyQt.QtWidgets import QDockWidget, QFileDialog, QMessageBox, QApplication
-from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices
+from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices
 from qgis.core import Qgis, QgsProject
 
 
@@ -48,6 +48,7 @@ from .classes.basemaps import BaseMaps, QRaveBaseMap
 from .classes.settings import Settings, CONSTANTS
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
 from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
+from .icon_utils import qrave_icon
 
 
 ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
@@ -391,7 +392,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         # Make sure it's not already there
         self.hide_loading()
 
-        loading_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/refresh.png'), f"Loading Remote: {label}...")
+        loading_item = QStandardItem(qrave_icon('refresh.png'), f"Loading Remote: {label}...")
         # Use a special data role to identify it
         loading_item.setData("LOADING_PLACEHOLDER", USER_ROLE + 10)
         self.model.insertRow(0, loading_item)
@@ -1186,7 +1187,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         """
 
         dialog = ProjectUploadDialog(None, project)
-        dialog.exec_()
+        dialog.exec()
         # Reload the project after the upload (and even just on upload cancel)
         self.reload_tree()
 
@@ -1205,5 +1206,5 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         dialog = ProjectDownloadDialog(None, project_id=project_id, local_path=local_path)
         dialog.projectDownloaded.connect(self.add_project)
-        dialog.exec_()
+        dialog.exec()
         self.reload_tree()

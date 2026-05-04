@@ -1,6 +1,7 @@
-from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction
-from qgis.PyQt.QtCore import pyqtSlot, QModelIndex
-from qgis.PyQt.QtGui import QIcon, QStandardItem
+from qgis.PyQt.QtWidgets import QMenu
+from qgis.PyQt.QtCore import pyqtSlot
+from qgis.PyQt.QtGui import QIcon
+from ..icon_utils import qrave_icon
 
 
 class ContextMenu(QMenu):
@@ -102,7 +103,8 @@ class ContextMenu(QMenu):
         if lookup not in self.MENUS:
             raise Exception('Menu not found')
         action_text = self.MENUS[lookup]
-        action = super().addAction(QIcon(action_text[1]), action_text[0])
+        _alias = action_text[1].replace(":/plugins/qrave_toolbar/", "")
+        action = super().addAction(qrave_icon(_alias), action_text[0])
         action.setEnabled(enabled)
 
         if slot is not None:

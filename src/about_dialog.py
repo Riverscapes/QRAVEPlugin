@@ -3,6 +3,8 @@ from qgis.PyQt.QtWidgets import QDialog, QLabel, QVBoxLayout, QDialogButtonBox, 
 from qgis.PyQt.QtCore import pyqtSignal, Qt, QSize
 from .classes.settings import CONSTANTS
 from ..__version__ import __version__
+from .compat import RICH_TEXT, HORIZONTAL, DIALOG_BTN_CLOSE
+from .icon_utils import qrave_icon
 
 
 class AboutDialog(QDialog):
@@ -17,7 +19,7 @@ class AboutDialog(QDialog):
         QDialog.__init__(self, parent)
         self.setupUi()
 
-        pixmap = QtGui.QIcon(':/plugins/qrave_toolbar/viewer-icon.svg').pixmap(128, 128)
+        pixmap = qrave_icon('viewer-icon.svg').pixmap(128, 128)
         self.logo.setPixmap(pixmap)
 
         self.setWindowTitle("About Riverscapes Viewer")
@@ -66,22 +68,22 @@ class AboutDialog(QDialog):
         self.formLayout.addRow("Version", self.version)
 
         self.website = QLabel(self)
-        self.website.setTextFormat(Qt.RichText)
+        self.website.setTextFormat(RICH_TEXT)
         self.website.setOpenExternalLinks(True)
         self.formLayout.addRow("Website", self.website)
 
         self.issues = QLabel(self)
-        self.issues.setTextFormat(Qt.RichText)
+        self.issues.setTextFormat(RICH_TEXT)
         self.issues.setOpenExternalLinks(True)
         self.formLayout.addRow("Issues", self.issues)
 
         self.changelog = QLabel(self)
-        self.changelog.setTextFormat(Qt.RichText)
+        self.changelog.setTextFormat(RICH_TEXT)
         self.changelog.setOpenExternalLinks(True)
         self.formLayout.addRow("Changelog", self.changelog)
 
         self.acknowledgements = QLabel(self)
-        self.acknowledgements.setTextFormat(Qt.RichText)
+        self.acknowledgements.setTextFormat(RICH_TEXT)
         self.acknowledgements.setOpenExternalLinks(True)
         self.formLayout.addRow("Acknowledgements", self.acknowledgements)
 
@@ -93,8 +95,8 @@ class AboutDialog(QDialog):
 
         # Only add the close button
         self.closeButton = QDialogButtonBox(self)
-        self.closeButton.setOrientation(Qt.Horizontal)
-        self.closeButton.setStandardButtons(QDialogButtonBox.Close)
+        self.closeButton.setOrientation(HORIZONTAL)
+        self.closeButton.setStandardButtons(DIALOG_BTN_CLOSE)
         self.verticalLayout_3.addWidget(self.closeButton)
 
         # Connect the rejected signal of the close button to the reject slot of the dialog

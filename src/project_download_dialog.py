@@ -1,13 +1,12 @@
 import os
 import re
-import math
-from datetime import datetime
-from typing import List, Dict, Tuple
-from qgis.PyQt.QtWidgets import QDialog, QTreeWidgetItem, QMessageBox, QHeaderView
+from typing import List
+from qgis.PyQt.QtWidgets import QDialog, QMessageBox
 from qgis.PyQt.QtCore import pyqtSignal, Qt, QUrl
-from qgis.PyQt.QtGui import QFont, QBrush, QColor, QDesktopServices
+from qgis.PyQt.QtGui import QDesktopServices
 from qgis.core import Qgis
 from rsxml.etag import calculate_etag
+from .compat import ASCENDING_ORDER
 
 from .ui.project_download_dialog import Ui_ProjectDownloadDialog
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProject
@@ -269,7 +268,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             )
 
         self.fileSelection.set_sorting_enabled(True)
-        self.fileSelection.sort_by_column(0, Qt.AscendingOrder)
+        self.fileSelection.sort_by_column(0, ASCENDING_ORDER)
 
     # Removed _select_all_files, _deselect_all_files, _set_all_check_state - now in file_selection_widget.py
 

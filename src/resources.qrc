@@ -28,7 +28,7 @@
 
         <!-- Layer icons -->
         <file alias="layers/Dot.png">../Images/layers/Dot16.png</file>
-        <file alias="layers/MultiDot.png">../Images/layers/MultiDot16.png</file>
+        <file alias="layers/MultiDot.png">../Images/layers/Multidot16.png</file>
         <file alias="layers/Polygon.png">../Images/layers/Polygon16.png</file>
         <file alias="layers/Polyline.png">../Images/layers/Polyline16.png</file>
         <file alias="layers/Raster.png">../Images/layers/Raster16.png</file>

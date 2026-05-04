@@ -1,10 +1,9 @@
-import os
 import math
-import re
-from typing import List, Dict, Optional, Any
+from typing import List, Optional
 from qgis.PyQt.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTreeWidget, QTreeWidgetItem, QHeaderView
 from qgis.PyQt.QtCore import Qt, pyqtSignal
-from qgis.PyQt.QtGui import QBrush, QColor, QFont
+from qgis.PyQt.QtGui import QBrush, QColor
+from .compat import CHECKED, UNCHECKED, ITEM_FLAG_CHECKABLE, ALIGN_RIGHT, ALIGN_VCENTER, COLOR_GRAY
 
 if hasattr(Qt, 'UserRole'):
     USER_ROLE = Qt.UserRole
@@ -80,11 +79,11 @@ class ProjectFileSelectionWidget(QWidget):
             item = root.child(i)
             if item.text(2) == "Delete":
                 if checked:
-                    item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                    item.setCheckState(0, Qt.Checked)
+                    item.setFlags(item.flags() | ITEM_FLAG_CHECKABLE)
+                    item.setCheckState(0, CHECKED)
                 else:
-                    item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
-                    item.setCheckState(0, Qt.Unchecked)
+                    item.setFlags(item.flags() & ~ITEM_FLAG_CHECKABLE)
+                    item.setCheckState(0, UNCHECKED)
         self.selectionChanged.emit()
 
     def clear(self):
@@ -97,16 +96,16 @@ class ProjectFileSelectionWidget(QWidget):
         self.treeFiles.sortByColumn(column, order)
 
     def select_all(self):
-        self._set_all_check_state(Qt.Checked)
+        self._set_all_check_state(CHECKED)
 
     def deselect_all(self):
-        self._set_all_check_state(Qt.Unchecked)
+        self._set_all_check_state(UNCHECKED)
 
     def _set_all_check_state(self, state: Qt.CheckState):
         root = self.treeFiles.invisibleRootItem()
         for i in range(root.childCount()):
             item = root.child(i)
-            if item.flags() & Qt.ItemIsUserCheckable:
+            if item.flags() & ITEM_FLAG_CHECKABLE:
                 item.setCheckState(0, state)
 
     def add_file_item(self, rel_path: str, size: int, status_text: str, 
@@ -121,27 +120,27 @@ class ProjectFileSelectionWidget(QWidget):
         item = SortableTreeWidgetItem(self.treeFiles)
         item.setText(0, rel_path)
         item.setText(1, self.human_size(size))
-        item.setTextAlignment(1, Qt.AlignRight | Qt.AlignVCenter)
+        item.setTextAlignment(1, ALIGN_RIGHT | ALIGN_VCENTER)
         item.setText(2, status_text)
         
         item.setData(0, USER_ROLE, rel_path)
         item.setData(1, USER_ROLE, size)  # Store raw size for sorting
 
         if is_mandatory:
-            item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
+            item.setFlags(item.flags() & ~ITEM_FLAG_CHECKABLE)
             font = item.font(0)
             font.setItalic(True)
             item.setFont(0, font)
             item.setFont(1, font)
-            item.setCheckState(0, Qt.Checked)
+            item.setCheckState(0, CHECKED)
         else:
-            item.setCheckState(0, Qt.Checked if checked else Qt.Unchecked)
+            item.setCheckState(0, CHECKED if checked else UNCHECKED)
 
         if is_locked:
-            item.setCheckState(0, Qt.Unchecked)
-            item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
+            item.setCheckState(0, UNCHECKED)
+            item.setFlags(item.flags() & ~ITEM_FLAG_CHECKABLE)
             # Gray out
-            gray = QBrush(Qt.gray)
+            gray = QBrush(COLOR_GRAY)
             item.setForeground(0, gray)
             item.setForeground(1, gray)
             item.setForeground(2, gray)
@@ -163,7 +162,7 @@ class ProjectFileSelectionWidget(QWidget):
         root = self.treeFiles.invisibleRootItem()
         for i in range(root.childCount()):
             item = root.child(i)
-            if item.checkState(0) == Qt.Checked:
+            if item.checkState(0) == CHECKED:
                 selected.append(item.data(0, USER_ROLE))
         return selected
 

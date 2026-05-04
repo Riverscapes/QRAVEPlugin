@@ -5,8 +5,9 @@ import json
 import math
 from qgis.core import QgsTask, QgsApplication, Qgis
 from qgis.PyQt.QtCore import QObject, QByteArray, QUrl, QIODevice, QFile, QEventLoop, pyqtSignal
-from qgis.PyQt.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
+from qgis.PyQt.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from ..util import MULTIPART_CHUNK_SIZE
+from ...compat import NET_CONTENT_LENGTH_HEADER, NET_OP_CANCELED_ERROR, NET_NO_ERROR
 
 MAX_PROGRESS_INTERVAL = 1  # seconds
 
@@ -141,7 +142,7 @@ class UploadMultiPartFileTask(QgsTask):
                 self.file_upload_log(f"Uploading chunk bytes {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Info)
 
                 request = QNetworkRequest(QUrl(url))
-                request.setHeader(QNetworkRequest.ContentLengthHeader, part_size)
+                request.setHeader(NET_CONTENT_LENGTH_HEADER, part_size)
 
                 partial_file = PartialFile(self.file_path, start, end, self.file_upload_log, self._progress_callback)
                 seq = partial_file.isSequential()
@@ -154,19 +155,19 @@ class UploadMultiPartFileTask(QgsTask):
                     """Make sure we clean up and close file handles if the cancel signal has been called
                     """
                     # self.file_upload_log(f"WARNING: Task was cancelled, aborting upload of chunk {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Warning)
-                    self.error = QNetworkReply.OperationCanceledError
+                    self.error = NET_OP_CANCELED_ERROR
                     self.reply.abort()
                     partial_file.close()
 
                 # Handle the network request completion
                 def handle_done():
                     # Detect if the reply was cancelled
-                    if self.reply.error() == QNetworkReply.OperationCanceledError:
-                        self.error = QNetworkReply.OperationCanceledError
+                    if self.reply.error() == NET_OP_CANCELED_ERROR:
+                        self.error = NET_OP_CANCELED_ERROR
                         # self.file_upload_log(f"WARNING: Upload cancelled for chunk {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Warning)
                         loop.quit()
 
-                    elif self.reply.error() != QNetworkReply.NoError:
+                    elif self.reply.error() != NET_NO_ERROR:
                         self.error = self.reply.errorString()
                         # Raising here will be caught below and cause a retry (hopefully)
                         raise Exception(f"Error uploading chunk {start}-{end} to {url}: {self.reply.errorString()}")
@@ -185,11 +186,11 @@ class UploadMultiPartFileTask(QgsTask):
                 # Wait for the upload to complete or for the task to be cancelled
                 # self.file_upload_log(f"     ######### LOOP: Waiting.....", Qgis.Info)
                 # Hooke the loop to the reply
-                loop.exec_()
+                loop.exec()
                 # self.file_upload_log(f"     ######### LOOP: Waiting Done!!.", Qgis.Info)
 
                 # Return false on failure
-                if self.error == QNetworkReply.OperationCanceledError:
+                if self.error == NET_OP_CANCELED_ERROR:
                     # Cancelled. Don't retry and don't continue
                     return False
                 elif self.error:
@@ -362,7 +363,7 @@ class UploadQueue(QObject):
         Args:
             task(_type_): _description_
         """
-        if task.error == QNetworkReply.OperationCanceledError:
+        if task.error == NET_OP_CANCELED_ERROR:
             self.queue_logger(f"Cancelled upload of {task.rel_path}", Qgis.Warning)
         elif task.error:
             self.queue_logger(f"Error uploading {task.rel_path}: {task.error}", Qgis.Critical, task)
@@ -412,8 +413,8 @@ class UploadQueue(QObject):
                     task.cancel()
                     tasks_need_cancel += 1
 
-        loop.exec_()
+        loop.exec()
 
         # Now signal that we're done
-        self.queue_logger(f"Uploads cancelled", Qgis.Info)
+        self.queue_logger("Uploads cancelled", Qgis.Info)
         self.cancelled_signal.emit()

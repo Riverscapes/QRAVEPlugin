@@ -2904,9 +2904,19 @@ else:
     qt_resource_struct = qt_resource_struct_v2
 
 def qInitResources():
-    QtCore.qRegisterResourceData(rcc_version, qt_resource_struct, qt_resource_name, qt_resource_data)
+    try:
+        QtCore.qRegisterResourceData(rcc_version, qt_resource_struct, qt_resource_name, qt_resource_data)
+    except AttributeError:
+        # qRegisterResourceData was removed in PyQt6; icons will be served
+        # from the filesystem via icon_utils.qrave_icon() instead.
+        pass
+
 
 def qCleanupResources():
-    QtCore.qUnregisterResourceData(rcc_version, qt_resource_struct, qt_resource_name, qt_resource_data)
+    try:
+        QtCore.qUnregisterResourceData(rcc_version, qt_resource_struct, qt_resource_name, qt_resource_data)
+    except AttributeError:
+        pass
+
 
 qInitResources()
