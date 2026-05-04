@@ -32,6 +32,7 @@ class OptionsDialog(QDialog):
     def setValues(self):
         self.basemapsInclude.setChecked(self.settings.getValue('basemapsInclude'))
         self.loadDefaultView.setChecked(self.settings.getValue('loadDefaultView'))
+        self.chk_telemetry.setChecked(self.settings.getValue('telemetryEnabled'))
         self.autoUpdate.setChecked(self.settings.getValue('autoUpdate'))
         self.txtBL.setText(self.settings.getValue('localBLFolder'))
 
@@ -108,6 +109,11 @@ class OptionsDialog(QDialog):
         self.loadDefaultView = QCheckBox(self)
         self.loadDefaultView.setText("Load default project views when opening projects")
         self.verticalLayout.addWidget(self.loadDefaultView)
+
+        # Telemetry
+        self.chk_telemetry = QCheckBox("Help improve the software by sharing anonymous usage data.")
+        self.verticalLayout.addWidget(self.chk_telemetry)
+
         # Dock location radio buttons
         self.grid = QGridLayout()
         self.labelDock = QLabel("Default Dock widget location")
@@ -136,7 +142,7 @@ class OptionsDialog(QDialog):
         self.verticalLayout.addItem(spacerItem)
         self.buttonBox = QDialogButtonBox(self)
         self.buttonBox.setOrientation(Qt.Horizontal)
-        self.buttonBox.setStandardButtons(QDialogButtonBox.Apply|QDialogButtonBox.Cancel|QDialogButtonBox.Reset)
+        self.buttonBox.setStandardButtons(QDialogButtonBox.Apply | QDialogButtonBox.Cancel | QDialogButtonBox.Reset)
         self.verticalLayout.addWidget(self.buttonBox)
         # Standard buttons
         self.buttonBox.accepted.connect(self.accept)

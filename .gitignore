@@ -9,6 +9,9 @@ __pycache__/
 # Resources comes from external. We may ship with them but they should not be in git
 resources
 
+# Ignore any secrets file that may be used to store API keys or other sensitive information
+secrets.json
+
 # PUBLIC is where the GH pages branch gets built
 PUBLIC
 # Ruby gems installed using bundler

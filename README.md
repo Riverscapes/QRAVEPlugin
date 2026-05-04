@@ -118,6 +118,12 @@ $QGIS_PATH_PYTHON_PATH/pip3 wheel rsxml==2.2.1 -w ./wheels --no-deps
 * [QGIS API Documentation](https://qgis.org/api/) - Here you'll find Qgis-specific information for the API, endpoints, signals, slots etc.
 * [Qt for Python](https://doc.qt.io/qtforpython-5/) - Qt is a C++ library so you need to specify the Python docs. This is where you find help with things like QtGui and QtWidgets
 
+## Telemetry
+
+Sharing anonymous usage data is now enabled with a telemetry ping on open project. 
+
+Rename the file `secrets_TEMPLATE.json` to just `secrets.json` and supply the API URL and token.
+
 
 ## Building the UI files
 

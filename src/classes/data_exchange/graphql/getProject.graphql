@@ -1,4 +1,4 @@
-query getProject($id: ID!) {
+query getProjectFull($id: ID!, $fileLimit: Int = 500, $fileOffset: Int = 0) {
   project(id: $id) {
     id
     name
@@ -20,10 +20,13 @@ query getProject($id: ID!) {
       update
       view
     }
-    files {
-      localPath
-      size
-      etag      
+    projectFiles(limit: $fileLimit, offset: $fileOffset) {
+      total
+      items {
+        localPath
+        size
+        etag
+      }
     }
   }
 }
