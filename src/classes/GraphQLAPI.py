@@ -2,8 +2,8 @@ from typing import Dict, Any, Callable
 import os
 import time
 import traceback
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtCore import QUrl, QUrlQuery
+from qgis.PyQt.QtGui import QDesktopServices
+from qgis.PyQt.QtCore import QUrl, QUrlQuery
 from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
 from qgis.core import QgsMessageLog, Qgis, QgsTask, QgsApplication
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

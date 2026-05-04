@@ -1,14 +1,23 @@
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Any
 import os
 import time
 import json
 import math
 from qgis.core import QgsTask, QgsApplication, Qgis
-from PyQt5.QtCore import QObject, QByteArray, QUrl, QIODevice, QFile, QEventLoop, pyqtSlot, pyqtSignal
-from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
+from qgis.PyQt.QtCore import QObject, QByteArray, QUrl, QIODevice, QFile, QEventLoop, pyqtSignal
+from qgis.PyQt.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from ..util import MULTIPART_CHUNK_SIZE
 
 MAX_PROGRESS_INTERVAL = 1  # seconds
+
+# QT5 -> QT6 compatibility for QIODevice.OpenMode type
+# Qt5 exposes QIODevice.OpenMode/ReadOnly, Qt6 uses OpenModeFlag.ReadOnly.
+if hasattr(QIODevice, 'OpenModeFlag'):
+    OPEN_MODE_TYPE = QIODevice.OpenModeFlag
+    READ_ONLY_MODE = QIODevice.OpenModeFlag.ReadOnly
+else:
+    OPEN_MODE_TYPE = QIODevice.OpenMode
+    READ_ONLY_MODE = QIODevice.ReadOnly
 
 
 class PartialFile(QFile):
@@ -22,7 +31,7 @@ class PartialFile(QFile):
         self.current_pos = start
         self.part_size = end - start
 
-    def open(self, mode: QIODevice.OpenMode) -> bool:
+    def open(self, mode: Any) -> bool:
         fileopen = super().open(mode)
         self.seek(self.start)
         return fileopen
@@ -136,7 +145,7 @@ class UploadMultiPartFileTask(QgsTask):
 
                 partial_file = PartialFile(self.file_path, start, end, self.file_upload_log, self._progress_callback)
                 seq = partial_file.isSequential()
-                partial_file.open(QIODevice.ReadOnly)
+                partial_file.open(READ_ONLY_MODE)
 
                 # Start the actual Call
                 self.reply = self.nam.put(request, partial_file)

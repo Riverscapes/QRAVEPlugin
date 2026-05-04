@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-from typing import List, Dict
-import os
 import json
 
 
-from qgis.PyQt import uic
 from qgis.core import Qgis
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices, QGuiApplication, QBrush
 from qgis.PyQt.QtWidgets import QDockWidget, QMenu, QMessageBox, QWidget, QTextEdit, QVBoxLayout, QTreeView, QAbstractItemView
-from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl
+from qgis.PyQt.QtCore import pyqtSlot, Qt, QUrl
 
 from .classes.settings import Settings, CONSTANTS
+
+if hasattr(Qt, 'UserRole'):
+    USER_ROLE = Qt.UserRole
+else:
+    USER_ROLE = Qt.ItemDataRole.UserRole
 
 
 class MetaType:
@@ -28,7 +30,7 @@ class QRAVEMetaWidget(QDockWidget):
         super(QRAVEMetaWidget, self).__init__(parent)
         self.setupUi()
 
-        self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.treeView.setContextMenuPolicy(getattr(Qt, 'CustomContextMenu', Qt.ContextMenuPolicy.CustomContextMenu))
         self.treeView.customContextMenuRequested.connect(self.open_menu)
         self.treeView.doubleClicked.connect(self.default_tree_action)
 
@@ -138,7 +140,7 @@ class QRAVEMetaWidget(QDockWidget):
         val_item = QStandardItem(value)
         if (value is not None and len(value) > 0):
             val_item.setToolTip(value)
-        val_item.setData(meta_type, Qt.UserRole)
+        val_item.setData(meta_type, USER_ROLE)
 
         if meta_type is not None:
             meta_type_lower = meta_type.lower()
@@ -157,7 +159,7 @@ class QRAVEMetaWidget(QDockWidget):
 
     def default_tree_action(self, index):
         item = self.model.itemFromIndex(index)
-        meta_type = item.data(Qt.UserRole)
+        meta_type = item.data(USER_ROLE)
         text = item.text()
 
         if meta_type is not None and text is not None:
@@ -183,7 +185,7 @@ class QRAVEMetaWidget(QDockWidget):
         self.menu.clear()
         if item_val is not None:
             row_text = {item_name.text(): item_val.text()}
-            meta_type = item_val.data(Qt.UserRole)
+            meta_type = item_val.data(USER_ROLE)
             meta_type_lower = meta_type.lower() if meta_type else ""
             if (meta_type_lower in ['url', 'link', 'image', 'video']) and item_val.text().startswith('http'):
                 self.menu.addAction('Visit URL in Browser', lambda: QDesktopServices.openUrl(QUrl(item_val.text())))
@@ -225,7 +227,7 @@ class QRAVEMetaWidget(QDockWidget):
         self.verticalLayout.addWidget(self.descriptionBox)
 
         self.treeView = QTreeView(self.dockWidgetContents)
-        self.treeView.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.treeView.setEditTriggers(getattr(QAbstractItemView, 'NoEditTriggers', QAbstractItemView.EditTrigger.NoEditTriggers))
         self.treeView.setProperty("showDropIndicator", False)
         self.treeView.setAlternatingRowColors(True)
         self.treeView.setIndentation(0)

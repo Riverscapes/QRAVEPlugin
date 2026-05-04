@@ -2,7 +2,7 @@ import json
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
-from PyQt5 import QtCore, QtGui, QtWidgets
+from qgis.PyQt import QtCore, QtGui, QtWidgets
 from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRectangle, QgsGeometry, QgsFeatureRequest, QgsMapLayer, QgsFeature, QgsVectorFileWriter, QgsCoordinateTransformContext
 
 

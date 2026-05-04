@@ -16,6 +16,10 @@ from .settings import CONSTANTS, Settings
 import re
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
+if hasattr(Qt, 'UserRole'):
+    USER_ROLE = Qt.UserRole
+else:
+    USER_ROLE = Qt.ItemDataRole.UserRole
 
 BL_XML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', CONSTANTS['businessLogicDir'])
 
@@ -229,7 +233,7 @@ class Project:
         self.views = {}
 
         curr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), "Project Views")
-        curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW_FOLDER, project=self), Qt.UserRole)
+        curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW_FOLDER, project=self), USER_ROLE)
 
         for view in self.business_logic.findall('Views/View'):
             name = view.attrib['name']
@@ -243,7 +247,7 @@ class Project:
             self.views[view_id] = view_layer_ids
             view_item.setData(
                 ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW, project=self, data=view_layer_ids),
-                Qt.UserRole
+                USER_ROLE
             )
             curr_item.appendRow(view_item)
 
@@ -297,10 +301,10 @@ class Project:
         if children_container is not None:
             if is_root is True:
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'))
-                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self, data=dict(children_container.attrib)), Qt.UserRole),
+                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self, data=dict(children_container.attrib)), USER_ROLE),
             else:
                 curr_item.setIcon(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'))
-                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data=dict(children_container.attrib)), Qt.UserRole),
+                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data=dict(children_container.attrib)), USER_ROLE),
 
             for child_node in children_container.xpath('*'):
                 # Handle any explicit <Node> children
@@ -310,7 +314,7 @@ class Project:
                 # Repeaters are a separate case
                 elif child_node.tag == 'Repeater':
                     qrepeater = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), child_node.attrib['label'])
-                    qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self, data=dict(children_container.attrib)), Qt.UserRole),
+                    qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self, data=dict(children_container.attrib)), USER_ROLE),
                     curr_item.appendRow(qrepeater)
 
                     if len(child_node.attrib['xpath']) == 0:
@@ -388,7 +392,7 @@ class Project:
             layer_description = desc_el.text.strip() if desc_el is not None and desc_el.text else None
 
             map_layer = QRaveMapLayer(curr_label, layer_type, layer_uri, bl_attr, meta, layer_name, description=layer_description)
-            curr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), Qt.UserRole)
+            curr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), USER_ROLE)
 
             if bl_type == 'tin':
                 curr_item_font = curr_item.font()

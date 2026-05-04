@@ -9,6 +9,11 @@ from qgis.PyQt.QtCore import Qt
 from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
 from .settings import CONSTANTS, Settings
 
+if hasattr(Qt, 'UserRole'):
+    USER_ROLE = Qt.UserRole
+else:
+    USER_ROLE = Qt.ItemDataRole.UserRole
+
 
 class RemoteProject:
 
@@ -106,7 +111,7 @@ class RemoteProject:
         
         # Create the root item
         self.qproject = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/data-exchange-icon.svg'), self.name)
-        self.qproject.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self), Qt.UserRole)
+        self.qproject.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self), USER_ROLE)
 
         # Index branches and leaves by pid for efficient recursive lookup
         branch_map = {}
@@ -146,7 +151,7 @@ class RemoteProject:
                 continue
 
             item = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/BrowseFolder.png'), label)
-            item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data={'collapsed': branch.get('collapsed')}), Qt.UserRole)
+            item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data={'collapsed': branch.get('collapsed')}), USER_ROLE)
             parent_item.appendRow(item)
             
             # Recurse for children of this branch
@@ -212,7 +217,7 @@ class RemoteProject:
             
             map_layer.exists = False 
             
-            item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), Qt.UserRole)
+            item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), USER_ROLE)
             parent_item.appendRow(item)
 
             # Add to the item map so we can update it later
@@ -231,7 +236,7 @@ class RemoteProject:
             return
 
         curr_item = QStandardItem(self._get_icon(':/plugins/qrave_toolbar/BrowseFolder.png'), "Project Views")
-        curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW_FOLDER, project=self), Qt.UserRole)
+        curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW_FOLDER, project=self), USER_ROLE)
 
         for view in views_data:
             name = view.get('name')
@@ -246,7 +251,7 @@ class RemoteProject:
             self.views[view_id] = view_layer_ids
             view_item.setData(
                 ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW, project=self, data=view_layer_ids),
-                Qt.UserRole
+                USER_ROLE
             )
             curr_item.appendRow(view_item)
 
@@ -290,7 +295,7 @@ class RemoteProject:
             layers_map = {l['lyrName']: l for l in ds_layers if 'lyrName' in l}
 
             for item in tree_items:
-                tree_data = item.data(Qt.UserRole)
+                tree_data = item.data(USER_ROLE)
                 if tree_data and isinstance(tree_data.data, QRaveMapLayer):
                     layer = tree_data.data
                     

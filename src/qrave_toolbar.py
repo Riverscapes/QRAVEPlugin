@@ -52,6 +52,13 @@ RESOURCES_DIR = os.path.join(os.path.dirname(__file__), '..', 'resources')
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
+if hasattr(QToolButton, 'MenuButtonPopup'):
+    MENU_BUTTON_POPUP_MODE = QToolButton.MenuButtonPopup
+    INSTANT_POPUP_MODE = QToolButton.InstantPopup
+else:
+    MENU_BUTTON_POPUP_MODE = QToolButton.ToolButtonPopupMode.MenuButtonPopup
+    INSTANT_POPUP_MODE = QToolButton.ToolButtonPopupMode.InstantPopup
+
 
 class QRAVE:
     """QGIS Plugin Implementation."""
@@ -208,9 +215,9 @@ class QRAVE:
         self.actions.append(self.downloadProjectAction)
 
         self.toolsButton = QToolButton()
-        self.toolsButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.toolsButton.setToolButtonStyle(getattr(Qt, 'ToolButtonTextOnly', Qt.ToolButtonStyle.ToolButtonTextOnly))
         self.toolsButton.setMenu(QMenu())
-        self.toolsButton.setPopupMode(QToolButton.MenuButtonPopup)
+        self.toolsButton.setPopupMode(MENU_BUTTON_POPUP_MODE)
         self.toolsButton.setText('Tools')
 
         m_tools = self.toolsButton.menu()
@@ -258,9 +265,9 @@ class QRAVE:
         m_tools.addAction(self.raveOptionsAction)
 
         self.helpButton = QToolButton()
-        self.helpButton.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.helpButton.setToolButtonStyle(getattr(Qt, 'ToolButtonTextOnly', Qt.ToolButtonStyle.ToolButtonTextOnly))
         self.helpButton.setMenu(QMenu())
-        self.helpButton.setPopupMode(QToolButton.MenuButtonPopup)
+        self.helpButton.setPopupMode(MENU_BUTTON_POPUP_MODE)
 
         m = self.helpButton.menu()
         m.setTitle("Help")
@@ -309,7 +316,7 @@ class QRAVE:
         self.viewer_button.setIcon(QIcon(':/plugins/qrave_toolbar/viewer-icon.svg'))
         self.viewer_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.viewer_button.setMenu(self.menu)
-        self.viewer_button.setPopupMode(QToolButton.InstantPopup)  # Clicking anywhere opens the menu
+        self.viewer_button.setPopupMode(INSTANT_POPUP_MODE)  # Clicking anywhere opens the menu
 
         self.toolbar.addWidget(self.viewer_button)
 

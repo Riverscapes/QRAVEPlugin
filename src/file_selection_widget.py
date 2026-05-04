@@ -6,13 +6,18 @@ from qgis.PyQt.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtGui import QBrush, QColor, QFont
 
+if hasattr(Qt, 'UserRole'):
+    USER_ROLE = Qt.UserRole
+else:
+    USER_ROLE = Qt.ItemDataRole.UserRole
+
 
 class SortableTreeWidgetItem(QTreeWidgetItem):
     def __lt__(self, other):
         column = self.treeWidget().sortColumn()
         if column == 1:  # Size column
-            size_raw_self = self.data(column, Qt.UserRole)
-            size_raw_other = other.data(column, Qt.UserRole)
+            size_raw_self = self.data(column, USER_ROLE)
+            size_raw_other = other.data(column, USER_ROLE)
             if isinstance(size_raw_self, (int, float)) and isinstance(size_raw_other, (int, float)):
                 return size_raw_self < size_raw_other
         return super().__lt__(other)
@@ -119,8 +124,8 @@ class ProjectFileSelectionWidget(QWidget):
         item.setTextAlignment(1, Qt.AlignRight | Qt.AlignVCenter)
         item.setText(2, status_text)
         
-        item.setData(0, Qt.UserRole, rel_path)
-        item.setData(1, Qt.UserRole, size)  # Store raw size for sorting
+        item.setData(0, USER_ROLE, rel_path)
+        item.setData(1, USER_ROLE, size)  # Store raw size for sorting
 
         if is_mandatory:
             item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
@@ -159,7 +164,7 @@ class ProjectFileSelectionWidget(QWidget):
         for i in range(root.childCount()):
             item = root.child(i)
             if item.checkState(0) == Qt.Checked:
-                selected.append(item.data(0, Qt.UserRole))
+                selected.append(item.data(0, USER_ROLE))
         return selected
 
     @staticmethod

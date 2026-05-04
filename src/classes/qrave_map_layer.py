@@ -25,6 +25,10 @@ from .rspaths import parse_rel_path
 from .settings import CONSTANTS, Settings
 
 SYMBOLOGY_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'symbology')
+if hasattr(Qt, 'UserRole'):
+    USER_ROLE = Qt.UserRole
+else:
+    USER_ROLE = Qt.ItemDataRole.UserRole
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
@@ -116,7 +120,7 @@ class QRaveMapLayer():
         if parent is not None:
             child_idx = 0
             child = parent.child(child_idx)
-            child_data = child.data(Qt.UserRole)
+            child_data = child.data(USER_ROLE)
             while child_data is not None:
                 if child.text() == name:
                     return absolute_position, order
@@ -129,7 +133,7 @@ class QRaveMapLayer():
                 order.append(child.text())
                 child_idx += 1
                 child = parent.child(child_idx)
-                child_data = child.data(Qt.UserRole) if child is not None else None
+                child_data = child.data(USER_ROLE) if child is not None else None
 
         return absolute_position, order
 
@@ -164,7 +168,7 @@ class QRaveMapLayer():
         settings = Settings()
         chosen_qml = None
         # No multiselect so there is only ever one item
-        pt_data: ProjectTreeData = item.data(Qt.UserRole)
+        pt_data: ProjectTreeData = item.data(USER_ROLE)
         project = pt_data.project
         map_layer: QRaveMapLayer = pt_data.data
 
@@ -245,7 +249,7 @@ class QRaveMapLayer():
         """
 
         # No multiselect so there is only ever one item
-        pt_data: ProjectTreeData = item.data(Qt.UserRole)
+        pt_data: ProjectTreeData = item.data(USER_ROLE)
         project = pt_data.project
         map_layer: QRaveMapLayer = pt_data.data
 
@@ -355,7 +359,7 @@ class QRaveMapLayer():
     def add_remote_vector_layer_to_map(item: QStandardItem, tile_service: Dict):
         """ Add a remote vector tile layer to the map
         """
-        pt_data: ProjectTreeData = item.data(Qt.UserRole)
+        pt_data: ProjectTreeData = item.data(USER_ROLE)
         map_layer: QRaveMapLayer = pt_data.data
         settings = Settings()
 
@@ -551,7 +555,7 @@ class QRaveMapLayer():
     def add_remote_raster_layer_to_map(item: QStandardItem, tile_service: Dict):
         """ Add a remote raster layer to the map
         """
-        pt_data: ProjectTreeData = item.data(Qt.UserRole)
+        pt_data: ProjectTreeData = item.data(USER_ROLE)
         map_layer: QRaveMapLayer = pt_data.data
         settings = Settings()
 

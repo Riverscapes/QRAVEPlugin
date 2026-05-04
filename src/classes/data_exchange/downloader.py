@@ -1,10 +1,8 @@
-from typing import List, Tuple, Callable, Dict
 import os
 import time
-import json
 import requests
 from qgis.core import QgsTask, QgsApplication, Qgis
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
+from qgis.PyQt.QtCore import QObject, pyqtSignal
 
 MAX_PROGRESS_INTERVAL = 1  # seconds
 

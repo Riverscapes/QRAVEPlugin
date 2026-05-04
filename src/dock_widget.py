@@ -28,11 +28,9 @@ import json
 import requests
 
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl, QTimer
-from qgis.PyQt.QtNetwork import QNetworkRequest
-from qgis.PyQt.QtWidgets import QDockWidget, QWidget, QTreeView, QVBoxLayout, QMenu, QAction, QFileDialog, QMessageBox, QApplication
+from qgis.PyQt.QtWidgets import QDockWidget, QFileDialog, QMessageBox, QApplication
 from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QIcon, QDesktopServices
-from qgis.core import Qgis, QgsRasterLayer, QgsVectorLayer, QgsProject, QgsBlockingNetworkRequest
-from qgis.PyQt import uic
+from qgis.core import Qgis, QgsProject
 
 
 from .ui.dock_widget import Ui_QRAVEDockWidgetBase
@@ -53,6 +51,10 @@ from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
 
 
 ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
+if hasattr(Qt, 'UserRole'):
+    USER_ROLE = Qt.UserRole
+else:
+    USER_ROLE = Qt.ItemDataRole.UserRole
 
 
 class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
@@ -76,7 +78,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.qproject.homePathChanged.connect(self.project_homePathChanged)
         self.qproject.readProject.connect(self.reload_tree)
 
-        self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.treeView.setContextMenuPolicy(getattr(Qt, 'CustomContextMenu', Qt.ContextMenuPolicy.CustomContextMenu))
         self.treeView.customContextMenuRequested.connect(self.open_menu)
         self.treeView.doubleClicked.connect(self.default_tree_action)
         self.treeView.clicked.connect(self.item_change)
@@ -100,7 +102,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
     def expand_tree_item(self, idx: QModelIndex):
         item = self.model.itemFromIndex(idx)
-        item_data = item.data(Qt.UserRole)
+        item_data = item.data(USER_ROLE)
         if item_data and item_data.data and isinstance(item_data.data, QRaveBaseMap):
             item_data.data.load_layers()
 
@@ -117,7 +119,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         for row in range(root_item.rowCount()):
             child_item = root_item.child(row)
             if child_item is not None:
-                item_data = child_item.data(Qt.UserRole)
+                item_data = child_item.data(USER_ROLE)
                 if item_data and hasattr(item_data, 'project') and item_data.project is not None:
                     projects.append(item_data.project)
         return projects
@@ -391,7 +393,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         loading_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/refresh.png'), f"Loading Remote: {label}...")
         # Use a special data role to identify it
-        loading_item.setData("LOADING_PLACEHOLDER", Qt.UserRole + 10)
+        loading_item.setData("LOADING_PLACEHOLDER", USER_ROLE + 10)
         self.model.insertRow(0, loading_item)
 
     def hide_loading(self):
@@ -399,7 +401,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         root = self.model.invisibleRootItem()
         for i in range(root.rowCount()):
             item = root.child(i)
-            if item and item.data(Qt.UserRole + 10) == "LOADING_PLACEHOLDER":
+            if item and item.data(USER_ROLE + 10) == "LOADING_PLACEHOLDER":
                 root.removeRow(i)
                 # We return here because we only expect one, and loop indices change after removeRow
                 return
@@ -467,7 +469,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             self.expand_children_recursive(child, force)
 
         item = self.model.itemFromIndex(idx)
-        item_data = item.data(Qt.UserRole) if item is not None else None
+        item_data = item.data(USER_ROLE) if item is not None else None
 
         # NOTE: This is pretty verbose on purpose
 
@@ -508,7 +510,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 self.restore_expanded_state(child_idx, expanded_paths, child_path)
 
         item = self.model.itemFromIndex(idx)
-        item_data = item.data(Qt.UserRole) if item is not None else None
+        item_data = item.data(USER_ROLE) if item is not None else None
 
         # Determine if we should forcefully collapse (e.g. BaseMaps to avoid network hits)
         is_basemap = False
@@ -526,7 +528,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             return
 
         item = self.model.itemFromIndex(idx)
-        item_data: ProjectTreeData = item.data(Qt.UserRole)
+        item_data: ProjectTreeData = item.data(USER_ROLE)
 
         # This is the default action for all add-able layers including basemaps
         if isinstance(item_data.data, QRaveMapLayer):
@@ -585,7 +587,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # No multiselect so there is only ever one item
         item = self.model.itemFromIndex(indexes[0])
-        data_item: ProjectTreeData = item.data(Qt.UserRole)
+        data_item: ProjectTreeData = item.data(USER_ROLE)
 
         if data_item.project is None or not data_item.project.exists:
             return
@@ -996,7 +998,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         for child in self._get_children(item):
             # Is this something we can add to the map?
-            project_tree_data = child.data(Qt.UserRole)
+            project_tree_data = child.data(USER_ROLE)
             if project_tree_data is not None and isinstance(project_tree_data.data, QRaveMapLayer):
                 data = project_tree_data.data
                 loadme = False
@@ -1052,7 +1054,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             return
 
         item = self.model.itemFromIndex(indexes[0])
-        project_tree_data = item.data(Qt.UserRole)  # ProjectTreeData object
+        project_tree_data = item.data(USER_ROLE)  # ProjectTreeData object
         # Could be a QRaveBaseMap, a QRaveMapLayer or just some random data
         data = project_tree_data.data
 

@@ -19,6 +19,11 @@ from .classes.data_exchange.uploader import UploadQueue, UploadMultiPartFileTask
 from .ui.project_upload_dialog import Ui_Dialog
 from .file_selection_widget import ProjectFileSelectionWidget
 
+if hasattr(Qt, 'UserRole'):
+    USER_ROLE = Qt.UserRole
+else:
+    USER_ROLE = Qt.ItemDataRole.UserRole
+
 
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
@@ -523,7 +528,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             for org in self.profile.organizations:
                 item_name = f"{org.name} ({org.myRole.lower().capitalize()})"
                 item = QStandardItem(item_name)
-                item.setData(org.id, Qt.UserRole)
+                item.setData(org.id, USER_ROLE)
                 self.upload_log(f'    - {item_name}: [{org.myRole}]({org.id})', Qgis.Info)
 
                 # Disable the item if org.myRole meets your condition
@@ -545,7 +550,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             # Even when we reload the data
             if self.org_id is not None:
                 for i in range(self.orgSelect.count()):
-                    if self.OrgModel.item(i).data(Qt.UserRole) == self.org_id:
+                    if self.OrgModel.item(i).data(USER_ROLE) == self.org_id:
                         self.upload_log(f'  - Setting the previously selected organization: {self.org_id}', Qgis.Info)
                         self.orgSelect.setCurrentIndex(i)
                         org_index_set = True
@@ -578,7 +583,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """
         # Get the current item's data
         if index > -1:
-            item_data = self.OrgModel.item(index).data(Qt.UserRole)
+            item_data = self.OrgModel.item(index).data(USER_ROLE)
             if item_data is not None:
                 print(f"Selected organization ID: {item_data}")
                 self.org_id = item_data
@@ -765,7 +770,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         keep_count = 0
         
         for item in all_items:
-            # rel_path = item.data(0, Qt.UserRole)
+            # rel_path = item.data(0, USER_ROLE)
             status = item.text(2)
             checked = item.checkState(0) == Qt.Checked
             
@@ -811,7 +816,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         root = self.fileSelection.treeFiles.invisibleRootItem()
         for i in range(root.childCount()):
             item = root.child(i)
-            rel_path = item.data(0, Qt.UserRole)
+            rel_path = item.data(0, USER_ROLE)
             status = item.text(2)
             checked = item.checkState(0) == Qt.Checked
             
@@ -886,7 +891,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             btn_id = self.mine_group.checkedId()
             if btn_id == 1:
                 index = self.orgSelect.currentIndex()
-                self.org_id = self.OrgModel.item(index).data(Qt.UserRole)
+                self.org_id = self.OrgModel.item(index).data(USER_ROLE)
             else:
                 self.org_id = None
         self.recalc_state()

@@ -16,6 +16,10 @@ from .settings import CONSTANTS, Settings
 from .util import md5, requestFetch
 
 BASEMAPS_XML_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'BaseMaps.xml')
+if hasattr(Qt, 'UserRole'):
+    USER_ROLE = Qt.UserRole
+else:
+    USER_ROLE = Qt.ItemDataRole.UserRole
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 REQUEST_ARGS = '?service=wms&request=GetCapabilities&version=1.0.0'
@@ -120,7 +124,7 @@ class QRaveBaseMap():
                         meta=extra_meta
                     )
                 ),
-                Qt.UserRole
+                USER_ROLE
             )
             lyr_item.setToolTip(wrap_by_word(abstract, 20))
 
@@ -134,7 +138,7 @@ class QRaveBaseMap():
             title_fallback_el = self._child_by_localname(root_el, 'Title')
             fallback_title = title_fallback_el.text.strip() if title_fallback_el is not None and title_fallback_el.text else "Unnamed Layer"
             lyr_item = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), fallback_title)
-            lyr_item.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_SUB_FOLDER), Qt.UserRole)
+            lyr_item.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_SUB_FOLDER), USER_ROLE)
 
         parent.appendRow(lyr_item)
 
@@ -229,12 +233,12 @@ class BaseMaps(Borg):
         try:
             for region in lxml.etree.parse(BASEMAPS_XML_PATH).getroot().findall('Region'):
                 q_region = QStandardItem(QIcon(':/plugins/qrave_toolbar/layers/basemap.svg'), 'Basemaps')
-                q_region.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_ROOT), Qt.UserRole),
+                q_region.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_ROOT), USER_ROLE),
                 self.regions[region.attrib['name']] = q_region
 
                 for group_layer in region.findall('GroupLayer'):
                     q_group_layer = QStandardItem(QIcon(':/plugins/qrave_toolbar/BrowseFolder.png'), group_layer.attrib['name'])
-                    q_group_layer.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_SUPER_FOLDER), Qt.UserRole),
+                    q_group_layer.setData(ProjectTreeData(QRaveTreeTypes.BASEMAP_SUPER_FOLDER), USER_ROLE),
                     q_region.appendRow(q_group_layer)
 
                     for layer in group_layer.findall('Layer'):
@@ -266,7 +270,7 @@ class BaseMaps(Borg):
                         # WMS is complicated because it needs a lookup
                         q_layer.setData(
                             ProjectTreeData(QRaveTreeTypes.LEAF, None, pt_data),
-                            Qt.UserRole
+                            USER_ROLE
                         )
 
                         # We set the data to be Basemaps to help us load this stuff later

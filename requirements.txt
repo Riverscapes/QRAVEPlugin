@@ -51,7 +51,7 @@ PyOpenGL==3.1.0
 pyparsing==2.4.6
 pypiwin32==223
 pyproj==2.6.1.post1
-PyQt5==5.11.3
+PyQt5==6
 python-dateutil==2.8.1
 pytz==2020.1
 pywin32==224

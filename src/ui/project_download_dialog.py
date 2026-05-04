@@ -1,4 +1,4 @@
-from PyQt5 import QtCore, QtGui, QtWidgets
+from qgis.PyQt import QtCore, QtGui, QtWidgets
 from qgis.gui import QgsFileWidget
 
 class Ui_ProjectDownloadDialog(object):
