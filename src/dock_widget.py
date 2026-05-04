@@ -1098,7 +1098,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         elif project_tree_data.type == QRaveTreeTypes.PROJECT_VIEW:
             self.view_context_menu(menu, idx, item, project_tree_data)
 
-        menu.exec_(self.treeView.viewport().mapToGlobal(position))
+        menu.exec(self.treeView.viewport().mapToGlobal(position))
 
     def map_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
         if isinstance(item_data.project, RemoteProject):

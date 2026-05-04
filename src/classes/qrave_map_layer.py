@@ -4,9 +4,10 @@ import json
 import urllib.parse
 
 from typing import Dict
-from qgis.core import (Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsVectorTileLayer, 
-                       QgsRectangle, QgsCoordinateReferenceSystem, QgsCoordinateTransform, 
-                       QgsReferencedRectangle, QgsLayerMetadata)
+from qgis.core import (Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsVectorTileLayer,
+                       QgsRectangle, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
+                       QgsReferencedRectangle, QgsLayerMetadata,
+                       QgsLayerTreeGroup, QgsLayerTreeLayer)
 
 # Some builds of QGIS do not have the specialized MapboxGL renderer
 try:
@@ -140,25 +141,44 @@ class QRaveMapLayer():
     @staticmethod
     def _addgrouptomap(sGroupName, sGroupOrder, parentGroup):
         """
-        Add a hierarchical group to the layer manager
-        :param sGroupName:
-        :param parentGroup:
-        :return:
-        """
+        Add a hierarchical group to the layer manager.
 
-        # If no parent group specified then the parent is the ToC tree root
-        if not parentGroup:
+        Searches only direct children (not the full subtree) to avoid
+        accidentally matching a same-named group in a different project.
+        Group creation uses ``addGroup`` / ``insertGroup`` (both return a
+        stable C++-owned reference) rather than the
+        ``QgsLayerTreeGroup() + insertChildNode`` pattern, which transfers
+        Python->C++ ownership and invalidates the Python wrapper in PyQt6.
+        """
+        if parentGroup is None:
             parentGroup = QgsProject.instance().layerTreeRoot()
 
-        # Attempt to find the specified group in the parent
-        thisGroup = parentGroup.findGroup(sGroupName)
-        if not thisGroup:
+        # Search direct children only - avoids recursive false-matches when
+        # multiple projects with identical folder names are open.
+        thisGroup = None
+        for child in parentGroup.children():
+            if isinstance(child, QgsLayerTreeGroup) and child.name() == sGroupName:
+                thisGroup = child
+                break
 
-            # Hack to ensure that basemaps are always added to the bottom of the ToC
-            if sGroupName == 'Basemaps' and sGroupOrder == 0 and parentGroup == QgsProject.instance().layerTreeRoot():
+        if thisGroup is None:
+            # Basemaps always appended at the bottom of the root.
+            if (
+                sGroupName == 'Basemaps'
+                and sGroupOrder == 0
+                and parentGroup == QgsProject.instance().layerTreeRoot()
+            ):
                 thisGroup = parentGroup.addGroup(sGroupName)
-            else:
+            elif hasattr(parentGroup, 'insertGroup'):
+                # QGIS 3: convenience wrapper preserves sibling ordering.
                 thisGroup = parentGroup.insertGroup(sGroupOrder, sGroupName)
+            else:
+                # QGIS 4: insertGroup removed.  addGroup appends at the end
+                # but returns a stable C++-owned reference - unlike the
+                # ``QgsLayerTreeGroup() + insertChildNode`` pattern which
+                # transfers Python->C++ ownership and invalidates the wrapper
+                # in PyQt6, causing all subsequent groups to be re-rooted.
+                thisGroup = parentGroup.addGroup(sGroupName)
 
         return thisGroup
 
@@ -225,7 +245,7 @@ class QRaveMapLayer():
         ancestry_order.reverse()
         parentGroup = None
         for agroup, group_order in ancestry_order:
-            if not parentGroup:
+            if parentGroup is None:
                 parentGroup = QgsProject.instance().layerTreeRoot()
             pos = 0
             group_order.reverse()
@@ -235,7 +255,7 @@ class QRaveMapLayer():
                     pos += 1
             parentGroup = QRaveMapLayer._addgrouptomap(agroup, pos, parentGroup)
 
-        if not parentGroup:
+        if parentGroup is None:
             parentGroup = QgsProject.instance().layerTreeRoot()
 
         return parentGroup, ancestry
@@ -276,7 +296,7 @@ class QRaveMapLayer():
                     and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
                 exists = True
                 break
-            elif lyr[0] == ancestry[0][0]:  # bit of a hacky way to test if map layer is in the same named qproject
+            elif lyr and lyr[0] == ancestry[0][0]:  # bit of a hacky way to test if map layer is in the same named qproject
                 exists = True
                 break
 
@@ -340,7 +360,7 @@ class QRaveMapLayer():
                     settings.log('Error deriving transparency from layer: {}'.format(e), Qgis.Warning)
 
                 QgsProject.instance().addMapLayer(rOutput, False)
-                parentGroup.insertLayer(item.row(), rOutput)
+                parentGroup.insertChildNode(-1, QgsLayerTreeLayer(rOutput))
 
                 ##########################################
                 # Feature Filter (Definition Query)
@@ -428,7 +448,7 @@ class QRaveMapLayer():
 
         if rOutput and rOutput.isValid():
             QgsProject.instance().addMapLayer(rOutput, False)
-            parentGroup.insertLayer(item.row(), rOutput)
+            parentGroup.insertChildNode(-1, QgsLayerTreeLayer(rOutput))
 
             # Set extent and metadata AFTER adding to project to ensure they stick
             bounds = tile_service.get('bounds')
@@ -620,7 +640,7 @@ class QRaveMapLayer():
 
         if rOutput and rOutput.isValid():
             QgsProject.instance().addMapLayer(rOutput, False)
-            parentGroup.insertLayer(item.row(), rOutput)
+            parentGroup.insertChildNode(-1, QgsLayerTreeLayer(rOutput))
 
             # Set extent and metadata
             bounds = tile_service.get('bounds')
@@ -674,7 +694,7 @@ class QRaveMapLayer():
                 rOutput = QgsRasterLayer(uri, map_layer.tiles_label)
                 if rOutput and rOutput.isValid():
                     QgsProject.instance().addMapLayer(rOutput, False)
-                    parentGroup.insertLayer(item.row(), rOutput)
+                    parentGroup.insertChildNode(-1, QgsLayerTreeLayer(rOutput))
                     settings.log(f"Success on retry without provider!", Qgis.Info)
                 else:
                     settings.log(f"Fallback also failed.", Qgis.Critical)
@@ -698,6 +718,6 @@ class QRaveMapLayer():
     def remove_project_from_map(project_name):
 
         root = QgsProject.instance().layerTreeRoot()
-        for group in [child for child in root.children() if child.nodeType() == 0]:
+        for group in [child for child in root.children() if isinstance(child, QgsLayerTreeGroup)]:
             if group.name() == project_name:
                 root.removeChildNode(group)

@@ -229,6 +229,129 @@ pyrcc5 src/resources.qrc -o src/resources.py
 
 ---
 
+## Hotfix — Layer hierarchy still broken: all groups and layers added at root level
+
+**Reported after the layer-tree API fix above.**
+
+Three compounding bugs were identified and fixed, all in `src/classes/qrave_map_layer.py`.
+
+### Bug 1 (Critical) — PyQt6 ownership transfer invalidates group reference
+
+The QGIS 4 fallback introduced in the previous fix used:
+
+```python
+thisGroup = QgsLayerTreeGroup(sGroupName)       # Python allocates; Python owns
+parentGroup.insertChildNode(sGroupOrder, thisGroup)  # C++ takes ownership
+return thisGroup                                 # ← wrapper now INVALID in PyQt6
+```
+
+In PyQt6/sip6, when `insertChildNode` transfers ownership to C++, the original Python wrapper is marked as transferred and becomes falsy. The `_prepare_parent_group` loop then hits `if not parentGroup:` on the very next iteration and resets to `layerTreeRoot()`. Every group in the ancestry chain is therefore created at root level (not nested), and the layer lands at root too.
+
+**Fix**: replaced `QgsLayerTreeGroup() + insertChildNode` with `addGroup()`, which is a C++ method that allocates and inserts the node internally and returns a stable, C++-managed Python reference — no ownership transfer, no invalidation.
+
+### Bug 2 (High) — `findGroup()` searches recursively, matching wrong project's groups
+
+`QgsLayerTreeGroup.findGroup(name)` recurses through the entire subtree. With multiple Riverscapes projects open, it could return a same-named group from a different project, causing layers to be inserted under the wrong project.
+
+**Fix**: replaced `findGroup` in `_addgrouptomap` with a direct-children loop using `isinstance(child, QgsLayerTreeGroup)` — only direct children of `parentGroup` are checked.
+
+### Bug 3 (Medium) — `item.row()` is a plugin-model index, not a QGIS tree index
+
+`item.row()` returns the row of the `QStandardItem` inside the plugin's own dock-widget model. Passing this as the insertion index into a `QgsLayerTreeGroup` (which may have a completely different child count and ordering) produces undefined behaviour — QGIS 3 silently clamped it; QGIS 4 may not.
+
+**Fix**: replaced all four `insertChildNode(item.row(), QgsLayerTreeLayer(rOutput))` calls with `insertChildNode(-1, QgsLayerTreeLayer(rOutput))`. Passing `-1` as the index causes QGIS to append at the end of the group regardless of current child count — equivalent to append semantics, but using `insertChildNode` which exists in both QGIS 3 and QGIS 4.
+
+(`appendChildNode` was the first attempted fix here but was itself QGIS-4-only and does not exist on `QgsLayerTree` / `QgsLayerTreeGroup` in QGIS 3, producing `'QgsLayerTree' object has no attribute 'appendChildNode'`.)
+
+---
+
+## Hotfix — `IndexError: list index out of range` + groups still flat at root (QGIS 4.0.1)
+
+**Reported with full stack trace from QGIS 4.0.1-Norrköping.**
+
+Two bugs identified from the trace.
+
+### Bug A — `if not parentGroup` is falsy for an empty `QgsLayerTreeGroup` in PyQt6
+
+In PyQt6/sip6, `QgsLayerTreeGroup` exposes `__len__` mapped to its child count.
+A freshly-created empty group has 0 children → `bool(group) == False` → `not group` is `True`.
+
+The `_prepare_parent_group` loop and `_addgrouptomap` both used `if not parentGroup:` as a
+"not yet initialised" guard. In PyQt6 this guard fired on every freshly-created group,
+resetting `parentGroup` to `layerTreeRoot()` at the start of every loop iteration. Every
+group in the ancestry chain was therefore created at root level (not nested), and the layer
+landed at root too.
+
+**Fix**: replaced every `if not parentGroup:` with `if parentGroup is None:` (3 sites across
+`_addgrouptomap` and `_prepare_parent_group`).
+
+| File | Line | Before | After |
+|---|---|---|---|
+| `qrave_map_layer.py` | ~153 | `if not parentGroup:` | `if parentGroup is None:` |
+| `qrave_map_layer.py` | ~248 | `if not parentGroup:` (in loop) | `if parentGroup is None:` |
+| `qrave_map_layer.py` | ~258 | `if not parentGroup:` (post-loop) | `if parentGroup is None:` |
+
+### Bug B — `IndexError` when a layer exists in the registry but not in the layer tree
+
+`get_layer_ancestry` returns `[]` when a layer is registered with the project but absent
+from the layer tree (e.g. left over from earlier broken insertions). The existence-check
+loop then hit `lyr[0]` on an empty list:
+
+```python
+# Before — crashes with IndexError when lyr == []
+elif lyr[0] == ancestry[0][0]:
+
+# After — short-circuit guard
+elif lyr and lyr[0] == ancestry[0][0]:
+```
+
+---
+
+## Hotfix — Layer hierarchy not created in QGIS 4
+
+**Reported after initial migration.**
+
+Only one file required changes: `src/classes/qrave_map_layer.py`.
+
+### Root causes
+
+QGIS 4 removed or altered three layer-tree convenience methods and an enum comparison:
+
+| # | Line(s) | Old API | New API | Impact |
+|---|---|---|---|---|
+| 1 | 7–10 | *(missing imports)* | Added `QgsLayerTreeGroup`, `QgsLayerTreeLayer` to `qgis.core` imports | Required by fixes below |
+| 2 | ~161 | `parentGroup.insertGroup(idx, name)` | `hasattr` guard: QGIS 3 keeps `insertGroup`; QGIS 4 falls back to `QgsLayerTreeGroup(name)` + `insertChildNode(idx, node)` | Groups not positioned correctly / AttributeError |
+| 3 | ~349 | `parentGroup.insertLayer(idx, layer)` | `parentGroup.insertChildNode(idx, QgsLayerTreeLayer(layer))` | Layers dumped at tree root instead of inside groups |
+| 4 | ~437 | same `insertLayer` | same `insertChildNode` fix | Same as above (remote vector tiles) |
+| 5 | ~629, ~683 | same `insertLayer` (×2) | same `insertChildNode` fix | Same as above (remote raster tiles, incl. retry path) |
+| 6 | ~707 | `child.nodeType() == 0` | `isinstance(child, QgsLayerTreeGroup)` | `remove_project_from_map` silently did nothing in QGIS 4 because PyQt6 scoped-enum `!=` integer `0` |
+
+`insertChildNode(index, QgsLayerTreeLayer(layer))` is the low-level base API that has been
+stable across all QGIS 3.x and QGIS 4.x releases; the `insertLayer` / `insertGroup`
+convenience wrappers were thin QGIS 3 additions that were removed in QGIS 4.
+
+---
+
+## Hotfix — `ContextMenu object has no attribute exec_`
+
+**Reported after initial migration.**
+
+One `exec_()` call was missed during the bulk `exec_` → `exec` pass:
+
+| File | Line | Before | After |
+|---|---|---|---|
+| `src/dock_widget.py` | 1101 | `menu.exec_(…)` | `menu.exec(…)` |
+
+`menu` is a `ContextMenu` instance (subclass of `QMenu`).  In PyQt6, `QMenu.exec_()` no longer exists — only `exec()` — so every right-click on the project tree raised:
+
+```
+AttributeError: ContextMenu object has no attribute exec_
+```
+
+Verification: `grep -rn "exec_(" src/` now returns **zero results**.
+
+---
+
 ## What Was NOT Changed
 
 | Item | Reason |
