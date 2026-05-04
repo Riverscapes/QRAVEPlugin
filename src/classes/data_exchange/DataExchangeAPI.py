@@ -1,4 +1,5 @@
 from typing import List, Callable, Dict, OrderedDict
+import math
 import os
 import re
 from collections import namedtuple, OrderedDict
@@ -266,15 +267,46 @@ class DataExchangeAPI(QObject):
         Args:
             project_id (str): the id of the project to get
         """
+        limit = 500
+        query = self._load_query('getProject')
+
         def _parse_project(task: RunGQLQueryTask):
             project = None
             if task.response and not task.error:
-                project = DEProject(**task.response['data']['project'])
+                project_data = task.response['data']['project']
+
+                files_meta = project_data.get('projectFiles', {})
+                total = files_meta.get('total', 0)
+                items = list(files_meta.get('items', []))
+
+                # Paginate through remaining file pages if needed
+                if total > limit:
+                    num_pages = math.ceil(total / limit)
+                    for page in range(1, num_pages):
+                        page_offset = page * limit
+                        page_task = RunGQLQueryTask(self.api, query, {
+                            'id': project_id,
+                            'fileLimit': limit,
+                            'fileOffset': page_offset
+                        })
+                        page_task.run()
+                        if page_task.response and not page_task.error:
+                            page_items = page_task.response['data']['project'].get('projectFiles', {}).get('items', [])
+                            items.extend(page_items)
+
+                # Replace paginated files structure with flat list for DEProject
+                project_data['files'] = items
+                # Just for consistency let's clean up the projectFiles key
+                del project_data['projectFiles']
+                project = DEProject(**project_data)
 
             return callback(task, project)
 
-        return self.api.run_query(self._load_query('getProject'), {'id': project_id}, _parse_project)
-
+        return self.api.run_query(query, {
+            'id': project_id,
+            'fileLimit': limit,
+            'fileOffset': 0
+        }, _parse_project)
 
     def get_dataset_metadata(self, project_id: str, limit: int, offset: int, callback: Callable[[RunGQLQueryTask, Dict], None]):
         """ Get the metadata and descriptions for datasets
@@ -283,7 +315,7 @@ class DataExchangeAPI(QObject):
             ret_obj = None
             if task.response and not task.error:
                 ret_obj = task.response['data']['project']['datasets']
-            
+
             return callback(task, ret_obj)
 
         return self.api.run_query(self._load_query('webRaveDatasetMetadata'), {

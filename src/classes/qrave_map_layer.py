@@ -79,6 +79,7 @@ class QRaveMapLayer():
                  description: str = None):
 
         self.label = label
+        self.tiles_label = f"{label} (Tiles)"
         self.layer_uri = layer_uri
         layer_type = layer_type.lower() if layer_type else None
 
@@ -361,7 +362,7 @@ class QRaveMapLayer():
         parentGroup, ancestry = QRaveMapLayer._prepare_parent_group(item)
 
         # Check if exists
-        existing_layers = QgsProject.instance().mapLayersByName(map_layer.label)
+        existing_layers = QgsProject.instance().mapLayersByName(map_layer.tiles_label)
         layers_ancestry = [QRaveMapLayer.get_layer_ancestry(lyr) for lyr in existing_layers]
 
         exists = False
@@ -371,7 +372,7 @@ class QRaveMapLayer():
                 break
         
         if exists:
-            QgsProject.instance().mapLayersByName(map_layer.label)[0].triggerRepaint()
+            QgsProject.instance().mapLayersByName(map_layer.tiles_label)[0].triggerRepaint()
             return
 
         # Construct Tile URL
@@ -407,14 +408,14 @@ class QRaveMapLayer():
             if tile_service.get('minZoom') is not None:
                 uri += f"&zmin={tile_service['minZoom']}"
             
-            rOutput = QgsVectorTileLayer(uri, map_layer.label)
+            rOutput = QgsVectorTileLayer(uri, map_layer.tiles_label)
         elif fmt == 'gpkg':
             # GeoPackage format - assume it's a file download
             # Construct the URL: base_url/layer_name.gpkg
             # We use /vsicurl/ to stream it if possible
             file_url = f"{base_url}/{layer_name}.gpkg"
             uri = f"/vsicurl/{file_url}"
-            rOutput = QgsVectorLayer(uri, map_layer.label, "ogr")
+            rOutput = QgsVectorLayer(uri, map_layer.tiles_label, "ogr")
         else:
             settings.log(f"Unsupported format: {fmt}", Qgis.Warning)
 
@@ -443,8 +444,8 @@ class QRaveMapLayer():
                     rOutput.setExtent(rect)
 
                     metadata = rOutput.metadata()
-                    metadata.setIdentifier(map_layer.label)
-                    metadata.setTitle(map_layer.label)
+                    metadata.setIdentifier(map_layer.tiles_label)
+                    metadata.setTitle(map_layer.tiles_label)
                     
                     spatialExtent = QgsLayerMetadata.SpatialExtent()
                     spatialExtent.extent = QgsReferencedRectangle(rect, dest_crs)
@@ -469,7 +470,7 @@ class QRaveMapLayer():
                         try:
                             mapbox_json = json.loads(mapbox_json)
                         except json.JSONDecodeError:
-                            settings.log(f"Failed to parse mapboxJson string for {map_layer.label}", Qgis.Warning)
+                            settings.log(f"Failed to parse mapboxJson string for {map_layer.tiles_label}", Qgis.Warning)
                             mapbox_json = None
 
                     if mapbox_json:
@@ -544,7 +545,7 @@ class QRaveMapLayer():
             except Exception as e:
                 settings.log(f'Error setting transparency: {e}', Qgis.Warning)
         else:
-            settings.log(f'Failed to create valid remote layer for {map_layer.label}', Qgis.Critical)
+            settings.log(f'Failed to create valid remote layer for {map_layer.tiles_label}', Qgis.Critical)
 
     @staticmethod
     def add_remote_raster_layer_to_map(item: QStandardItem, tile_service: Dict):
@@ -557,7 +558,7 @@ class QRaveMapLayer():
         parentGroup, ancestry = QRaveMapLayer._prepare_parent_group(item)
 
         # Check if exists
-        existing_layers = QgsProject.instance().mapLayersByName(map_layer.label)
+        existing_layers = QgsProject.instance().mapLayersByName(map_layer.tiles_label)
         layers_ancestry = [QRaveMapLayer.get_layer_ancestry(lyr) for lyr in existing_layers]
 
         exists = False
@@ -567,7 +568,7 @@ class QRaveMapLayer():
                 break
         
         if exists:
-            QgsProject.instance().mapLayersByName(map_layer.label)[0].triggerRepaint()
+            QgsProject.instance().mapLayersByName(map_layer.tiles_label)[0].triggerRepaint()
             return
 
         # Symbology logic provided by user
@@ -604,14 +605,14 @@ class QRaveMapLayer():
                 uri = f"/vsicurl/{uri}"
             provider = "gdal"
 
-        settings.log(f"Attempting to add remote raster: {map_layer.label}", Qgis.Info)
+        settings.log(f"Attempting to add remote raster: {map_layer.tiles_label}", Qgis.Info)
         settings.log(f"  - Format: {fmt} (is_cog: {is_cog})", Qgis.Info)
         settings.log(f"  - Symbology Key: {symbology_key}", Qgis.Info)
         settings.log(f"  - Constructed Tile URL: {tile_url}", Qgis.Info)
         settings.log(f"  - Final URI: {uri}", Qgis.Info)
         settings.log(f"  - Provider: {provider}", Qgis.Info)
         
-        rOutput = QgsRasterLayer(uri, map_layer.label, provider)
+        rOutput = QgsRasterLayer(uri, map_layer.tiles_label, provider)
 
         if rOutput and rOutput.isValid():
             QgsProject.instance().addMapLayer(rOutput, False)
@@ -635,8 +636,8 @@ class QRaveMapLayer():
                     rOutput.setExtent(rect)
 
                     metadata = rOutput.metadata()
-                    metadata.setIdentifier(map_layer.label)
-                    metadata.setTitle(map_layer.label)
+                    metadata.setIdentifier(map_layer.tiles_label)
+                    metadata.setTitle(map_layer.tiles_label)
                     
                     spatialExtent = QgsLayerMetadata.SpatialExtent()
                     spatialExtent.extent = QgsReferencedRectangle(rect, dest_crs)
@@ -660,13 +661,13 @@ class QRaveMapLayer():
                 settings.log(f'Error setting transparency for raster: {e}', Qgis.Warning)
 
             rOutput.triggerRepaint()
-            settings.log(f"Successfully added remote raster layer: {map_layer.label}", Qgis.Info)
+            settings.log(f"Successfully added remote raster layer: {map_layer.tiles_label}", Qgis.Info)
         else:
-            settings.log(f'Failed to create valid remote raster layer for {map_layer.label}. isValid() is False.', Qgis.Critical)
+            settings.log(f'Failed to create valid remote raster layer for {map_layer.tiles_label}. isValid() is False.', Qgis.Critical)
             # Try a fallback without the provider if it failed with it
             if provider == "gdal":
                 settings.log(f"Retrying without explicit 'gdal' provider...", Qgis.Info)
-                rOutput = QgsRasterLayer(uri, map_layer.label)
+                rOutput = QgsRasterLayer(uri, map_layer.tiles_label)
                 if rOutput and rOutput.isValid():
                     QgsProject.instance().addMapLayer(rOutput, False)
                     parentGroup.insertLayer(item.row(), rOutput)

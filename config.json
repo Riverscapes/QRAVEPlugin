@@ -13,7 +13,9 @@
         "localBLFolder": null,
         "dockVisible": false,
         "dockHeight": 600,
-        "lastDownloadPath": null
+        "lastDownloadPath": null,
+        "telemetryClientId": null,
+        "telemetryEnabled": true
     },
     "constants": {
         "logCategory": "Riverscapes Viewer",
