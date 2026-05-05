@@ -21,6 +21,8 @@ FILE_EXCLUDE_RE = [
     r'.*\.gpkg-[a-z]+$',
     # Any file called 'RiverscapesViewer*.log'
     r'^RiverscapesViewer.*\.log$',
+    # Ignore Desktop.ini files
+    r'^Desktop\.ini$',
 ]
 
 
