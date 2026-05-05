@@ -339,6 +339,15 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
             # Optional telemetry
             Telemetry.send('Load_Project')
+            self._add_to_recent_projects(xml_path)
+
+    def _add_to_recent_projects(self, xml_path: str):
+        """Prepend xml_path to the recent projects list, capped at 5."""
+        recent = self.settings.getValue('recentProjects') or []
+        abs_path = os.path.abspath(xml_path)
+        recent = [p for p in recent if p != abs_path]
+        recent.insert(0, abs_path)
+        self.settings.setValue('recentProjects', recent[:5])
 
     @pyqtSlot(dict)
     def add_remote_project(self, gql_data: Dict):

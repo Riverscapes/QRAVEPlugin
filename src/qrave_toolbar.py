@@ -356,7 +356,16 @@ class QRAVE:
 
         # Add your actions to self.menu instead of directly to the toolbar
 
+        self.recentProjectsMenu = QMenu(
+            self.tr('Recent Riverscapes Projects')
+        )
+        self.recentProjectsMenu.setIcon(qrave_icon('open.svg'))
+        self.recentProjectsMenu.aboutToShow.connect(
+            self._populate_recent_menu
+        )
+
         self.menu.addAction(self.openProjectAction)
+        self.menu.addMenu(self.recentProjectsMenu)
         self.menu.addAction(self.openRemoteProjectAction)
         self.menu.addAction(self.closeAllProjectsAction)
 
@@ -625,6 +634,55 @@ class QRAVE:
             if self.dockwidget is None or self.dockwidget.isHidden() is True:
                 self.toggle_widget(forceOn=True)
             self.dockwidget.add_project(dialog_return[0])
+
+    def _populate_recent_menu(self):
+        """Rebuild the recent projects submenu."""
+        self.recentProjectsMenu.clear()
+        stored = self.settings.getValue('recentProjects') or []
+        recent = [p for p in stored if os.path.isfile(p)]
+        if recent != stored:
+            self.settings.setValue('recentProjects', recent)
+        if not recent:
+            no_action = QAction(
+                self.tr('(No recent projects)'),
+                self.iface.mainWindow(),
+            )
+            no_action.setEnabled(False)
+            self.recentProjectsMenu.addAction(no_action)
+            return
+        for path in recent:
+            label = os.path.basename(os.path.dirname(path))
+            action = QAction(label, self.iface.mainWindow())
+            action.setToolTip(path)
+            action.triggered.connect(
+                lambda checked, p=path: self._open_recent_project(p)
+            )
+            self.recentProjectsMenu.addAction(action)
+        self.recentProjectsMenu.addSeparator()
+        clear_action = QAction(
+            self.tr('Clear Recent Projects'),
+            self.iface.mainWindow(),
+        )
+        clear_action.triggered.connect(self._clear_recent_projects)
+        self.recentProjectsMenu.addAction(clear_action)
+
+    def _open_recent_project(self, xml_path: str):
+        """Open a project from the recent projects list."""
+        if not os.path.isfile(xml_path):
+            msg = self.tr('Could not find project:\n') + xml_path
+            QMessageBox.warning(
+                self.iface.mainWindow(),
+                self.tr('Project Not Found'),
+                msg,
+            )
+            return
+        if self.dockwidget is None or self.dockwidget.isHidden():
+            self.toggle_widget(forceOn=True)
+        self.dockwidget.add_project(xml_path)
+
+    def _clear_recent_projects(self):
+        """Clear the recent projects list."""
+        self.settings.setValue('recentProjects', [])
 
     def downloadProjectDlg(self, project_id: str = None, local_path: str = None):
         """
