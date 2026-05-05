@@ -3,12 +3,7 @@ from typing import List, Optional
 from qgis.PyQt.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTreeWidget, QTreeWidgetItem, QHeaderView
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtGui import QBrush, QColor
-from .compat import CHECKED, UNCHECKED, ITEM_FLAG_CHECKABLE, ALIGN_RIGHT, ALIGN_VCENTER, COLOR_GRAY, HEADER_STRETCH, HEADER_RESIZE_TO_CONTENTS
-
-if hasattr(Qt, 'UserRole'):
-    USER_ROLE = Qt.UserRole
-else:
-    USER_ROLE = Qt.ItemDataRole.UserRole
+from .compat import CHECKED, UNCHECKED, ITEM_FLAG_CHECKABLE, ALIGN_RIGHT, ALIGN_VCENTER, COLOR_GRAY, HEADER_STRETCH, HEADER_RESIZE_TO_CONTENTS, USER_ROLE
 
 
 class SortableTreeWidgetItem(QTreeWidgetItem):

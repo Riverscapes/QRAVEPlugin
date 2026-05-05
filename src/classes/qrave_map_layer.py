@@ -24,12 +24,9 @@ from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QStandardItem
 from .rspaths import parse_rel_path
 from .settings import CONSTANTS, Settings
+from ..compat import USER_ROLE, MAPBOX_GL_SUCCESS
 
 SYMBOLOGY_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'symbology')
-if hasattr(Qt, 'UserRole'):
-    USER_ROLE = Qt.UserRole
-else:
-    USER_ROLE = Qt.ItemDataRole.UserRole
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 
@@ -344,14 +341,7 @@ class QRaveMapLayer():
                 try:
                     if transparency > 0:
                         if rOutput.__class__ is QgsVectorLayer:
-                            if hasattr(rOutput, 'setLayerTransparency'):
-                                rOutput.setLayerTransparency(transparency)
-                            elif hasattr(rOutput, 'setOpacity'):
-                                rOutput.setOpacity((100 - transparency) / 100.0)
-                            else:
-                                settings.log('Setting vector transparency: {}'.format(e), Qgis.Warning)
-
-                            # rOutput.triggerRepaint()
+                            rOutput.setOpacity((100 - transparency) / 100.0)
                         elif rOutput.__class__ is QgsRasterLayer:
                             renderer = rOutput.renderer()
                             renderer.setOpacity((100 - transparency) / 100.0)
@@ -541,7 +531,7 @@ class QRaveMapLayer():
                     elif QgsMapBoxGlStyleConverter:
                         converter = QgsMapBoxGlStyleConverter()
                         result = converter.convert(style_json)
-                        if result == QgsMapBoxGlStyleConverter.Success:
+                        if result == MAPBOX_GL_SUCCESS:
                             rOutput.setRenderer(converter.renderer())
                             rOutput.setLabeling(converter.labeling())
                             settings.log("Applied Mapbox GL symbology and labeling using style converter", Qgis.Info)

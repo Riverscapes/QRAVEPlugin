@@ -13,12 +13,9 @@ from qgis.core import QgsTask, QgsApplication, Qgis
 from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
 from .settings import CONSTANTS, Settings
 from .util import md5, requestFetch
+from ..compat import USER_ROLE
 
 BASEMAPS_XML_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', 'BaseMaps.xml')
-if hasattr(Qt, 'UserRole'):
-    USER_ROLE = Qt.UserRole
-else:
-    USER_ROLE = Qt.ItemDataRole.UserRole
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
 REQUEST_ARGS = '?service=wms&request=GetCapabilities&version=1.0.0'
@@ -183,7 +180,8 @@ class QRaveBaseMap():
         else:
             self.settings.log("Exception: {}".format(exception),
                               Qgis.Critical)
-            raise exception
+            # Do NOT re-raise inside a QgsTask finished callback — it would
+            # propagate into QGIS’s task manager and produce unhandled noise.
 
     def load_layers(self, force=False):
         if self.loaded is True and force is False:

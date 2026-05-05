@@ -8,6 +8,7 @@
 
 
 from qgis.PyQt import QtCore, QtWidgets
+from ..compat import QABSTRACTITEMVIEW_NO_EDIT_TRIGGERS
 
 
 class Ui_QRAVEDockWidgetBase(object):
@@ -21,7 +22,7 @@ class Ui_QRAVEDockWidgetBase(object):
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName("verticalLayout")
         self.treeView = QtWidgets.QTreeView(self.dockWidgetContents)
-        self.treeView.setEditTriggers(getattr(QtWidgets.QAbstractItemView, "NoEditTriggers", QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers))
+        self.treeView.setEditTriggers(QABSTRACTITEMVIEW_NO_EDIT_TRIGGERS)
         self.treeView.setProperty("showDropIndicator", False)
         self.treeView.setAlternatingRowColors(False)
         self.treeView.setIndentation(15)
@@ -36,4 +37,6 @@ class Ui_QRAVEDockWidgetBase(object):
 
     def retranslateUi(self, QRAVEDockWidgetBase):
         _translate = QtCore.QCoreApplication.translate
-        QRAVEDockWidgetBase.setWindowTitle(_translate("QRAVEDockWidgetBase", "Riverscapes Viewer"))
+        QRAVEDockWidgetBase.setWindowTitle(
+            _translate("QRAVEDockWidgetBase", "Riverscapes Viewer")
+        )

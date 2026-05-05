@@ -1,15 +1,16 @@
 from qgis.PyQt import QtCore, QtGui, QtWidgets
 from qgis.gui import QgsFileWidget
-from ..compat import RICH_TEXT, TEXT_BROWSER_INTERACTION
+from ..compat import QFRAME_STYLED_PANEL, RICH_TEXT, TEXT_BROWSER_INTERACTION
+
 
 class Ui_ProjectDownloadDialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("ProjectDownloadDialog")
         Dialog.resize(600, 500)
         self.verticalLayout = QtWidgets.QVBoxLayout(Dialog)
-        
+
         self.stackedWidget = QtWidgets.QStackedWidget(Dialog)
-        
+
         # --- Step 1: Project Selection ---
         self.step1 = QtWidgets.QWidget()
         self.layout1 = QtWidgets.QVBoxLayout(self.step1)
@@ -18,25 +19,29 @@ class Ui_ProjectDownloadDialog(object):
         font.setBold(True)
         self.lblStep1.setFont(font)
         self.layout1.addWidget(self.lblStep1)
-        
-        self.lblInstructions = QtWidgets.QLabel("Find a project on the <a href='https://data.riverscapes.net'>Riverscapes Data Exchange</a>. You can copy and paste the Project ID (UUID) or the URL of the project page into the box below.")
+
+        self.lblInstructions = QtWidgets.QLabel(
+            "Find a project on the <a href='https://data.riverscapes.net'>Riverscapes Data Exchange</a>. You can copy and paste the Project ID (UUID) or the URL of the project page into the box below."  # noqa: E501
+        )
         self.lblInstructions.setOpenExternalLinks(True)
         self.lblInstructions.setWordWrap(True)
         self.layout1.addWidget(self.lblInstructions)
-        
+
         self.lblProjectInput = QtWidgets.QLabel("Enter Project ID or URL:")
         self.layout1.addWidget(self.lblProjectInput)
-        
+
         self.txtProjectInput = QtWidgets.QLineEdit()
-        self.txtProjectInput.setPlaceholderText("e.g. ac104f27-93b7-4e47-b279-7a7dad8ccf1d")
+        self.txtProjectInput.setPlaceholderText(
+            "e.g. ac104f27-93b7-4e47-b279-7a7dad8ccf1d"
+        )
         self.layout1.addWidget(self.txtProjectInput)
-        
+
         self.btnVerifyProject = QtWidgets.QPushButton("Verify Project")
         self.layout1.addWidget(self.btnVerifyProject)
-        
+
         # Styled Project Details area
         self.frameProjectDetails = QtWidgets.QFrame()
-        self.frameProjectDetails.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.frameProjectDetails.setFrameShape(QFRAME_STYLED_PANEL)
         self.frameProjectDetails.setStyleSheet("""
             QFrame {
                 background-color: #ffffff;
@@ -49,47 +54,47 @@ class Ui_ProjectDownloadDialog(object):
             }
         """)
         self.layoutProjectDetails = QtWidgets.QVBoxLayout(self.frameProjectDetails)
-        
+
         self.lblProjectDetails = QtWidgets.QLabel("")
         self.lblProjectDetails.setWordWrap(True)
         self.lblProjectDetails.setTextFormat(RICH_TEXT)
         self.lblProjectDetails.setTextInteractionFlags(TEXT_BROWSER_INTERACTION)
         self.lblProjectDetails.setOpenExternalLinks(True)
         self.layoutProjectDetails.addWidget(self.lblProjectDetails)
-        
+
         self.layout1.addWidget(self.frameProjectDetails)
         self.frameProjectDetails.hide()
-        
+
         self.layout1.addStretch()
         self.stackedWidget.addWidget(self.step1)
-        
+
         # --- Step 2: Location ---
         self.step2 = QtWidgets.QWidget()
         self.layout2 = QtWidgets.QVBoxLayout(self.step2)
         self.lblStep2 = QtWidgets.QLabel("Step 2: Select where to download")
         self.lblStep2.setFont(font)
         self.layout2.addWidget(self.lblStep2)
-        
+
         self.lblParentFolder = QtWidgets.QLabel("Parent Folder:")
         self.layout2.addWidget(self.lblParentFolder)
-        
+
         self.fileWidget = QgsFileWidget()
         self.fileWidget.setStorageMode(QgsFileWidget.GetDirectory)
         self.layout2.addWidget(self.fileWidget)
-        
+
         self.lblFolderName = QtWidgets.QLabel("Folder Name:")
         self.layout2.addWidget(self.lblFolderName)
-        
+
         self.txtFolderName = QtWidgets.QLineEdit()
         self.layout2.addWidget(self.txtFolderName)
-        
+
         self.lblFolderStatus = QtWidgets.QLabel("")
         self.lblFolderStatus.setStyleSheet("color: red;")
         self.layout2.addWidget(self.lblFolderStatus)
-        
+
         self.layout2.addStretch()
         self.stackedWidget.addWidget(self.step2)
-        
+
         # --- Step 3: File Selection ---
         self.step3 = QtWidgets.QWidget()
         self.layout3 = QtWidgets.QVBoxLayout(self.step3)
@@ -97,11 +102,13 @@ class Ui_ProjectDownloadDialog(object):
         self.lblStep3.setFont(font)
         self.layout3.addWidget(self.lblStep3)
 
-        self.lblStep3Instructions = QtWidgets.QLabel("You don't need to download every file in a project. Only select the files you need.")
+        self.lblStep3Instructions = QtWidgets.QLabel(
+            "You don't need to download every file in a project. Only select the files you need."
+        )
         self.lblStep3Instructions.setOpenExternalLinks(True)
         self.lblStep3Instructions.setWordWrap(True)
-        self.layout3.addWidget(self.lblStep3Instructions)        
-        
+        self.layout3.addWidget(self.lblStep3Instructions)
+
         self.selectionLayout = QtWidgets.QHBoxLayout()
         self.btnSelectAll = QtWidgets.QPushButton("Select All")
         self.btnDeselectAll = QtWidgets.QPushButton("Deselect All")
@@ -109,34 +116,34 @@ class Ui_ProjectDownloadDialog(object):
         self.selectionLayout.addWidget(self.btnDeselectAll)
         self.selectionLayout.addStretch()
         self.layout3.addLayout(self.selectionLayout)
-        
+
         self.treeFiles = QtWidgets.QTreeWidget()
         self.treeFiles.setHeaderLabels(["File Path", "Size"])
         self.layout3.addWidget(self.treeFiles)
-        
+
         self.stackedWidget.addWidget(self.step3)
-        
+
         # --- Step 4: Download ---
         self.step4 = QtWidgets.QWidget()
         self.layout4 = QtWidgets.QVBoxLayout(self.step4)
         self.lblStep4 = QtWidgets.QLabel("Step 4: Downloading...")
         self.lblStep4.setFont(font)
         self.layout4.addWidget(self.lblStep4)
-        
+
         self.progressBar = QtWidgets.QProgressBar()
         self.layout4.addWidget(self.progressBar)
-        
+
         self.lblStatus = QtWidgets.QLabel("Initializing...")
         self.layout4.addWidget(self.lblStatus)
-        
+
         self.lblProgressDetails = QtWidgets.QLabel("")
         self.layout4.addWidget(self.lblProgressDetails)
-        
+
         self.layout4.addStretch()
         self.stackedWidget.addWidget(self.step4)
-        
+
         self.verticalLayout.addWidget(self.stackedWidget)
-        
+
         # --- Navigation Buttons ---
         self.navLayout = QtWidgets.QHBoxLayout()
         self.btnBack = QtWidgets.QPushButton("Back")

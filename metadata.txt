@@ -4,11 +4,11 @@
 
 [general]
 name=Riverscapes Viewer DEV_COPY
-qgisMinimumVersion=3.00
+qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 
 description=Explore symbolized Riverscapes projects
-version=0.0.0dev
+version=1.1.1
 author=North Arrow Research
 email=info@northarrowresearch.com
 

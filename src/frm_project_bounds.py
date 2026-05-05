@@ -71,7 +71,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
         transform = None
         working_layer: QgsVectorLayer = layer.clone()
         if layer.crs().authid() != 'EPSG:4326':
-            epsg4326 = QgsCoordinateReferenceSystem(4326)
+            epsg4326 = QgsCoordinateReferenceSystem("EPSG:4326")
             working_layer.setCrs(epsg4326)
             transform = QgsCoordinateTransform(layer.crs(), epsg4326, QgsProject.instance())
         bounds = QgsRectangle()

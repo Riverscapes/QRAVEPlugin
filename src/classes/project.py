@@ -13,15 +13,11 @@ from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
 from .rspaths import parse_rel_path
 from .settings import CONSTANTS, Settings
 from ..icon_utils import qrave_icon
-from ..compat import COLOR_GRAY, FOREGROUND_ROLE
+from ..compat import COLOR_GRAY, FOREGROUND_ROLE, USER_ROLE
 
 import re
 
 MESSAGE_CATEGORY = CONSTANTS['logCategory']
-if hasattr(Qt, 'UserRole'):
-    USER_ROLE = Qt.UserRole
-else:
-    USER_ROLE = Qt.ItemDataRole.UserRole
 
 BL_XML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', CONSTANTS['businessLogicDir'])
 
@@ -62,12 +58,16 @@ class Project:
         if self.exists is True:
             try:
                 self._load_project()
-                # Retrieving schema url from project xml
-                for attrib_key in self.project.attrib:
-                    if 'noNamespaceSchemaLocation' in attrib_key:
-                        schema_location_attrib = self.project.attrib[attrib_key]
-                    else:
-                        raise Exception('Error finding schema location in project')
+                # Retrieve schema URL from project XML.  XML attribute order is
+                # not guaranteed across lxml versions, so we must scan all
+                # attributes before raising – not on the first non-match.
+                schema_location_attrib = next(
+                    (v for k, v in self.project.attrib.items()
+                     if 'noNamespaceSchemaLocation' in k),
+                    None
+                )
+                if schema_location_attrib is None:
+                    raise Exception('Error finding schema location in project')
 
                 if re.search(VERSIONS["V1"], schema_location_attrib):
                     self.version = 'V1'

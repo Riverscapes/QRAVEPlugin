@@ -49,14 +49,10 @@ from .classes.settings import Settings, CONSTANTS
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
 from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
 from .icon_utils import qrave_icon
-from .compat import MSGBOX_BTN_YES, MSGBOX_BTN_NO
+from .compat import MSGBOX_BTN_YES, MSGBOX_BTN_NO, USER_ROLE
 
 
 ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
-if hasattr(Qt, 'UserRole'):
-    USER_ROLE = Qt.UserRole
-else:
-    USER_ROLE = Qt.ItemDataRole.UserRole
 
 
 class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
@@ -162,7 +158,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
             return paths
 
-        new_projects = self._get_projects()
+        new_projects = self._get_projects()  # noqa: F841 (used only to warm cache before iterating)
 
         for project in self._get_projects():
             if not isinstance(project, str):
@@ -967,7 +963,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     def toggleSubtree(self, item: QStandardItem = None, expand=True):
 
         def _recurse(curritem):
-            idx = self.model.indexFromItem(item)
+            # Use curritem (the recursion variable), not item (the outer param)
+            idx = self.model.indexFromItem(curritem)
             if expand is not self.treeView.isExpanded(idx):
                 self.treeView.setExpanded(idx, expand)
 
@@ -1035,13 +1032,21 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                         stack.append(child)
 
     def _get_parents(self, start_item: QStandardItem):
+        """Return ordered list of parent QStandardItems from root down to the
+        immediate parent of *start_item* (exclusive of the invisible root).
+
+        Previously had two bugs:
+        1. Advanced ``start_item.parent()`` instead of ``placeholder.parent()``
+           causing an infinite loop whenever start_item had any parent.
+        2. ``list.reverse()`` returns ``None``; callers always received None.
+        """
         stack = []
         placeholder = start_item.parent()
         while placeholder is not None and placeholder != self.model.invisibleRootItem():
             stack.append(placeholder)
-            placeholder = start_item.parent()
-
-        return stack.reverse()
+            placeholder = placeholder.parent()  # fixed: was start_item.parent()
+        stack.reverse()  # in-place; return the stack, not None
+        return stack
 
     def open_menu(self, position):
 

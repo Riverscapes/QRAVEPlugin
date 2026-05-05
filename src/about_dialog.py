@@ -57,7 +57,6 @@ class AboutDialog(QDialog):
         font = QtGui.QFont()
         font.setPointSize(14)
         font.setBold(True)
-        font.setWeight(75)
         self.label_2.setFont(font)
         self.label_2.setText("Riverscapes Viewer Plugin for QGIS")
         self.verticalLayout_2.addWidget(self.label_2)

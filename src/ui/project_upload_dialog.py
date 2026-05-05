@@ -1,6 +1,16 @@
 from qgis.PyQt import QtCore, QtGui, QtWidgets
 from ..file_selection_widget import ProjectFileSelectionWidget
-from ..compat import RICH_TEXT, SCROLL_BAR_ALWAYS_OFF, ALIGN_CENTER, DLGBTN_CANCEL
+from ..compat import (
+    QFRAME_NO_FRAME,
+    QFRAME_STYLED_PANEL,
+    RICH_TEXT,
+    SCROLL_BAR_ALWAYS_OFF,
+    ALIGN_CENTER,
+    DLGBTN_CANCEL,
+    SPSZ_EXPANDING,
+    SPSZ_PREFERRED,
+    SPSZ_FIXED,
+)
 
 
 class Ui_Dialog(object):
@@ -17,41 +27,40 @@ class Ui_Dialog(object):
         # Wrap stacked widget in a scroll area
         self.scrollArea = QtWidgets.QScrollArea(Dialog)
         self.scrollArea.setWidgetResizable(True)
-        self.scrollArea.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.scrollArea.setFrameShape(QFRAME_NO_FRAME)
         self.scrollAreaContent = QtWidgets.QWidget()
         self.scrollAreaLayout = QtWidgets.QVBoxLayout(self.scrollAreaContent)
         self.scrollAreaLayout.setContentsMargins(0, 0, 0, 0)
-        
+
         self.scrollAreaLayout.addWidget(self.stackedWidget)
         self.scrollArea.setWidget(self.scrollAreaContent)
 
-        
         # =====================================================================
         # Step 1: Form details
         # =====================================================================
         self.step1 = QtWidgets.QWidget()
         self.layoutStep1 = QtWidgets.QVBoxLayout(self.step1)
-        
+
         # Riverscapes Project Group
         self.groupProject = QtWidgets.QGroupBox("Riverscapes Project")
         self.grdGroupProject = QtWidgets.QGridLayout(self.groupProject)
-        
+
         self.projectNameLabel = QtWidgets.QLabel("Project name")
         self.grdGroupProject.addWidget(self.projectNameLabel, 0, 0)
-        
+
         self.projectNameValue = QtWidgets.QLabel("...")
         self.grdGroupProject.addWidget(self.projectNameValue, 0, 1)
-        
+
         self.projectPathLabel = QtWidgets.QLabel("Local path")
         self.grdGroupProject.addWidget(self.projectPathLabel, 1, 0)
-        
+
         self.projectPathValue = QtWidgets.QLineEdit()
         self.projectPathValue.setReadOnly(True)
         self.grdGroupProject.addWidget(self.projectPathValue, 1, 1)
-        
+
         self.loginStatusLabel = QtWidgets.QLabel("Riverscapes login")
         self.grdGroupProject.addWidget(self.loginStatusLabel, 2, 0)
-        
+
         self.loginButtonLayout = QtWidgets.QHBoxLayout()
         self.loginStatusValue = QtWidgets.QLabel("Logging in...")
         self.loginButtonLayout.addWidget(self.loginStatusValue)
@@ -63,7 +72,7 @@ class Ui_Dialog(object):
 
         # Project Details Card
         self.frameProjectDetails = QtWidgets.QFrame()
-        self.frameProjectDetails.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.frameProjectDetails.setFrameShape(QFRAME_STYLED_PANEL)
         self.frameProjectDetails.setStyleSheet("""
             QFrame {
                 background-color: #f9f9f9;
@@ -82,7 +91,7 @@ class Ui_Dialog(object):
         self.lblProjectDetails.setOpenExternalLinks(True)
         self.layoutProjectDetails.addWidget(self.lblProjectDetails)
         self.grdGroupProject.addWidget(self.frameProjectDetails, 3, 0, 1, 2)
-        
+
         self.layoutStep1.addWidget(self.groupProject)
 
         # New or Update Choice
@@ -142,7 +151,7 @@ class Ui_Dialog(object):
         self.verticalLayout_5.addLayout(self.horizontalLayout_4)
         self.verticalLayout_5.addWidget(self.tagList)
         self.layoutStep1.addWidget(self.tagGroup)
-                
+
         self.layoutStep1.addStretch()
         self.stackedWidget.addWidget(self.step1)
 
@@ -157,12 +166,11 @@ class Ui_Dialog(object):
         font_step.setPointSize(12)
         self.lblStep2.setFont(font_step)
         self.layoutStep2.addWidget(self.lblStep2)
-        
-        self.fileSelection = ProjectFileSelectionWidget()
-        self.fileSelection.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-        self.layoutStep2.addWidget(self.fileSelection, 1) # Add stretch factor 1
 
-        
+        self.fileSelection = ProjectFileSelectionWidget()
+        self.fileSelection.setSizePolicy(SPSZ_EXPANDING, SPSZ_EXPANDING)
+        self.layoutStep2.addWidget(self.fileSelection, 1)  # Add stretch factor 1
+
         self.lblSelectionSummary = QtWidgets.QLabel("")
         font_summary = QtGui.QFont()
         font_summary.setItalic(True)
@@ -170,7 +178,7 @@ class Ui_Dialog(object):
         self.lblSelectionSummary.setFont(font_summary)
         self.lblSelectionSummary.setAlignment(ALIGN_CENTER)
         self.layoutStep2.addWidget(self.lblSelectionSummary)
-        
+
         self.stackedWidget.addWidget(self.step2)
 
         # =====================================================================
@@ -181,7 +189,7 @@ class Ui_Dialog(object):
         self.lblStep3 = QtWidgets.QLabel("Step 3: Uploading...")
         self.lblStep3.setFont(font_step)
         self.layoutStep3.addWidget(self.lblStep3)
-        
+
         self.uploadGroup = QtWidgets.QGroupBox("Upload Status")
         self.verticalLayout_6 = QtWidgets.QVBoxLayout(self.uploadGroup)
         self.todoLabel = QtWidgets.QLabel("...")
@@ -191,30 +199,31 @@ class Ui_Dialog(object):
         self.todoLabel.setFont(font_todo)
         self.todoLabel.setAlignment(ALIGN_CENTER)
         self.verticalLayout_6.addWidget(self.todoLabel)
-        
+
         self.progressBar = QtWidgets.QProgressBar()
         self.progressBar.setValue(0)
         self.verticalLayout_6.addWidget(self.progressBar)
-        
+
         self.progressSubLabel = QtWidgets.QLabel("...")
         self.progressSubLabel.setFont(font_todo)
         self.progressSubLabel.setAlignment(ALIGN_CENTER)
         self.verticalLayout_6.addWidget(self.progressSubLabel)
         self.layoutStep3.addWidget(self.uploadGroup)
-        
-        self.uploadGroup.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
 
-        
+        self.uploadGroup.setSizePolicy(SPSZ_PREFERRED, SPSZ_FIXED)
+
         self.openWebProjectBtn = QtWidgets.QPushButton("View In Data Exchange")
         self.layoutStep3.addWidget(self.openWebProjectBtn)
-        
-        self.lblUploadComplete = QtWidgets.QLabel("Project upload complete! Click 'Ok' to close this window.")
+
+        self.lblUploadComplete = QtWidgets.QLabel(
+            "Project upload complete! Click 'Ok' to close this window."
+        )
         font_complete = QtGui.QFont()
         font_complete.setBold(True)
         font_complete.setPointSize(11)
         self.lblUploadComplete.setFont(font_complete)
         self.lblUploadComplete.setAlignment(ALIGN_CENTER)
-        self.lblUploadComplete.setStyleSheet("color: #27ae60;") # A nice success green
+        self.lblUploadComplete.setStyleSheet("color: #27ae60;")  # A nice success green
         self.layoutStep3.addWidget(self.lblUploadComplete)
 
         self.layoutStep3.addStretch()
@@ -239,21 +248,21 @@ class Ui_Dialog(object):
         self.navLayout = QtWidgets.QHBoxLayout()
         self.btnHelp = QtWidgets.QPushButton("Help")
         self.navLayout.addWidget(self.btnHelp)
-        
+
         self.btnBack = QtWidgets.QPushButton("Back")
         self.navLayout.addWidget(self.btnBack)
-        
+
         self.navLayout.addStretch()
-        
+
         self.actionBtnBox = QtWidgets.QDialogButtonBox(DLGBTN_CANCEL)
         self.navLayout.addWidget(self.actionBtnBox)
-        
+
         self.startBtn = QtWidgets.QPushButton("Next")
         self.navLayout.addWidget(self.startBtn)
-        
+
         self.stopBtn = QtWidgets.QPushButton("Stop")
         self.navLayout.addWidget(self.stopBtn)
-        
+
         self.verticalLayoutMain.addLayout(self.navLayout)
 
         self.retranslateUi(Dialog)

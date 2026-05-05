@@ -2,16 +2,11 @@ from __future__ import annotations
 from typing import Dict, List
 from qgis.core import Qgis
 from qgis.PyQt.QtGui import QStandardItem, QIcon
-from qgis.PyQt.QtCore import Qt
 
 from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
 from .settings import CONSTANTS, Settings
+from ..compat import USER_ROLE
 from ..icon_utils import qrave_icon
-
-if hasattr(Qt, 'UserRole'):
-    USER_ROLE = Qt.UserRole
-else:
-    USER_ROLE = Qt.ItemDataRole.UserRole
 
 
 class RemoteProject:

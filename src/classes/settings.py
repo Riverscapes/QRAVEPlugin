@@ -3,15 +3,28 @@ import json
 import html
 from qgis.core import QgsMessageLog, Qgis, QgsProject, QgsSettings
 
-with open(os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')) as cfg_file:
-    cfg_json = json.load(cfg_file)
-    # For debugging purposes we can set the warehouse URL to the staging server
-    # NOTE: This is maybe a little clumsy but most people will never hit this code and it does the job well enough
-    if os.environ.get("RS_STAGING", "False").lower() == "true":
-        cfg_json['constants']['warehouseUrl'] = "https://staging.data.riverscapes.net"
-        cfg_json['constants']['DE_API_URL'] = "https://api.data.riverscapes.net/staging"
-        QgsMessageLog.logMessage(f"RS_STAGING detected. Using Staging URLS for Data Exchange: {cfg_json['constants']['warehouseUrl']} and {cfg_json['constants']['DE_API_URL']}",
-                                 cfg_json['constants']['logCategory'], level=Qgis.Warning)
+try:
+    with open(os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')) as cfg_file:
+        cfg_json = json.load(cfg_file)
+        # For debugging purposes we can set the warehouse URL to the staging server
+        # NOTE: This is maybe a little clumsy but most people will never hit this code and it does the job well enough
+        if os.environ.get("RS_STAGING", "False").lower() == "true":
+            cfg_json['constants']['warehouseUrl'] = "https://staging.data.riverscapes.net"
+            cfg_json['constants']['DE_API_URL'] = "https://api.data.riverscapes.net/staging"
+            QgsMessageLog.logMessage(f"RS_STAGING detected. Using Staging URLS for Data Exchange: {cfg_json['constants']['warehouseUrl']} and {cfg_json['constants']['DE_API_URL']}",
+                                     cfg_json['constants']['logCategory'], level=Qgis.Warning)
+except FileNotFoundError:
+    QgsMessageLog.logMessage(
+        "Riverscapes Viewer: config.json not found — plugin cannot load.",
+        "RiverscapesViewer", level=Qgis.Critical
+    )
+    raise
+except json.JSONDecodeError as _cfg_err:
+    QgsMessageLog.logMessage(
+        f"Riverscapes Viewer: config.json is malformed ({_cfg_err}) — plugin cannot load.",
+        "RiverscapesViewer", level=Qgis.Critical
+    )
+    raise
 
 
 # We include these so that
@@ -110,5 +123,3 @@ class Settings(SettingsBorg):
         """
         # Set it in the file
         self.s.setValue(key, json.dumps({"v": value}))
-        self.log("SETTINGS SET: {}={} of type '{}'".format(
-            key, value, html.escape(str(type(value)))), level=Qgis.Info)

@@ -4,24 +4,43 @@ import json
 
 
 from qgis.core import Qgis
-from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices, QGuiApplication, QBrush
-from qgis.PyQt.QtWidgets import QDockWidget, QMenu, QMessageBox, QWidget, QTextEdit, QVBoxLayout, QTreeView, QAbstractItemView
-from qgis.PyQt.QtCore import pyqtSlot, Qt, QUrl
+from qgis.PyQt.QtGui import (
+    QStandardItemModel,
+    QStandardItem,
+    QDesktopServices,
+    QGuiApplication,
+    QBrush,
+)
+from qgis.PyQt.QtWidgets import (
+    QDockWidget,
+    QMenu,
+    QMessageBox,
+    QWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QTreeView,
+)
+from qgis.PyQt.QtCore import pyqtSlot, QUrl
 
 from .classes.settings import Settings
-from .compat import ALIGN_CENTER, FOREGROUND_ROLE, COLOR_BLUE, MSGBOX_BTN_YES, MSGBOX_BTN_NO
-
-if hasattr(Qt, 'UserRole'):
-    USER_ROLE = Qt.UserRole
-else:
-    USER_ROLE = Qt.ItemDataRole.UserRole
+from .compat import (
+    ALIGN_CENTER,
+    CUSTOM_CONTEXT_MENU,
+    FOREGROUND_ROLE,
+    COLOR_BLUE,
+    MSGBOX_BTN_YES,
+    MSGBOX_BTN_NO,
+    QABSTRACTITEMVIEW_NO_EDIT_TRIGGERS,
+    USER_ROLE,
+    CLIPBOARD_MODE,
+)
 
 
 class MetaType:
-    PROJECT = 'project'
-    LAYER = 'layer'
-    FOLDER = 'folder'
-    NONE = 'none'
+    PROJECT = "project"
+    LAYER = "layer"
+    FOLDER = "folder"
+    NONE = "none"
 
 
 class QRAVEMetaWidget(QDockWidget):
@@ -31,7 +50,7 @@ class QRAVEMetaWidget(QDockWidget):
         super(QRAVEMetaWidget, self).__init__(parent)
         self.setupUi()
 
-        self.treeView.setContextMenuPolicy(getattr(Qt, 'CustomContextMenu', Qt.ContextMenuPolicy.CustomContextMenu))
+        self.treeView.setContextMenuPolicy(CUSTOM_CONTEXT_MENU)
         self.treeView.customContextMenuRequested.connect(self.open_menu)
         self.treeView.doubleClicked.connect(self.default_tree_action)
 
@@ -46,51 +65,66 @@ class QRAVEMetaWidget(QDockWidget):
         self.hide()
 
     @pyqtSlot(str, str, dict, str, bool)
-    def load(self, label: str, meta_type: str, meta: dict, description: str, show: bool = False):
+    def load(
+        self,
+        label: str,
+        meta_type: str,
+        meta: dict,
+        description: str,
+        show: bool = False,
+    ):
         # re-initialize our model
         self.model.clear()
         self.meta = meta
         self.description = description
         root_item = self.model.invisibleRootItem()
         self.model.setColumnCount(2)
-        self.model.setHorizontalHeaderLabels(['Meta Name', 'Meta Value'])
+        self.model.setHorizontalHeaderLabels(["Meta Name", "Meta Value"])
 
         if description is not None and len(description) > 0:
             self.descriptionBox.setPlainText(description)
             self.descriptionBox.show()
         else:
-            self.descriptionBox.setPlainText('No description available.')
+            self.descriptionBox.setPlainText("No description available.")
             self.descriptionBox.show()
         if meta_type == MetaType.PROJECT:
             self.treeView.setHeaderHidden(False)
-            self.setWindowTitle('Project Metadata: {}'.format(label))
+            self.setWindowTitle("Project Metadata: {}".format(label))
             self.treeView.setEnabled(True)
             if meta is not None and len(meta.keys()) > 0:
-                if 'project' in meta and len(meta['project'].keys()) > 0:
-                    proj_meta = QStandardItem('Project Meta')
+                if "project" in meta and len(meta["project"].keys()) > 0:
+                    proj_meta = QStandardItem("Project Meta")
                     proj_meta_font = proj_meta.font()
                     proj_meta_font.setBold(True)
                     proj_meta.setFont(proj_meta_font)
-                    for k, v in meta['project'].items():
-                        self.appendMetaItem(proj_meta, k, v[0], v[1] if len(v) > 1 else None)
+                    for k, v in meta["project"].items():
+                        self.appendMetaItem(
+                            proj_meta, k, v[0], v[1] if len(v) > 1 else None
+                        )
                     root_item.appendRow(proj_meta)
-                if 'warehouse' in meta and meta['warehouse'] is not None and len(meta['warehouse'].keys()) > 0:
-                    wh_meta = QStandardItem('Warehouse Meta')
+                if (
+                    "warehouse" in meta
+                    and meta["warehouse"] is not None
+                    and len(meta["warehouse"].keys()) > 0
+                ):
+                    wh_meta = QStandardItem("Warehouse Meta")
                     wh_meta_font = wh_meta.font()
                     wh_meta_font.setBold(True)
                     wh_meta.setFont(wh_meta_font)
-                    for k, v in meta['warehouse'].items():
-                        self.appendMetaItem(wh_meta, k, v[0], v[1] if len(v) > 1 else None)
+                    for k, v in meta["warehouse"].items():
+                        self.appendMetaItem(
+                            wh_meta, k, v[0], v[1] if len(v) > 1 else None
+                        )
                     root_item.appendRow(wh_meta)
 
         elif meta_type == MetaType.FOLDER:
-            self.setWindowTitle('Folder: {}'.format(label))
+            self.setWindowTitle("Folder: {}".format(label))
             self.descriptionBox.hide()
             self.treeView.setHeaderHidden(True)
             self.treeView.setEnabled(False)
             self.model.setColumnCount(1)
-            self.model.setHorizontalHeaderLabels(['Meta Name'])
-            no_item = QStandardItem('Folders have no Metadata')
+            self.model.setHorizontalHeaderLabels(["Meta Name"])
+            no_item = QStandardItem("Folders have no Metadata")
             no_item.setTextAlignment(ALIGN_CENTER)
             no_f = no_item.font()
             no_f.setItalic(True)
@@ -98,18 +132,20 @@ class QRAVEMetaWidget(QDockWidget):
             root_item.appendRow(no_item)
 
         elif meta_type == MetaType.LAYER:
-            self.setWindowTitle('Layer Metadata: {}'.format(label))
+            self.setWindowTitle("Layer Metadata: {}".format(label))
             self.treeView.setEnabled(True)
             self.treeView.setHeaderHidden(False)
             if meta is not None and len(meta.keys()) > 0:
                 for k, v in meta.items():
-                    self.appendMetaItem(root_item, k, v[0], v[1] if len(v) > 1 else None)
+                    self.appendMetaItem(
+                        root_item, k, v[0], v[1] if len(v) > 1 else None
+                    )
             else:
                 self.treeView.setHeaderHidden(True)
                 self.treeView.setEnabled(False)
                 self.model.setColumnCount(1)
-                self.model.setHorizontalHeaderLabels(['Meta Name'])
-                no_item = QStandardItem('This layer has no Metadata')
+                self.model.setHorizontalHeaderLabels(["Meta Name"])
+                no_item = QStandardItem("This layer has no Metadata")
                 no_item.setTextAlignment(ALIGN_CENTER)
                 no_f = no_item.font()
                 no_f.setItalic(True)
@@ -120,8 +156,8 @@ class QRAVEMetaWidget(QDockWidget):
             self.treeView.setHeaderHidden(True)
             self.treeView.setEnabled(False)
             self.model.setColumnCount(1)
-            self.setWindowTitle('Riverscapes Metadata: {}'.format(label))
-            no_item = QStandardItem('This item cannot have metadata')
+            self.setWindowTitle("Riverscapes Metadata: {}".format(label))
+            no_item = QStandardItem("This item cannot have metadata")
             no_item.setTextAlignment(ALIGN_CENTER)
             no_f = no_item.font()
             no_f.setItalic(True)
@@ -137,23 +173,26 @@ class QRAVEMetaWidget(QDockWidget):
         if show is True:
             self.show()
 
-    def appendMetaItem(self, root_item: QStandardItem, key: str, value: str, meta_type=None):
+    def appendMetaItem(
+        self, root_item: QStandardItem, key: str, value: str, meta_type=None
+    ):
         val_item = QStandardItem(value)
-        if (value is not None and len(value) > 0):
+        if value is not None and len(value) > 0:
             val_item.setToolTip(value)
         val_item.setData(meta_type, USER_ROLE)
 
         if meta_type is not None:
             meta_type_lower = meta_type.lower()
             # Getting ready for custom meta types
-            if (meta_type_lower in ['url', 'link', 'image', 'video']) and value is not None and value.startswith('http'):
+            if (
+                (meta_type_lower in ["url", "link", "image", "video"])
+                and value is not None
+                and value.startswith("http")
+            ):
                 val_item.setData(QBrush(COLOR_BLUE), FOREGROUND_ROLE)
         # val_item.setUnderlineStyle(QTextCharFormat.SingleUnderline)
 
-        root_item.appendRow([
-            QStandardItem(key),
-            val_item
-        ])
+        root_item.appendRow([QStandardItem(key), val_item])
 
     def closeEvent(self, event):
         self.hide()
@@ -165,8 +204,15 @@ class QRAVEMetaWidget(QDockWidget):
 
         if meta_type is not None and text is not None:
             meta_type_lower = meta_type.lower()
-            if (meta_type_lower in ['url', 'link', 'image', 'video']) and text.startswith('http'):
-                result = QMessageBox.question(self, 'Riverscapes Viewer', "Visit in browser?", MSGBOX_BTN_YES | MSGBOX_BTN_NO)
+            if (
+                meta_type_lower in ["url", "link", "image", "video"]
+            ) and text.startswith("http"):
+                result = QMessageBox.question(
+                    self,
+                    "Riverscapes Viewer",
+                    "Visit in browser?",
+                    MSGBOX_BTN_YES | MSGBOX_BTN_NO,
+                )
                 if result == MSGBOX_BTN_YES:
                     QDesktopServices.openUrl(QUrl(text))
         else:
@@ -187,23 +233,32 @@ class QRAVEMetaWidget(QDockWidget):
             row_text = {item_name.text(): item_val.text()}
             meta_type = item_val.data(USER_ROLE)
             meta_type_lower = meta_type.lower() if meta_type else ""
-            if (meta_type_lower in ['url', 'link', 'image', 'video']) and item_val.text().startswith('http'):
-                self.menu.addAction('Visit URL in Browser', lambda: QDesktopServices.openUrl(QUrl(item_val.text())))
+            if (
+                meta_type_lower in ["url", "link", "image", "video"]
+            ) and item_val.text().startswith("http"):
+                self.menu.addAction(
+                    "Visit URL in Browser",
+                    lambda: QDesktopServices.openUrl(QUrl(item_val.text())),
+                )
                 self.menu.addSeparator()
-            self.menu.addAction('Copy name', lambda: self.copy(item_name.text()))
-            self.menu.addAction('Copy value', lambda: self.copy(item_val.text()))
-            self.menu.addAction('Copy row (json)', lambda: self.copy(
-                json.dumps(row_text, indent=4, sort_keys=True)
-            ))
-        self.menu.addAction('Copy all rows (json)', lambda: self.copy(json.dumps(self.meta, indent=4, sort_keys=True)))
+            self.menu.addAction("Copy name", lambda: self.copy(item_name.text()))
+            self.menu.addAction("Copy value", lambda: self.copy(item_val.text()))
+            self.menu.addAction(
+                "Copy row (json)",
+                lambda: self.copy(json.dumps(row_text, indent=4, sort_keys=True)),
+            )
+        self.menu.addAction(
+            "Copy all rows (json)",
+            lambda: self.copy(json.dumps(self.meta, indent=4, sort_keys=True)),
+        )
 
         self.menu.exec(self.treeView.viewport().mapToGlobal(position))
 
     def copy(self, data: str):
-        self.settings.msg_bar('Item Copied to clipboard:', data, Qgis.Success)
+        self.settings.msg_bar("Item Copied to clipboard:", data, Qgis.Success)
         cb = QGuiApplication.clipboard()
-        cb.clear(mode=cb.Clipboard)
-        cb.setText(data, mode=cb.Clipboard)
+        cb.clear(mode=CLIPBOARD_MODE)
+        cb.setText(data, mode=CLIPBOARD_MODE)
 
     def clear_and_hide(self):
         """Clear the metadata panel and hide it."""
@@ -212,7 +267,7 @@ class QRAVEMetaWidget(QDockWidget):
         self.hide()
 
     def setupUi(self):
-        
+
         self.resize(555, 559)
         self.dockWidgetContents = QWidget()
         self.verticalLayout = QVBoxLayout(self.dockWidgetContents)
@@ -227,7 +282,7 @@ class QRAVEMetaWidget(QDockWidget):
         self.verticalLayout.addWidget(self.descriptionBox)
 
         self.treeView = QTreeView(self.dockWidgetContents)
-        self.treeView.setEditTriggers(getattr(QAbstractItemView, 'NoEditTriggers', QAbstractItemView.EditTrigger.NoEditTriggers))
+        self.treeView.setEditTriggers(QABSTRACTITEMVIEW_NO_EDIT_TRIGGERS)
         self.treeView.setProperty("showDropIndicator", False)
         self.treeView.setAlternatingRowColors(True)
         self.treeView.setIndentation(0)
