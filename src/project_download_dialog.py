@@ -322,6 +322,13 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
 
         selected_files = self.fileSelection.get_selected_files()
 
+        # Ensure the project manifest is downloaded first so it is available
+        # immediately if the download is interrupted (issue #236).
+        _MANIFEST = "project.rs.xml"
+        manifest_files = [f for f in selected_files if f.lower() == _MANIFEST]
+        other_files = [f for f in selected_files if f.lower() != _MANIFEST]
+        selected_files = manifest_files + other_files
+
         if not selected_files:
             QMessageBox.warning(self, "No files selected", "Please select at least one file to download.")
             self.stackedWidget.setCurrentIndex(2)
