@@ -1595,6 +1595,15 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """
         self.flow_state = ProjectUploadDialogStateFlow.WAITING_FOR_COMPLETION
 
+        if job_status_obj is None:
+            self.error = ProjectUploadDialogError(
+                "Upload finalization failed",
+                task.error or "API returned no response",
+            )
+            self.flow_state = ProjectUploadDialogStateFlow.ERROR
+            self.recalc_state()
+            return
+
         if self.first_upload_check is None:
             self.first_upload_check = datetime.datetime.now()
 

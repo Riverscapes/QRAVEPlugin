@@ -367,6 +367,11 @@ class UploadQueue(QObject):
             self.queue_logger(f"Cancelled upload of {task.rel_path}", Qgis.Warning)
         elif task.error:
             self.queue_logger(f"Error uploading {task.rel_path}: {task.error}", Qgis.Critical, task)
+            try:
+                self.active_tasks.remove(task)
+                self.cancelled_tasks.append(task)
+            except Exception as e:
+                self.queue_logger(f"Error removing task: {str(e)}", Qgis.Warning)
         else:
             self.queue_logger(f"Finished uploading: {task.rel_path}", Qgis.Info)
             # Put it on the correct list
@@ -413,6 +418,9 @@ class UploadQueue(QObject):
                     task.cancel()
                     tasks_need_cancel += 1
 
+        if tasks_need_cancel == 0:
+            self.cancelled_signal.emit()
+            return
         loop.exec()
 
         # Now signal that we're done

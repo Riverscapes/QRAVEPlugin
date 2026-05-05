@@ -523,9 +523,7 @@ class DataExchangeAPI(QObject):
                 except Exception as e:
                     self.log(f"Error downloading file: {local_path}", Qgis.Critical)
                     self.log(f"Error: {e}", Qgis.Critical)
-                    # We don't null out ret_obj here, but we pass the error along if needed
-                    # Actually, the original code nulled it out:
-                    # ret_obj = None
+                    ret_obj = None
 
             return callback(task, ret_obj)
 
