@@ -1,13 +1,12 @@
 from __future__ import annotations
 import os
 import json
-from typing import Dict, Optional
+from typing import Optional
 import lxml.etree
 import traceback
 
 from qgis.core import Qgis
-from qgis.PyQt.QtGui import QStandardItem, QIcon, QBrush
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtGui import QStandardItem, QBrush
 
 from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
 from .rspaths import parse_rel_path
@@ -50,6 +49,7 @@ class Project:
         self.qproject = None
         self.project_dir = None
         self.version = None
+        self.load_error: Optional[str] = None
         self.exists = os.path.isfile(self.project_xml_path)
         if self.exists:
             self.project_dir = os.path.dirname(self.project_xml_path)
@@ -83,10 +83,16 @@ class Project:
                 if self.load_errs is False:
                     self.settings.msg_bar('Project Loaded', self.project_xml_path, Qgis.Success)
                 else:
-                    self.settings.msg_bar('Project Loaded with errors', "(See Riverscapes Viewer logs for details)", Qgis.Critical)
+                    self.settings.msg_bar(
+                        'Project Loaded with errors', "(See Riverscapes Viewer logs for details)", Qgis.Critical
+                    )
             except Exception as e:
-                self.settings.msg_bar("Error loading project", "Project: {}\n (See Riverscapes Viewer logs for specifics)".format(self.project_xml_path),
-                                      Qgis.Critical)
+                self.load_error = str(e)
+                self.settings.msg_bar(
+                    "Error loading project",
+                    "Project: {}\n (See Riverscapes Viewer logs for specifics)".format(self.project_xml_path),
+                    Qgis.Critical,
+                )
                 self.settings.log("Exception {}\n\nTrace: {}".format(e, traceback.format_exc()), Qgis.Critical)
         else:
             self.settings.msg_bar("Project Not Found", self.project_xml_path,
@@ -97,7 +103,8 @@ class Project:
             self.project = lxml.etree.parse(self.project_xml_path).getroot()
 
             self.meta = self.extract_meta(self.project.findall('MetaData/Meta'))
-            self.description = self.project.find('Description').text if self.project.find('Description') is not None else None
+            desc_node = self.project.find('Description')
+            self.description = desc_node.text if desc_node is not None else None
             if self.version == 'V1':
                 self.warehouse_meta = self.extract_meta(self.project.findall('Warehouse/Meta'))
             else:
@@ -107,7 +114,7 @@ class Project:
                     self.warehouse_meta = self.extract_warehouse(wh_tag)
 
             self.project_type = self.project.find('ProjectType').text
-            
+
             pb_node = self.project.find('ProjectBounds')
             if pb_node is not None:
                 bbox_node = pb_node.find('BoundingBox')
@@ -138,7 +145,10 @@ class Project:
 
             realizations = self.project.find('Realizations')
             if realizations is None:
-                raise Exception('Could not find the <Realizations> node. Are you sure the xml file you opened is Riverscapes Project? File: {}'.format(self.project_xml_path))
+                raise Exception(
+                    'Could not find the <Realizations> node. Are you sure the xml file you opened is '
+                    'Riverscapes Project? File: {}'.format(self.project_xml_path)
+                )
 
     @property
     def has_bounds(self) -> bool:
@@ -184,7 +194,11 @@ class Project:
             # 1. first check for a businesslogic file next to the project file
             parse_rel_path(os.path.join(os.path.dirname(self.project_xml_path), bl_filename)),
             # 1.5. Check for a local business logic folder
-            parse_rel_path(os.path.join(self.settings.getValue('localBLFolder'), bl_filename)) if self.settings.getValue('localBLFolder') else None,
+            (
+                parse_rel_path(os.path.join(self.settings.getValue('localBLFolder'), bl_filename))
+                if self.settings.getValue('localBLFolder')
+                else None
+            ),
             # 2. Second, check the businesslogic we've got from the web
             parse_rel_path(os.path.join(BL_XML_DIR, web_bl_filename)),
             # 3. Fall back to the default xml file
@@ -210,12 +224,16 @@ class Project:
             except Exception as e:
                 raise Exception('Unknown XML File error: {}, {}'.format(self.business_logic_path, e))
         else:
-            raise Exception(f'Could not find a valid business logic file. Valid paths are: \n{json.dumps(hierarchy, indent=2)}')
+            paths_str = json.dumps(hierarchy, indent=2)
+            raise Exception(f'Could not find a valid business logic file. Valid paths are: \n{paths_str}')
 
         # Check for a different kind of file
         root_node = self.business_logic.find('Node')
         if root_node is None:
-            raise Exception('Could not find the root <Node> element. Are you sure the xml file you opened is Riverscapes Business logic XML? File: {}'.format(self.business_logic_path))
+            raise Exception(
+                'Could not find the root <Node> element. Are you sure the xml file you opened is '
+                'Riverscapes Business logic XML? File: {}'.format(self.business_logic_path)
+            )
 
     def _build_tree(self, force=False):
         """
@@ -261,20 +279,21 @@ class Project:
             self.views[view_id] = view_layer_ids
             view_item.setData(
                 ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW, project=self, data=view_layer_ids),
-                USER_ROLE
+                USER_ROLE,
             )
             curr_item.appendRow(view_item)
 
         self.qproject.appendRow(curr_item)
 
     def _recurse_tree(self, bl_el=None, proj_el=None, parent: QStandardItem = None):
-        settings = Settings()
-
         if bl_el is None:
             bl_el = self.business_logic.find('Node')
 
         if bl_el is None:
-            self.settings.log('No default businesslogic root node could be located in file: {}'.format(self.business_logic_path), Qgis.Critical)
+            self.settings.log(
+                'No default businesslogic root node could be located in file: {}'.format(self.business_logic_path),
+                Qgis.Critical,
+            )
             return
 
         is_root = proj_el is None
@@ -287,7 +306,10 @@ class Project:
         if 'xpath' in bl_el.attrib:
             if len(bl_el.attrib['xpath']) == 0:
                 self.load_errs = True
-                self.settings.log("Empty Xpath detected on line {} of file: {}".format(bl_el.sourceline, self.business_logic_path), Qgis.Critical)
+                self.settings.log(
+                    "Empty Xpath detected on line {} of file: {}".format(bl_el.sourceline, self.business_logic_path),
+                    Qgis.Critical,
+                )
                 return
             new_proj_el = xpathone_withref(self.project, proj_el, bl_el.attrib['xpath'])
             if new_proj_el is None:
@@ -301,7 +323,12 @@ class Project:
         elif 'xpathlabel' in bl_el.attrib:
             if len(bl_el.attrib['xpathlabel']) == 0:
                 self.load_errs = True
-                self.settings.log("Empty xpathlabel detected on line {} of file: {}".format(bl_el.sourceline, self.business_logic_path), Qgis.Critical)
+                self.settings.log(
+                    "Empty xpathlabel detected on line {} of file: {}".format(
+                        bl_el.sourceline, self.business_logic_path
+                    ),
+                    Qgis.Critical,
+                )
                 return
             found = new_proj_el.xpath(bl_el.attrib['xpathlabel'])
             curr_label = found[0].text if found is not None and len(found) > 0 else '<unknown>'
@@ -315,10 +342,16 @@ class Project:
         if children_container is not None:
             if is_root is True:
                 curr_item.setIcon(qrave_icon('viewer-icon.svg'))
-                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self, data=dict(children_container.attrib)), USER_ROLE),
+                curr_item.setData(
+                    ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self, data=dict(children_container.attrib)),
+                    USER_ROLE,
+                ),
             else:
                 curr_item.setIcon(qrave_icon('BrowseFolder.png'))
-                curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data=dict(children_container.attrib)), USER_ROLE),
+                curr_item.setData(
+                    ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data=dict(children_container.attrib)),
+                    USER_ROLE,
+                ),
 
             for child_node in children_container.xpath('*'):
                 # Handle any explicit <Node> children
@@ -328,12 +361,24 @@ class Project:
                 # Repeaters are a separate case
                 elif child_node.tag == 'Repeater':
                     qrepeater = QStandardItem(qrave_icon('BrowseFolder.png'), child_node.attrib['label'])
-                    qrepeater.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_REPEATER_FOLDER, project=self, data=dict(children_container.attrib)), USER_ROLE),
+                    qrepeater.setData(
+                        ProjectTreeData(
+                            QRaveTreeTypes.PROJECT_REPEATER_FOLDER,
+                            project=self,
+                            data=dict(children_container.attrib),
+                        ),
+                        USER_ROLE,
+                    ),
                     curr_item.appendRow(qrepeater)
 
                     if len(child_node.attrib['xpath']) == 0:
                         self.load_errs = True
-                        self.settings.log("Empty repeater xpath detected on line {} of file: {}".format(child_node.sourceline, self.business_logic_path), Qgis.Critical)
+                        self.settings.log(
+                            "Empty repeater xpath detected on line {} of file: {}".format(
+                                child_node.sourceline, self.business_logic_path
+                            ),
+                            Qgis.Critical,
+                        )
                         return
 
                     repeat_xpath = child_node.attrib['xpath']
@@ -397,7 +442,12 @@ class Project:
                 path_text = path_el.text if path_el is not None else None
                 layer_uri = os.path.join(self.project_dir, path_text) if path_text else None
                 if path_text is None:
-                    self.settings.log("Could not find <Path> element on line {} of file: {}".format(new_proj_el.sourceline, self.business_logic_path), Qgis.Critical)
+                    self.settings.log(
+                        "Could not find <Path> element on line {} of file: {}".format(
+                            new_proj_el.sourceline, self.business_logic_path
+                        ),
+                        Qgis.Critical,
+                    )
                     return
 
             layer_type = bl_attr['type'] if 'type' in bl_attr else 'unknown'
@@ -405,7 +455,15 @@ class Project:
             desc_el = new_proj_el.find('Description')
             layer_description = desc_el.text.strip() if desc_el is not None and desc_el.text else None
 
-            map_layer = QRaveMapLayer(curr_label, layer_type, layer_uri, bl_attr, meta, layer_name, description=layer_description)
+            map_layer = QRaveMapLayer(
+                curr_label,
+                layer_type,
+                layer_uri,
+                bl_attr,
+                meta,
+                layer_name,
+                description=layer_description,
+            )
             curr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), USER_ROLE)
 
             if bl_type == 'tin':
@@ -471,7 +529,7 @@ def xpathone_withref(root_el, el, xpath_str):
 
 
 def xpath_findref(root_el, ref_str, xpath_str):
-    """If the ref attribute is set then we need to go looking for an <Inputs> node 
+    """If the ref attribute is set then we need to go looking for an <Inputs> node
     that corresponds
 
     Args:

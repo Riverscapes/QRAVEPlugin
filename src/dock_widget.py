@@ -110,7 +110,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         Returns:
             [type]: [description]
         """
-        qrave_projects = self.get_project_settings()
+        qrave_projects = self.get_project_settings()  # noqa: F841
         root_item = self.model.invisibleRootItem()
         projects = []
 
@@ -118,7 +118,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             child_item = root_item.child(row)
             if child_item is not None:
                 item_data = child_item.data(USER_ROLE)
-                if item_data and hasattr(item_data, 'project') and item_data.project is not None:
+                if (
+                    item_data
+                    and hasattr(item_data, 'project')
+                    and item_data.project is not None
+                    and getattr(item_data, 'type', None) != QRaveTreeTypes.PROJECT_LOAD_ERROR
+                ):
                     projects.append(item_data.project)
         return projects
 
@@ -216,9 +221,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     self.expand_children_recursive(
                         self.model.indexFromItem(project.qproject))
             else:
-                # If this project is unloadable then make sure it never tries to load again
-                self.set_project_settings(
-                    [x for x in qrave_projects if x != project_path])
+                # Project failed to load: show a placeholder error node so the
+                # user can see what failed and choose to remove or retry it.
+                error_item = self._make_load_error_node(project_name, project_path, project)
+                self.model.appendRow(error_item)
 
         # Load the tree objects
         self.basemaps.load()
@@ -273,7 +279,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 result = QMessageBox.question(
                     self,
                     "Locate Missing Project",
-                    f"The Riverscapes project file for '{name}' could not be found at the expected location:\n\n{xml_path}\n\nWould you like to locate it?",
+                    f"The Riverscapes project file for '{name}' could not be found "
+                    f"at the expected location:\n\n{xml_path}\n\nWould you like to locate it?",
                     MSGBOX_BTN_YES | MSGBOX_BTN_NO,
                     MSGBOX_BTN_NO
                 )
@@ -299,8 +306,11 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if projects and os.path.isdir(os.path.dirname(qgs_path)):
             qgs_path_dir = os.path.dirname(qgs_path)
             # Swap all abspaths for relative ones
-            projects = [(name, basename, xml_path if xml_path.startswith('remote:') else safe_make_relpath(xml_path, qgs_path_dir))
-                        for name, basename, xml_path in projects]
+            projects = [
+                (name, basename,
+                 xml_path if xml_path.startswith('remote:') else safe_make_relpath(xml_path, qgs_path_dir))
+                for name, basename, xml_path in projects
+            ]
         self.qproject.writeEntry(
             CONSTANTS['settingsCategory'], 'qrave_projects', json.dumps(projects))
 
@@ -311,6 +321,19 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     @pyqtSlot(str)
     def add_project(self, xml_path: str):
         qrave_projects = self.get_project_settings()
+
+        # Prevent the same project file from being loaded more than once
+        abs_xml_path = os.path.abspath(xml_path)
+        if any(
+            not p.startswith('remote:') and os.path.abspath(p) == abs_xml_path
+            for _, _, p in qrave_projects
+        ):
+            self.settings.msg_bar(
+                'Project already open',
+                abs_xml_path,
+                Qgis.Warning,
+            )
+            return
 
         test_project = Project(xml_path)
         test_project.load()
@@ -356,6 +379,16 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         test_project = RemoteProject(gql_data)
         test_project.load()
 
+        # Prevent the same remote project from being loaded more than once
+        remote_key = f"remote:{test_project.id}"
+        if any(p == remote_key for _, _, p in qrave_projects):
+            self.settings.msg_bar(
+                'Remote project already open',
+                str(test_project.id),
+                Qgis.Warning,
+            )
+            return
+
         if test_project.qproject is None:
             self.settings.log('Error loading remote project', Qgis.Warning)
             return
@@ -386,10 +419,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         if new_project:
             self.zoom_to_project(new_project)
-            if load_default_setting \
-                and new_project.default_view is not None \
-                    and new_project.default_view in new_project.views \
-            and new_project.views[new_project.default_view] is not None:
+            if (
+                load_default_setting
+                and new_project.default_view is not None
+                and new_project.default_view in new_project.views
+                and new_project.views[new_project.default_view] is not None
+            ):
                 view_layers = new_project.views[new_project.default_view]
                 self.add_children_to_map(new_project.qproject, view_layers)
 
@@ -412,6 +447,59 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 root.removeRow(i)
                 # We return here because we only expect one, and loop indices change after removeRow
                 return
+
+    def _make_load_error_node(
+        self, project_name: str, project_path: str, project: "Project"
+    ) -> QStandardItem:
+        """Create a top-level error placeholder for a project that failed to load.
+
+        Args:
+            project_name: Display name of the project.
+            project_path: File-system path to the project XML.
+            project: The (partially loaded) Project instance.
+
+        Returns:
+            A styled QStandardItem ready to be appended to the model root.
+        """
+        from qgis.PyQt.QtGui import QBrush, QColor
+
+        item = QStandardItem(qrave_icon("close.png"), f"⚠ {project_name}")
+
+        # Italic + muted-red — follows the "missing file" visual pattern
+        font = item.font()
+        font.setItalic(True)
+        item.setFont(font)
+        item.setForeground(QBrush(QColor(180, 40, 40)))
+
+        # Build a helpful tooltip
+        if not project.exists:
+            tip = f"Project file not found:\n{project_path}"
+        elif project.load_error:
+            tip = (
+                f"Failed to load project.\n"
+                f"Path: {project_path}\n"
+                f"Error: {project.load_error}\n"
+                f"Check the Riverscapes Viewer log panel for details."
+            )
+        else:
+            tip = (
+                f"Failed to load project.\n"
+                f"Path: {project_path}\n"
+                f"Check the Riverscapes Viewer log panel for details."
+            )
+        item.setToolTip(tip)
+
+        # Store structured data so context-menu and click handlers can detect
+        # this node by type rather than by sentinel string.
+        item.setData(
+            ProjectTreeData(
+                QRaveTreeTypes.PROJECT_LOAD_ERROR,
+                project=project,
+                data=project_path,  # data holds the raw path for removal
+            ),
+            USER_ROLE,
+        )
+        return item
 
     def closeEvent(self, event):
         """ When the user clicks the "X" in the dockwidget titlebar
@@ -486,8 +574,11 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # Collapsed is an attribute set in the business logic
         # Never expand the QRaveBaseMap object becsause there's a network call involved
-        elif isinstance(item_data.data, QRaveBaseMap) \
-                or (isinstance(item_data.data, dict) and 'collapsed' in item_data.data and str(item_data.data['collapsed']).lower() == 'true'):
+        elif isinstance(item_data.data, QRaveBaseMap) or (
+            isinstance(item_data.data, dict)
+            and 'collapsed' in item_data.data
+            and str(item_data.data['collapsed']).lower() == 'true'
+        ):
             collapsed = True
 
         else:
@@ -536,6 +627,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         item = self.model.itemFromIndex(idx)
         item_data: ProjectTreeData = item.data(USER_ROLE)
+
+        if item_data is None or item_data.type == QRaveTreeTypes.PROJECT_LOAD_ERROR:
+            return
 
         # This is the default action for all add-able layers including basemaps
         if isinstance(item_data.data, QRaveMapLayer):
@@ -595,6 +689,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         # No multiselect so there is only ever one item
         item = self.model.itemFromIndex(indexes[0])
         data_item: ProjectTreeData = item.data(USER_ROLE)
+
+        if data_item is None or data_item.type == QRaveTreeTypes.PROJECT_LOAD_ERROR:
+            return
 
         if data_item.project is None or not data_item.project.exists:
             return
@@ -760,7 +857,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # replace # with _ in rs_xpath
         rs_xpath_sani = rs_xpath.replace('#', '_')
-        report_url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/tiles/{project_type}/{project_id}/{rs_xpath_sani}/index.html"
+        base_wh_url = CONSTANTS['warehouseUrl'].rstrip('/')
+        report_url = f"{base_wh_url}/tiles/{project_type}/{project_id}/{rs_xpath_sani}/index.html"
         QDesktopServices.openUrl(QUrl(report_url))
 
     def fetch_and_add_remote_layer(self, item: QStandardItem, item_data: ProjectTreeData):
@@ -771,7 +869,11 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 # Check for tiling error
                 if resp.get('state') == 'TILING_ERROR':
                     self.settings.log(f"Tile service is in error state for {item_data.data.label}.", Qgis.Warning)
-                    QMessageBox.warning(self, "Add Layer Failed", f"Tile service is in error state on the server. Please check the Riverscapes Data Exchange.")
+                    QMessageBox.warning(
+                        self, "Add Layer Failed",
+                        "Tile service is in error state on the server. "
+                        "Please check the Riverscapes Data Exchange."
+                    )
                     return
 
                 # Fetch more details from the indexUrl if it exists
@@ -780,7 +882,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 url_val = resp.get('url')
                 if not url_val:
                     self.settings.log(f"Tile service URL is missing for {item_data.data.label}.", Qgis.Warning)
-                    QMessageBox.warning(self, "Add Layer Failed", f"Tile service URL could not be found for {item_data.data.label}.")
+                    QMessageBox.warning(
+                        self, "Add Layer Failed",
+                        f"Tile service URL could not be found for {item_data.data.label}."
+                    )
                     return
 
                 base_url = url_val.rstrip('/')
@@ -803,7 +908,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                             if resp_json.status_code == 200:
                                 return resp_json.json()
                             else:
-                                self.settings.log(f"Failed to fetch JSON from {url}. Status: {resp_json.status_code}", Qgis.Warning)
+                                self.settings.log(
+                                    f"Failed to fetch JSON from {url}. Status: {resp_json.status_code}",
+                                    Qgis.Warning,
+                                )
                         except Exception as e:
                             self.settings.log(f"Error fetching JSON from {url}: {e}", Qgis.Warning)
                         return None
@@ -814,15 +922,24 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                         self.settings.log(f"Successfully fetched index metadata from {index_url}", Qgis.Info)
                         resp.update(index_data)
                     else:
-                        self.settings.log(f"Failed to fetch valid JSON from indexUrl or fallback: {index_url}", Qgis.Warning)
+                        self.settings.log(
+                            f"Failed to fetch valid JSON from indexUrl or fallback: {index_url}",
+                            Qgis.Warning,
+                        )
 
                 # Now fetch symbology
                 def _handle_symbology(symb_task: RunGQLQueryTask, symb_resp: Dict):
                     if symb_task.success and symb_resp:
                         resp['mapboxJson'] = symb_resp.get('mapboxJson')
-                        self.settings.log(f"Successfully fetched remote symbology for {item_data.data.label}", Qgis.Info)
+                        self.settings.log(
+                            f"Successfully fetched remote symbology for {item_data.data.label}",
+                            Qgis.Info,
+                        )
                     else:
-                        self.settings.log(f"No remote symbology found or error for {item_data.data.label}", Qgis.Info)
+                        self.settings.log(
+                            f"No remote symbology found or error for {item_data.data.label}",
+                            Qgis.Info,
+                        )
 
                     if item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER:
                         QRaveMapLayer.add_remote_raster_layer_to_map(item, resp)
@@ -842,7 +959,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 if symbology_name:
                     project_type_id = item_data.project.project_type
                     is_raster = item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER
-                    self.dataExchangeAPI.get_web_symbology(project_type_id, symbology_name, is_raster, _handle_symbology)
+                    self.dataExchangeAPI.get_web_symbology(
+                        project_type_id,
+                        symbology_name,
+                        is_raster,
+                        _handle_symbology,
+                    )
                 else:
                     if item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER:
                         QRaveMapLayer.add_remote_raster_layer_to_map(item, resp)
@@ -850,12 +972,23 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                         QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
             else:
                 self.settings.log(f"Error fetching tile metadata: {task.error}", Qgis.Warning)
-                QMessageBox.warning(self, "Add Layer Failed", f"Could not fetch tile metadata for {item_data.data.label}")
+                QMessageBox.warning(
+                    self, "Add Layer Failed",
+                    f"Could not fetch tile metadata for {item_data.data.label}"
+                )
 
         if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
-            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_add_layer_login(task, item, item_data))
+            self.dataExchangeAPI = DataExchangeAPI(
+                on_login=lambda task: self._on_add_layer_login(task, item, item_data)
+            )
         else:
-            project_id = item_data.project.id if hasattr(item_data.project, 'id') else (item_data.project.warehouse_meta['id'][0] if item_data.project.warehouse_meta and 'id' in item_data.project.warehouse_meta else None)
+            if hasattr(item_data.project, 'id'):
+                project_id = item_data.project.id
+            elif (item_data.project.warehouse_meta
+                    and 'id' in item_data.project.warehouse_meta):
+                project_id = item_data.project.warehouse_meta['id'][0]
+            else:
+                project_id = None
             project_type_id = item_data.project.project_type
             rs_xpath = item_data.data.bl_attr.get('rsXPath', '')
             if not rs_xpath:
@@ -884,7 +1017,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self._fetching_projects.add(project_id)
 
         if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
-            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_missing_remote_fetch_login(task, project_id))
+            self.dataExchangeAPI = DataExchangeAPI(
+                on_login=lambda task: self._on_missing_remote_fetch_login(task, project_id)
+            )
         else:
             self.dataExchangeAPI.get_remote_project(project_id, self._on_missing_remote_project_fetched)
 
@@ -948,7 +1083,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                                 cached_items.append(new_item)
 
                 # 2. Update the active project object
-                # Find the project in the tree (it might be multiple times if copied, but usually one remote project per ID)
+                # Find the project in the tree (may appear multiple times if copied,
+                # but usually there is one remote project per ID)
                 projects = self._get_projects()
                 for proj in projects:
                     if isinstance(proj, RemoteProject) and proj.id == project_id:
@@ -965,7 +1101,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
             # Should have been initialized by get_remote_project call, but just in case
-            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self.fetch_dataset_metadata(project_id, offset, limit))
+            self.dataExchangeAPI = DataExchangeAPI(
+                on_login=lambda task: self.fetch_dataset_metadata(project_id, offset, limit)
+            )
         else:
             self.dataExchangeAPI.get_dataset_metadata(project_id, limit, offset, _handle_metadata)
 
@@ -1001,7 +1139,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         Args:
             item (QStandardItem): [description]
-            bl_ids (List[str], optional): List of ids to filter by so we don't load everything. this is used for loading views
+            bl_ids (List[str], optional): List of ids to filter by so we don't load
+                everything. This is used for loading views.
         """
 
         for child in self._get_children(item):
@@ -1113,9 +1252,14 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         elif project_tree_data.type == QRaveTreeTypes.PROJECT_VIEW:
             self.view_context_menu(menu, idx, item, project_tree_data)
 
+        elif project_tree_data.type == QRaveTreeTypes.PROJECT_LOAD_ERROR:
+            self.load_error_context_menu(menu, idx, item, project_tree_data)
+
         menu.exec(self.treeView.viewport().mapToGlobal(position))
 
-    def map_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
+    def map_layer_context_menu(
+        self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData
+    ):
         if isinstance(item_data.project, RemoteProject):
             menu.addAction('ADD_TO_MAP', lambda: self.fetch_and_add_remote_layer(item, item_data))
         else:
@@ -1124,7 +1268,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         menu.addAction('VIEW_LAYER_META', lambda: self.change_meta(item, item_data, True))
 
         # If the project has a warehouse tag, add "Add WebTiles to map" (for local projects)
-        if not isinstance(item_data.project, RemoteProject) and item_data.project.warehouse_meta and 'id' in item_data.project.warehouse_meta:
+        wh_meta = item_data.project.warehouse_meta
+        if not isinstance(item_data.project, RemoteProject) and wh_meta and 'id' in wh_meta:
             if item_data.data.bl_attr.get('rsXPath'):
                 menu.addAction('ADD_WEB_TILES_TO_MAP', lambda: self.fetch_and_add_remote_layer(item, item_data))
 
@@ -1139,7 +1284,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
         self.layerMenuOpen.emit(menu, item, item_data)
 
-    def file_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
+    def file_layer_context_menu(
+        self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData
+    ):
         if isinstance(item_data.project, RemoteProject):
             if item_data.data.layer_type == QRaveMapLayer.LayerTypes.REPORT:
                 menu.addAction('OPEN_REPORT', lambda: self.open_remote_report_in_browser(item_data))
@@ -1175,6 +1322,43 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         menu.addAction(
             'ADD_ALL_TO_MAP', lambda: self.add_view_to_map(item_data))
 
+    def load_error_context_menu(
+        self,
+        menu: ContextMenu,
+        idx: QModelIndex,
+        item: QStandardItem,
+        data: ProjectTreeData,
+    ):
+        """Context menu for a project-load-error placeholder node."""
+        project_path = data.data  # stored as raw path string in _make_load_error_node
+        menu.addAction("RETRY_LOAD", self.reload_tree)
+        if project_path and not str(project_path).startswith("remote:"):
+            menu.addAction(
+                "BROWSE_PROJECT_FOLDER",
+                lambda p=project_path: self.file_system_locate(p),
+            )
+        menu.addSeparator()
+        menu.addAction(
+            "CLOSE_PROJECT",
+            lambda p=project_path: self._close_error_project(p),
+        )
+
+    def _close_error_project(self, project_path: str):
+        """Remove a failed-load project from settings by its file path."""
+        try:
+            qrave_projects = self.get_project_settings()
+        except Exception as e:
+            self.settings.log(f"Error closing error project: {e}", Qgis.Warning)
+            qrave_projects = []
+
+        qrave_projects = [
+            (name, basename, xml)
+            for name, basename, xml in qrave_projects
+            if xml != project_path
+        ]
+        self.set_project_settings(qrave_projects)
+        QTimer.singleShot(0, self.reload_tree)
+
     # Project-level context menu
     def project_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
         menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(None, False))
@@ -1185,13 +1369,17 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         ), enabled=data.project.has_bounds_layer)
         menu.addSeparator()
         menu.addAction('UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
-        if isinstance(data.project, RemoteProject) or (data.project.warehouse_meta and 'id' in data.project.warehouse_meta):
+        wh_meta = data.project.warehouse_meta
+        if isinstance(data.project, RemoteProject) or (wh_meta and 'id' in wh_meta):
             menu.addAction('DOWNLOAD_ADD_PROJECT', lambda: self.project_download_load(data.project))
         menu.addSeparator()
         if not isinstance(data.project, RemoteProject):
             menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(data.project.project_xml_path))
         menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
-        menu.addAction('WAREHOUSE_VIEW', lambda: self.project_warehouse_view(data.project), enabled=bool(self.get_warehouse_url(data.project.warehouse_meta)))
+        menu.addAction(
+            'WAREHOUSE_VIEW', lambda: self.project_warehouse_view(data.project),
+            enabled=bool(self.get_warehouse_url(data.project.warehouse_meta))
+        )
         menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
         menu.addSeparator()
         menu.addAction('REFRESH_PROJECT_HIERARCHY', self.reload_tree)
@@ -1219,7 +1407,8 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if isinstance(project, RemoteProject):
             project_id = project.id
         else:
-            project_id = project.warehouse_meta['id'][0] if project.warehouse_meta and 'id' in project.warehouse_meta else None
+            wh_meta = project.warehouse_meta
+            project_id = wh_meta['id'][0] if wh_meta and 'id' in wh_meta else None
             local_path = project.project_xml_path
 
         dialog = ProjectDownloadDialog(None, project_id=project_id, local_path=local_path)

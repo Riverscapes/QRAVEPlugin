@@ -20,7 +20,6 @@ try:
     from qgis.core import QgsMapBoxGlStyleConverter
 except ImportError:
     QgsMapBoxGlStyleConverter = None
-from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QStandardItem
 from .rspaths import parse_rel_path
 from .settings import CONSTANTS, Settings
@@ -38,6 +37,7 @@ class QRaveTreeTypes():
     PROJECT_VIEW_FOLDER = 'PROJECT_VIEW_FOLDER'
     PROJECT_VIEW = 'PROJECT_VIEW'
     LEAF = 'LEAF'  # any kind of end node: maplayers and other open-able files
+    PROJECT_LOAD_ERROR = 'PROJECT_LOAD_ERROR'
     # Basemaps have a surprising number of itmes
     BASEMAP_ROOT = 'BASEMAP_ROOT'
     BASEMAP_SUPER_FOLDER = 'BASEMAP_SUPER_FOLDER'
@@ -123,7 +123,12 @@ class QRaveMapLayer():
                 if child.text() == name:
                     return absolute_position, order
                 if isinstance(child_data.data, QRaveMapLayer):
-                    if child_data.data.layer_type in [QRaveMapLayer.LayerTypes.LINE, QRaveMapLayer.LayerTypes.POINT, QRaveMapLayer.LayerTypes.POLYGON, QRaveMapLayer.LayerTypes.RASTER]:
+                    if child_data.data.layer_type in [
+                        QRaveMapLayer.LayerTypes.LINE,
+                        QRaveMapLayer.LayerTypes.POINT,
+                        QRaveMapLayer.LayerTypes.POLYGON,
+                        QRaveMapLayer.LayerTypes.RASTER,
+                    ]:
                         absolute_position += 1
                 else:
                     if child_data.type == QRaveTreeTypes.PROJECT_FOLDER:
@@ -189,14 +194,18 @@ class QRaveMapLayer():
         project = pt_data.project
         map_layer: QRaveMapLayer = pt_data.data
 
-        symbology = map_layer.bl_attr['symbology'] if map_layer.bl_attr is not None and 'symbology' in map_layer.bl_attr else None
+        symbology = (
+            map_layer.bl_attr['symbology']
+            if map_layer.bl_attr is not None and 'symbology' in map_layer.bl_attr
+            else None
+        )
         # If the business logic has symbology defined
         if symbology is not None:
 
             if len(symbology) == 0:
                 settings.log(
                     "Empty Symbology attribute for node with attributes: {}".format(map_layer.bl_attr),
-                    level=Qgis.Warning
+                    level=Qgis.Warning,
                 )
             else:
                 qml_fname = '{}.qml'.format(symbology)
@@ -215,12 +224,17 @@ class QRaveMapLayer():
                     # Report to the terminal if we couldn't find a qml file to use
                     if chosen_qml is None:
                         settings.log(
-                            "Missing Symbolog: Could not find a valid .qml symbology file for layer {}. Search paths: \n[\n{}]".format(map_layer.layer_uri, '   ,\n'.join(hierarchy)),
-                            level=Qgis.Warning
+                            "Missing Symbolog: Could not find a valid .qml symbology file for layer {}. "
+                            "Search paths: \n[\n{}]".format(map_layer.layer_uri, '   ,\n'.join(hierarchy)),
+                            level=Qgis.Warning,
                         )
 
                 except StopIteration:
-                    settings.log('Could not find valid symbology for layer at any of the following search paths: [ {} ]'.format(', '.join(hierarchy)), Qgis.Warning)
+                    settings.log(
+                        'Could not find valid symbology for layer at any of the following search paths: '
+                        '[ {} ]'.format(', '.join(hierarchy)),
+                        Qgis.Warning,
+                    )
             return chosen_qml
 
     @staticmethod
@@ -267,7 +281,6 @@ class QRaveMapLayer():
 
         # No multiselect so there is only ever one item
         pt_data: ProjectTreeData = item.data(USER_ROLE)
-        project = pt_data.project
         map_layer: QRaveMapLayer = pt_data.data
 
         settings = Settings()
@@ -293,7 +306,7 @@ class QRaveMapLayer():
                     and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
                 exists = True
                 break
-            elif lyr and lyr[0] == ancestry[0][0]:  # bit of a hacky way to test if map layer is in the same named qproject
+            elif lyr and lyr[0] == ancestry[0][0]:  # same-named project check
                 exists = True
                 break
 
@@ -305,7 +318,11 @@ class QRaveMapLayer():
                 out_uri = layer_uri.replace('%3F', '?').replace('%3A', ':').replace('%2F', '/').replace('%3D', '=')
                 rOutput = QgsRasterLayer(out_uri, map_layer.label, 'wms')
 
-            elif map_layer.layer_type in [QRaveMapLayer.LayerTypes.LINE, QRaveMapLayer.LayerTypes.POLYGON, QRaveMapLayer.LayerTypes.POINT]:
+            elif map_layer.layer_type in [
+                QRaveMapLayer.LayerTypes.LINE,
+                QRaveMapLayer.LayerTypes.POLYGON,
+                QRaveMapLayer.LayerTypes.POINT,
+            ]:
                 if map_layer.layer_name is not None:
                     layer_uri += "|layername={}".format(map_layer.layer_name)
                 rOutput = QgsVectorLayer(layer_uri, map_layer.label, "ogr")
@@ -356,10 +373,14 @@ class QRaveMapLayer():
                 # Feature Filter (Definition Query)
                 ##########################################
 
-                filter = map_layer.bl_attr['filter'] if map_layer.bl_attr is not None and 'filter' in map_layer.bl_attr else None
+                filter_expr = (
+                    map_layer.bl_attr['filter']
+                    if map_layer.bl_attr is not None and 'filter' in map_layer.bl_attr
+                    else None
+                )
 
-                if filter is not None:
-                    rOutput.setSubsetString(filter)
+                if filter_expr is not None:
+                    rOutput.setSubsetString(filter_expr)
 
         # if the layer already exists trigger a refresh
         else:
@@ -384,29 +405,31 @@ class QRaveMapLayer():
             if len(lyr) == len(ancestry) and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
                 exists = True
                 break
-        
+
         if exists:
             QgsProject.instance().mapLayersByName(map_layer.tiles_label)[0].triggerRepaint()
             return
 
         # Construct Tile URL
         base_url = tile_service.get('url', '').rstrip('/')
-        
+
         # TODO: Fix minZoom and maxZoom on the server-side so we don't need to fetch indexUrl manually
         # For vector layers we use layer_name or nodeId
         layer_name = map_layer.layer_name
         if not layer_name:
             layer_name = map_layer.bl_attr.get('nodeId', '')
         if not layer_name:
-            # Strip the id off of the xPath. So for Project/Realizations/Realization#REALIZATION1/Datasets/Vector#Ecoregions I want Ecoregions
+            # Strip the id off of the rsXPath. E.g. for
+            # Project/Realizations/Realization#ID/Datasets/Vector#Name
+            # we want just the trailing Name.
             xpath = map_layer.bl_attr.get('rsXPath', '')
             if '#' in xpath:
                 layer_name = xpath.split('/')[-1].split('#')[1]
             else:
                 layer_name = xpath.split('/')[-1]
-            
+
         fmt = tile_service.get('format', 'pbf')
-        
+
         # Build the URI
         # Examples: type=xyz&url=https://.../{z}/{x}/{y}.pbf
         tile_url = f"{base_url}/{layer_name}/{{z}}/{{x}}/{{y}}.{fmt}"
@@ -421,7 +444,7 @@ class QRaveMapLayer():
                 uri += f"&zmax={tile_service['maxZoom']}"
             if tile_service.get('minZoom') is not None:
                 uri += f"&zmin={tile_service['minZoom']}"
-            
+
             rOutput = QgsVectorTileLayer(uri, map_layer.tiles_label)
         elif fmt == 'gpkg':
             # GeoPackage format - assume it's a file download
@@ -450,31 +473,31 @@ class QRaveMapLayer():
                     if not dest_crs.isValid():
                         dest_crs = QgsCoordinateReferenceSystem("EPSG:3857")
                         rOutput.setCrs(dest_crs)
-                    
+
                     if src_crs != dest_crs:
                         transform = QgsCoordinateTransform(src_crs, dest_crs, QgsProject.instance())
                         rect = transform.transformBoundingBox(rect)
-                        
+
                     rOutput.setExtent(rect)
 
                     metadata = rOutput.metadata()
                     metadata.setIdentifier(map_layer.tiles_label)
                     metadata.setTitle(map_layer.tiles_label)
-                    
+
                     spatialExtent = QgsLayerMetadata.SpatialExtent()
                     spatialExtent.extent = QgsReferencedRectangle(rect, dest_crs)
-                    
+
                     extent = QgsLayerMetadata.Extent()
                     extent.setSpatialExtents([spatialExtent])
                     metadata.setExtent(extent)
-                    
+
                     rOutput.setMetadata(metadata)
                     settings.log(f"Finalized layer metadata and extent: {rect.toString()}", Qgis.Info)
                 except Exception as e:
                     settings.log(f'Error finalising metadata: {e}', Qgis.Warning)
 
             rOutput.triggerRepaint()
-            
+
             # Apply Mapbox GL Symbology if present
             mapbox_json = tile_service.get('mapboxJson')
             if mapbox_json:
@@ -525,7 +548,7 @@ class QRaveMapLayer():
                         renderer.setStyle(style_json)
                         rOutput.setRenderer(renderer)
                         settings.log("Applied Mapbox GL symbology using native renderer", Qgis.Info)
-                    
+
                     # Option 2: Fallback to the style converter (more compatible)
                     # https://qgis.org/pyqgis/master/core/QgsMapBoxGlStyleConverter.html
                     elif QgsMapBoxGlStyleConverter:
@@ -537,7 +560,7 @@ class QRaveMapLayer():
                             settings.log("Applied Mapbox GL symbology and labeling using style converter", Qgis.Info)
                         else:
                             settings.log(f"Mapbox style conversion failed: {converter.errorMessage()}", Qgis.Warning)
-                    
+
                     else:
                         settings.log("No compatible Mapbox GL renderer found in this QGIS build.", Qgis.Warning)
 
@@ -545,7 +568,7 @@ class QRaveMapLayer():
                     settings.log(f"Error applying Mapbox GL symbology: {e}", Qgis.Warning)
 
             rOutput.triggerRepaint()
-            
+
             # TODO: Transparency and other settings if needed
             transparency = 0
             try:
@@ -580,7 +603,7 @@ class QRaveMapLayer():
             if len(lyr) == len(ancestry) and all(iter([ancestry[x][0] == lyr[x] for x in range(len(ancestry))])):
                 exists = True
                 break
-        
+
         if exists:
             QgsProject.instance().mapLayersByName(map_layer.tiles_label)[0].triggerRepaint()
             return
@@ -588,7 +611,7 @@ class QRaveMapLayer():
         # Symbology logic provided by user
         symbology_name = map_layer.bl_attr.get('symbology')
         symbology_key = symbology_name if symbology_name and symbology_name != 'NONE' else 'raster'
-        
+
         fmt = tile_service.get('format', 'png')
         is_cog = fmt == 'COG'
         base_url = tile_service.get('url', '')
@@ -625,7 +648,7 @@ class QRaveMapLayer():
         settings.log(f"  - Constructed Tile URL: {tile_url}", Qgis.Info)
         settings.log(f"  - Final URI: {uri}", Qgis.Info)
         settings.log(f"  - Provider: {provider}", Qgis.Info)
-        
+
         rOutput = QgsRasterLayer(uri, map_layer.tiles_label, provider)
 
         if rOutput and rOutput.isValid():
@@ -642,24 +665,24 @@ class QRaveMapLayer():
                     if not dest_crs.isValid():
                         dest_crs = QgsCoordinateReferenceSystem("EPSG:3857")
                         rOutput.setCrs(dest_crs)
-                    
+
                     if src_crs != dest_crs:
                         transform = QgsCoordinateTransform(src_crs, dest_crs, QgsProject.instance())
                         rect = transform.transformBoundingBox(rect)
-                        
+
                     rOutput.setExtent(rect)
 
                     metadata = rOutput.metadata()
                     metadata.setIdentifier(map_layer.tiles_label)
                     metadata.setTitle(map_layer.tiles_label)
-                    
+
                     spatialExtent = QgsLayerMetadata.SpatialExtent()
                     spatialExtent.extent = QgsReferencedRectangle(rect, dest_crs)
-                    
+
                     extent = QgsLayerMetadata.Extent()
                     extent.setSpatialExtents([spatialExtent])
                     metadata.setExtent(extent)
-                    
+
                     rOutput.setMetadata(metadata)
                     settings.log(f"  - Set extent: {rect.toString()}", Qgis.Info)
                 except Exception as e:
@@ -677,17 +700,21 @@ class QRaveMapLayer():
             rOutput.triggerRepaint()
             settings.log(f"Successfully added remote raster layer: {map_layer.tiles_label}", Qgis.Info)
         else:
-            settings.log(f'Failed to create valid remote raster layer for {map_layer.tiles_label}. isValid() is False.', Qgis.Critical)
+            settings.log(
+                f'Failed to create valid remote raster layer for {map_layer.tiles_label}. '
+                f'isValid() is False.',
+                Qgis.Critical,
+            )
             # Try a fallback without the provider if it failed with it
             if provider == "gdal":
-                settings.log(f"Retrying without explicit 'gdal' provider...", Qgis.Info)
+                settings.log("Retrying without explicit 'gdal' provider...", Qgis.Info)
                 rOutput = QgsRasterLayer(uri, map_layer.tiles_label)
                 if rOutput and rOutput.isValid():
                     QgsProject.instance().addMapLayer(rOutput, False)
                     parentGroup.insertChildNode(-1, QgsLayerTreeLayer(rOutput))
-                    settings.log(f"Success on retry without provider!", Qgis.Info)
+                    settings.log("Success on retry without provider!", Qgis.Info)
                 else:
-                    settings.log(f"Fallback also failed.", Qgis.Critical)
+                    settings.log("Fallback also failed.", Qgis.Critical)
 
     @staticmethod
     def get_layer_ancestry(layer: list):
