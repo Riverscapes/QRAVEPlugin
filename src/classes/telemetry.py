@@ -10,14 +10,18 @@ import uuid
 import platform
 from urllib.request import Request, urlopen
 from threading import Thread
-from .settings import Settings, MESSAGE_CATEGORY
+from .settings import Settings
 from ...__version__ import __version__
+from qgis.core import Qgis
 
 
 class Telemetry:
 
-    @staticmethod
-    def _load_secrets() -> Tuple[str, str]:
+    def __init__(self, app_name: str):
+        self.app_name = app_name.replace(' ', '_')
+        self.settings = Settings()
+
+    def _load_secrets(self) -> Tuple[str, str]:
         # secrets.json lives two directories above this file (at the plugin root)
         secrets_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'secrets.json'))
         try:
@@ -31,37 +35,46 @@ class Telemetry:
                 token = api_token
                 return endpoint, token
         except FileNotFoundError:
-            pass  # silently disabled when secrets.json is absent
-        except Exception:
-            pass
+            self.settings.log(f'Telemetry: secrets.json not found at {secrets_path}; telemetry disabled.', Qgis.Info)
+        except Exception as e:
+            self.settings.log(f'Telemetry: failed reading secrets ({e}).', Qgis.Warning)
 
         return None, None
 
-    @staticmethod
-    def get_client_id() -> str:
+    def get_client_id(self) -> str:
         # Check if a client ID already exists in settings, if not generate a new one and save it
-        settings = Settings()
-        client_id = settings.getValue('telemetryClientId')
+        client_id = self.settings.getValue('telemetryClientId')
         if not client_id:
             client_id = str(uuid.uuid4())
-            settings.setValue('telemetryClientId', client_id)
+            self.settings.setValue('telemetryClientId', client_id)
         return client_id
 
-    @staticmethod
-    def send(event: str) -> None:
+    def send(self, event: str) -> None:
         """
         Send a telemetry ping in a background thread.
-        Failures are silently ignored — telemetry must never break the app.
+        Failures are logged but never raised — telemetry must never break the app.
         """
 
-        settings = Settings()
-        app_name = MESSAGE_CATEGORY.replace(' ', '_')
-        client_id = Telemetry.get_client_id()
-        use_telemetry = settings.getValue('telemetryEnabled')
-        endpoint, token = Telemetry._load_secrets()
+        app_name = self.app_name
+        client_id = self.get_client_id()
+        use_telemetry = self.settings.getValue('telemetryEnabled')
+        endpoint, token = self._load_secrets()
 
-        if use_telemetry is not True or not client_id or not endpoint or not token:
+        if use_telemetry is not True:
+            self.settings.log('Telemetry: disabled by settings (telemetryEnabled=False).', Qgis.Info)
             return
+
+        if not client_id:
+            self.settings.log('Telemetry: missing client_id; skipping send.', Qgis.Warning)
+            return
+
+        if not endpoint or not token:
+            self.settings.log('Telemetry: missing endpoint/token; skipping send.', Qgis.Info)
+            return
+
+        self.settings.log(f'Telemetry: queueing event "{event}".', Qgis.Info)
+
+        settings = self.settings
 
         def _send():
             try:
@@ -82,8 +95,9 @@ class Telemetry:
                     },
                     method="POST",
                 )
-                urlopen(req, timeout=5)
-            except Exception:
-                pass
+                with urlopen(req, timeout=5) as response:
+                    settings.log(f'Telemetry: event "{event}" sent (status={response.getcode()} url={endpoint}).', Qgis.Info)
+            except Exception as e:
+                settings.log(f'Telemetry: failed to send event "{event}" ({e}).', Qgis.Warning)
 
         Thread(target=_send, daemon=True).start()

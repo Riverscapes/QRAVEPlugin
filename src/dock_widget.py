@@ -45,7 +45,7 @@ from .classes.context_menu import ContextMenu
 from .classes.project import Project, ProjectTreeData
 from .classes.remote_project import RemoteProject
 from .classes.basemaps import BaseMaps, QRaveBaseMap
-from .classes.settings import Settings, CONSTANTS
+from .classes.settings import Settings, CONSTANTS, MESSAGE_CATEGORY
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
 from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
 from .icon_utils import qrave_icon
@@ -338,7 +338,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 self.add_children_to_map(new_project.qproject, new_project.views[new_project.default_view])
 
             # Optional telemetry
-            Telemetry.send('Load_Project')
+            Telemetry(MESSAGE_CATEGORY).send('Load_Project')
             self._add_to_recent_projects(xml_path)
 
     def _add_to_recent_projects(self, xml_path: str):
