@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os
 import json
-from typing import Dict
+from typing import Dict, Optional
 import lxml.etree
 import traceback
 
@@ -41,6 +41,7 @@ class Project:
         self.project_xml_path = os.path.abspath(project_xml_path)
         self.project = None
         self.bounds = None
+        self.bounds_path: Optional[str] = None
         self.loadable = False
         self.load_errs = False
         self.project_type = None
@@ -129,6 +130,12 @@ class Project:
                     except (ValueError, TypeError):
                         self.bounds = None
 
+                path_el = pb_node.find('Path')
+                if path_el is not None and path_el.text:
+                    candidate = os.path.join(self.project_dir, path_el.text.strip())
+                    if os.path.isfile(candidate):
+                        self.bounds_path = candidate
+
             realizations = self.project.find('Realizations')
             if realizations is None:
                 raise Exception('Could not find the <Realizations> node. Are you sure the xml file you opened is Riverscapes Project? File: {}'.format(self.project_xml_path))
@@ -137,6 +144,11 @@ class Project:
     def has_bounds(self) -> bool:
         """Check if the project has valid bounds"""
         return self.bounds is not None
+
+    @property
+    def has_bounds_layer(self) -> bool:
+        """Check if the project has a bounds GeoJSON layer file"""
+        return self.bounds_path is not None
 
     def extract_meta(self, nodelist):
         meta = {}

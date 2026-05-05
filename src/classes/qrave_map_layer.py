@@ -4,7 +4,7 @@ import json
 import urllib.parse
 
 from typing import Dict
-from qgis.core import (Qgis, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsVectorTileLayer,
+from qgis.core import (Qgis, QgsMessageLog, QgsProject, QgsRasterLayer, QgsVectorLayer, QgsVectorTileLayer,
                        QgsRectangle, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
                        QgsReferencedRectangle, QgsLayerMetadata,
                        QgsLayerTreeGroup, QgsLayerTreeLayer)
@@ -711,3 +711,59 @@ class QRaveMapLayer():
         for group in [child for child in root.children() if isinstance(child, QgsLayerTreeGroup)]:
             if group.name() == project_name:
                 root.removeChildNode(group)
+
+    @staticmethod
+    def add_project_bounds_to_map(bounds_path: str, project_name: str, group_name: str):
+        """Add a project bounds GeoJSON layer to the top of the project group.
+
+        Args:
+            bounds_path: Absolute path to the GeoJSON file.
+            project_name: Display name for the layer (unused, kept for API symmetry).
+            group_name: Name of the QGIS layer group to insert into.
+        """
+        settings = Settings()
+
+        if not bounds_path or not os.path.isfile(bounds_path):
+            settings.log(f'Project bounds file not found: {bounds_path}', Qgis.Warning)
+            return None
+
+        # Find or create the top-level group
+        root = QgsProject.instance().layerTreeRoot()
+        group = None
+        for child in root.children():
+            if isinstance(child, QgsLayerTreeGroup) and child.name() == group_name:
+                group = child
+                break
+
+        if group is None:
+            group = QRaveMapLayer._addgrouptomap(group_name, 0, root)
+
+        # Check whether a 'Project Bounds' layer already exists in this group
+        layer_label = 'Project Bounds'
+        for child in group.children():
+            if isinstance(child, QgsLayerTreeLayer):
+                lyr = child.layer()
+                if lyr is not None and lyr.name() == layer_label:
+                    lyr.triggerRepaint()
+                    return lyr
+
+        # Create the vector layer
+        layer = QgsVectorLayer(bounds_path, layer_label, 'ogr')
+        if not layer.isValid():
+            QgsMessageLog.logMessage(
+                f'Project bounds layer is not valid: {bounds_path}',
+                MESSAGE_CATEGORY,
+                Qgis.Warning
+            )
+            return None
+
+        # Load QML symbology if available
+        qml_path = os.path.join(SYMBOLOGY_DIR, 'project_bounds.qml')
+        if os.path.isfile(qml_path):
+            layer.loadNamedStyle(qml_path)
+
+        # Add to the map and insert at position 0 (top of the group)
+        QgsProject.instance().addMapLayer(layer, False)
+        group.insertChildNode(0, QgsLayerTreeLayer(layer))
+
+        return layer

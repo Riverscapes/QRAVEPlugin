@@ -1180,6 +1180,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(None, False))
         menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(None, True))
         menu.addAction('ZOOM_TO_PROJECT', lambda: self.zoom_to_project(data.project), enabled=data.project.has_bounds)
+        menu.addAction('ADD_PROJECT_BOUNDS_TO_MAP', lambda: QRaveMapLayer.add_project_bounds_to_map(
+            data.project.bounds_path, 'Project Bounds', data.project.qproject.text()
+        ), enabled=data.project.has_bounds_layer)
         menu.addSeparator()
         menu.addAction('UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
         if isinstance(data.project, RemoteProject) or (data.project.warehouse_meta and 'id' in data.project.warehouse_meta):

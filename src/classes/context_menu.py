@@ -14,6 +14,10 @@ class ContextMenu(QMenu):
             "Zoom Map to Project",
             ':/plugins/qrave_toolbar/bounds',
         ),
+        'ADD_PROJECT_BOUNDS_TO_MAP': (
+            "Add Project Bounds to Map",
+            ':/plugins/qrave_toolbar/AddToMap.png',
+        ),
         'COLLAPSE_ALL': (
             "Collapse All Child Nodes",
             ':/plugins/qrave_toolbar/collapse.png',
