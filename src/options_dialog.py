@@ -1,14 +1,13 @@
-from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QComboBox, QPushButton, QSizePolicy, QSpacerItem, QGridLayout, QRadioButton, QLineEdit
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtWidgets import QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QRadioButton, QSizePolicy, QSpacerItem, QVBoxLayout
 
-from .classes.settings import Settings
 from .classes.basemaps import BaseMaps
-from .compat import HORIZONTAL, SPSZ_MINIMUM_EXPANDING, SPSZ_FIXED, SPSZ_MINIMUM, SPSZ_EXPANDING, DLGBTN_APPLY, DLGBTN_CANCEL, DLGBTN_RESET, DLGBTN_ROLE_APPLY, DLGBTN_ROLE_RESET
+from .classes.settings import Settings
+from .compat import DLGBTN_APPLY, DLGBTN_CANCEL, DLGBTN_RESET, DLGBTN_ROLE_APPLY, DLGBTN_ROLE_RESET, HORIZONTAL, SPSZ_EXPANDING, SPSZ_FIXED, SPSZ_MINIMUM, SPSZ_MINIMUM_EXPANDING
 
 
 class OptionsDialog(QDialog):
-
     closingPlugin = pyqtSignal()
     dataChange = pyqtSignal()
 
@@ -25,27 +24,27 @@ class OptionsDialog(QDialog):
         self.setValues()
 
         self.regionHelp.setText(None)
-        self.regionHelp.setIcon(QIcon(':/plugins/qrave_toolbar/Help.png'))
+        self.regionHelp.setIcon(QIcon(":/plugins/qrave_toolbar/Help.png"))
         self.regionHelp.setToolTip("Help choosing a basemap region")
         # self.regionHelp.clicked.connect(la
         self.regionHelp.setEnabled(False)
 
     def setValues(self):
-        self.basemapsInclude.setChecked(self.settings.getValue('basemapsInclude'))
-        self.loadDefaultView.setChecked(self.settings.getValue('loadDefaultView'))
-        self.chk_telemetry.setChecked(self.settings.getValue('telemetryEnabled'))
-        self.autoUpdate.setChecked(self.settings.getValue('autoUpdate'))
-        self.txtBL.setText(self.settings.getValue('localBLFolder'))
+        self.basemapsInclude.setChecked(self.settings.getValue("basemapsInclude"))
+        self.loadDefaultView.setChecked(self.settings.getValue("loadDefaultView"))
+        self.chk_telemetry.setChecked(self.settings.getValue("telemetryEnabled"))
+        self.autoUpdate.setChecked(self.settings.getValue("autoUpdate"))
+        self.txtBL.setText(self.settings.getValue("localBLFolder"))
 
         # Set the combo box
         self.basemapRegion.clear()
-        region = self.settings.getValue('basemapRegion')
+        region = self.settings.getValue("basemapRegion")
         self.basemapRegion.addItems(self.basemaps.regions.keys())
         if region and len(region) > 0:
             self.basemapRegion.setCurrentText(region)
 
         # Set the dock location radio buttons
-        dock_location = self.settings.getValue('dockLocation')
+        dock_location = self.settings.getValue("dockLocation")
         if dock_location == "left":
             self.left_radio.setChecked(True)
         elif dock_location == "right":
@@ -57,15 +56,15 @@ class OptionsDialog(QDialog):
         role = self.buttonBox.buttonRole(btn)
 
         if role == DLGBTN_ROLE_APPLY:
-            self.settings.setValue('basemapsInclude', self.basemapsInclude.isChecked())
-            self.settings.setValue('loadDefaultView', self.loadDefaultView.isChecked())
-            self.settings.setValue('basemapRegion', self.basemapRegion.currentText())
-            self.settings.setValue('autoUpdate', self.autoUpdate.isChecked())
-            self.settings.setValue('localBLFolder', self.txtBL.text())
+            self.settings.setValue("basemapsInclude", self.basemapsInclude.isChecked())
+            self.settings.setValue("loadDefaultView", self.loadDefaultView.isChecked())
+            self.settings.setValue("basemapRegion", self.basemapRegion.currentText())
+            self.settings.setValue("autoUpdate", self.autoUpdate.isChecked())
+            self.settings.setValue("localBLFolder", self.txtBL.text())
             if self.left_radio.isChecked():
-                self.settings.setValue('dockLocation', 'left')
+                self.settings.setValue("dockLocation", "left")
             elif self.right_radio.isChecked():
-                self.settings.setValue('dockLocation', 'right')
+                self.settings.setValue("dockLocation", "right")
 
         elif role == DLGBTN_ROLE_RESET:
             self.settings.resetAllSettings()
@@ -76,6 +75,7 @@ class OptionsDialog(QDialog):
 
     def browseBLFolder(self):
         from qgis.PyQt.QtWidgets import QFileDialog
+
         folder = QFileDialog.getExistingDirectory(self, "Select Business Logic Folder", "")
         if folder and len(folder) > 0:
             self.txtBL.setText(folder)
@@ -135,7 +135,7 @@ class OptionsDialog(QDialog):
         self.btnBrowseBL.clicked.connect(self.browseBLFolder)
         self.hlayout_bl.addWidget(self.btnBrowseBL)
         self.btnClearBL = QPushButton("Clear")
-        self.btnClearBL.clicked.connect(lambda: self.txtBL.setText(''))
+        self.btnClearBL.clicked.connect(lambda: self.txtBL.setText(""))
         self.hlayout_bl.addWidget(self.btnClearBL)
         self.verticalLayout.addLayout(self.hlayout_bl)
         # Button Box

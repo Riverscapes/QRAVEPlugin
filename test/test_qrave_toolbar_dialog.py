@@ -1,4 +1,3 @@
-# coding=utf-8
 """Dialog test.
 
 .. note:: This program is free software; you can redistribute it and/or modify
@@ -14,9 +13,10 @@ __copyright__ = 'Copyright 2021, North Arrow Research'
 
 import unittest
 
-from qgis.PyQt.QtGui import QDialogButtonBox, QDialog
 from dockwidget import QRAVEDialog
+from qgis.PyQt.QtGui import QDialog, QDialogButtonBox
 from utilities import get_qgis_app
+
 QGIS_APP = get_qgis_app()
 
 

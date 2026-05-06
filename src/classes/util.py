@@ -1,23 +1,23 @@
-from typing import Optional
+from __future__ import annotations
+
+from datetime import datetime
 import hashlib
-import requests
 import os
 import re
 
-from datetime import datetime
-from qgis.core import QgsMessageLog, Qgis
+from qgis.core import Qgis, QgsMessageLog
+import requests
+
 from .settings import CONSTANTS
 
 # BASE is the name we want to use inside the settings keys
-MESSAGE_CATEGORY = CONSTANTS['logCategory']
+MESSAGE_CATEGORY = CONSTANTS["logCategory"]
 # In order to calculate etags correctly we need the multipart file sizes to be exactly the same
 MULTIPART_CHUNK_SIZE = 50 * pow(1024, 2)
-# On the S3 client the threshold can be different than the chnk size.
-MULTIPART_THRESHOLD = 50 * pow(1024, 2)
 
 
-def md5(fname: str) -> str:
-    """ Calculate the MD5 hash of a file. Used to check downloaded files against a known hash.
+def md5(fname: str) -> str | None:
+    """Calculate the MD5 hash of a file. Used to check downloaded files against a known hash.
     Also used to calculate the ETag for a file.
 
     Args:
@@ -37,8 +37,8 @@ def md5(fname: str) -> str:
         return None
 
 
-def requestFetch(remote_url: str, expected_md5=None):
-    """ Request a file from a remote URL and return the content. Optionally check the MD5 hash of the file.
+def requestFetch(remote_url: str, expected_md5: str | None = None) -> bytes | bool:
+    """Request a file from a remote URL and return the content. Optionally check the MD5 hash of the file.
 
     Args:
         remote_url (str): _description_
@@ -56,22 +56,20 @@ def requestFetch(remote_url: str, expected_md5=None):
         return resp.content
 
     except requests.exceptions.Timeout:
-        QgsMessageLog.logMessage("Fetching digest timed out: {}".format(remote_url), MESSAGE_CATEGORY, level=Qgis.Critical)
+        QgsMessageLog.logMessage(f"Fetching digest timed out: {remote_url}", MESSAGE_CATEGORY, level=Qgis.Critical)
         return False
         # Maybe set up for a retry, or continue in a retry loop
     except requests.exceptions.TooManyRedirects:
         # Tell the user their URL was bad and try a different one
-        QgsMessageLog.logMessage("Fetching digest failed with too many redirects: {}".format(remote_url), MESSAGE_CATEGORY, level=Qgis.Critical)
+        QgsMessageLog.logMessage(f"Fetching digest failed with too many redirects: {remote_url}", MESSAGE_CATEGORY, level=Qgis.Critical)
         return False
     except requests.exceptions.RequestException as e:
         QgsMessageLog.logMessage(f"Unknown error downloading file: {remote_url} | {e}", MESSAGE_CATEGORY, level=Qgis.Critical)
-        # catastrophic error. bail.
         return False
-    return True
 
 
-def requestDownload(remote_url: str, local_path: str, expected_md5=None):
-    """ Request a file from a remote URL and save it to a local path. Optionally check the MD5 hash of the file.
+def requestDownload(remote_url: str, local_path: str, expected_md5: str | None = None) -> bool:
+    """Request a file from a remote URL and save it to a local path. Optionally check the MD5 hash of the file.
 
     Args:
         remote_url (str): _description_
@@ -86,36 +84,36 @@ def requestDownload(remote_url: str, local_path: str, expected_md5=None):
     """
     # Get a file and put it somewhere local
     try:
-        resp = requests.get(url=remote_url, timeout=15, headers={'Cache-Control': 'no-cache'})
+        resp = requests.get(url=remote_url, timeout=15, headers={"Cache-Control": "no-cache"})
         resp.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
-        local_dir = os.path.dirname(local_path)     # Excludes file name
+        local_dir = os.path.dirname(local_path)  # Excludes file name
         if not os.path.exists(local_dir):
             os.makedirs(local_dir)
-        with open(local_path, 'wb') as lf:
+        with open(local_path, "wb") as lf:
             lf.write(resp.content)
 
         # Do an MD5 check if we need to
         if os.path.isfile(local_path) and expected_md5 is not None and expected_md5 != md5(local_path):
             os.remove(local_path)
-            QgsMessageLog.logMessage("MD5 did not match expected for file: {}".format(remote_url), MESSAGE_CATEGORY, level=Qgis.Warning)
+            QgsMessageLog.logMessage(f"MD5 did not match expected for file: {remote_url}", MESSAGE_CATEGORY, level=Qgis.Warning)
             return False
 
     except requests.exceptions.Timeout:
-        QgsMessageLog.logMessage("Fetching file timed out: {}".format(remote_url), MESSAGE_CATEGORY, level=Qgis.Critical)
+        QgsMessageLog.logMessage(f"Fetching file timed out: {remote_url}", MESSAGE_CATEGORY, level=Qgis.Critical)
         return False
         # Maybe set up for a retry, or continue in a retry loop
     except requests.exceptions.TooManyRedirects:
         # Tell the user their URL was bad and try a different one
-        QgsMessageLog.logMessage("Fetching file failed with too many redirects: {}".format(remote_url), MESSAGE_CATEGORY, level=Qgis.Critical)
+        QgsMessageLog.logMessage(f"Fetching file failed with too many redirects: {remote_url}", MESSAGE_CATEGORY, level=Qgis.Critical)
         return False
-    except requests.exceptions.RequestException as e:
-        QgsMessageLog.logMessage("Unknown error downloading file: {}".format(remote_url), MESSAGE_CATEGORY, level=Qgis.Critical)
+    except requests.exceptions.RequestException:
+        QgsMessageLog.logMessage(f"Unknown error downloading file: {remote_url}", MESSAGE_CATEGORY, level=Qgis.Critical)
         return False
     return True
 
 
 def error_level_to_str(level: int) -> str:
-    """ Convert an error level to a string for logging.
+    """Convert an error level to a string for logging.
 
     Args:
         level (int): _description_
@@ -124,17 +122,17 @@ def error_level_to_str(level: int) -> str:
         str: _description_
     """
     if level == Qgis.Critical:
-        return 'Critical'
+        return "Critical"
     elif level == Qgis.Warning:
-        return 'Warning'
+        return "Warning"
     elif level == Qgis.Success:
-        return 'Success'
+        return "Success"
     else:
-        return 'Info'
+        return "Info"
 
 
 def humane_bytes(size: int, precision: int = 1) -> str:
-    """ Convert a byte size to a human readable string.
+    """Convert a byte size to a human readable string.
 
     Args:
         size (int): _description_
@@ -142,48 +140,49 @@ def humane_bytes(size: int, precision: int = 1) -> str:
     Returns:
         str: _description_
     """
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+    for unit in ["B", "KB", "MB", "GB", "TB"]:  # noqa: B007 — unit is read after the loop
         if size < 1024.0:
             break
         size /= 1024.0
-    if unit == 'B':
+    if unit == "B":
         precision = 0
 
     return f"{size:.{precision}f} {unit}"
 
 
 def get_project_details_html(project) -> str:
-    """ Generate HTML for project details to be shown in a QLabel.
-    
+    """Generate HTML for project details to be shown in a QLabel.
+
     Args:
         project (DEProject): The project object from DataExchangeAPI
-        
+
     Returns:
         str: HTML string
     """
     if not project:
         return ""
-        
+
     # Extract names from nested objects
-    p_type = project.projectType.get('name', 'Unknown Type') if project.projectType else 'Unknown Type'
-    owner = project.ownedBy.get('name', 'Unknown Owner') if project.ownedBy else 'Unknown Owner'
-    
+    p_type = project.projectType.get("name", "Unknown Type") if project.projectType else "Unknown Type"
+    owner = project.ownedBy.get("name", "Unknown Owner") if project.ownedBy else "Unknown Owner"
+
     # Format dates
     def pretty_date(iso_str):
-        if not iso_str: return "Unknown"
+        if not iso_str:
+            return "Unknown"
         try:
             # Generic ISO parsing
-            dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
-            return dt.strftime('%B %d, %Y')
+            dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+            return dt.strftime("%B %d, %Y")
         except Exception:
             return iso_str
 
     created = pretty_date(project.createdOn)
     updated = pretty_date(project.updatedOn)
-    
+
     # Visibility styling
     vis_color = "#27ae60" if project.visibility == "PUBLIC" else "#e67e22"
-    
+
     # Tags styling
     tags_html = ""
     if project.tags:
@@ -194,7 +193,7 @@ def get_project_details_html(project) -> str:
     <div style="font-family: sans-serif; line-height: 1.2;">
         <div style="font-size: 11pt; font-weight: bold; color: #2c3e50;">{project.name}</div>
         <div style="font-size: 8pt; color: #7f8c8d; margin-bottom: 6px;">{p_type} • {len(project.files)} files</div>
-        
+
         <div style="font-size: 8.5pt; color: #34495e;">
             <table border="0" cellpadding="1" cellspacing="0" style="width: 100%;">
                 <tr>
@@ -212,7 +211,7 @@ def get_project_details_html(project) -> str:
             </table>
         </div>
     """
-    
+
     if project.summary:
         # Truncate summary if very long? No, but keep padding tight
         html += f"""
@@ -220,26 +219,26 @@ def get_project_details_html(project) -> str:
             {project.summary}
         </div>
         """
-        
+
     if tags_html:
         html += f"""
         <div style="margin-top: 4px; font-size: 8pt;">
             {tags_html}
         </div>
         """
-        
+
     html += "</div>"
     return html
 
 
-def extract_project_id(input_str: str) -> Optional[str]:
-    """ Extract a project GUID from a raw string or a Riverscapes URL.
-    
+def extract_project_id(input_str: str) -> str | None:
+    """Extract a project GUID from a raw string or a Riverscapes URL.
+
     Handles:
         - Raw GUID: 6a3210a1-8f4a-4536-a4ac-c4fe5002f83e
         - Project URL: https://data.riverscapes.net/p/6a3210a1-8f4a-4536-a4ac-c4fe5002f83e/
         - Viewer URL: https://data.riverscapes.net/rv/6a3210a1-8f4a-4536-a4ac-c4fe5002f83e
-        
+
     Rejects:
         - Collection URL: /c/...
         - Dataset URL: /d/...
@@ -254,24 +253,24 @@ def extract_project_id(input_str: str) -> Optional[str]:
     """
     if not input_str:
         return None
-        
+
     input_str = input_str.strip()
-    
+
     # 1. Check for basic UUID pattern first
-    uuid_pattern = r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'
-    
+    uuid_pattern = r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"
+
     # Check if the input is just a UUID
     if re.fullmatch(uuid_pattern, input_str):
         return input_str
-        
+
     # 2. Check for URL patterns
     # Valid: /p/<guid>, /rv/<guid>
     # Note: We use specific prefixes to avoid matching other resource types like /c/, /d/, etc.
-    
-    url_pattern = r'(?:https?://[^/]+)?/(?:p|rv)/(' + uuid_pattern + r')(?:[/?]|$)'
-    
+
+    url_pattern = r"(?:https?://[^/]+)?/(?:p|rv)/(" + uuid_pattern + r")(?:[/?]|$)"
+
     match = re.search(url_pattern, input_str)
     if match:
         return match.group(1)
-        
+
     return None

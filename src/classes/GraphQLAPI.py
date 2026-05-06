@@ -1,50 +1,54 @@
-from typing import Dict, Any, Callable
+from __future__ import annotations
+
+import base64
+import hashlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
+import logging
 import os
+import threading
 import time
 import traceback
-from qgis.PyQt.QtGui import QDesktopServices
-from qgis.PyQt.QtCore import QUrl, QUrlQuery
-from qgis.PyQt.QtCore import QObject, pyqtSignal, pyqtSlot
-from qgis.core import QgsMessageLog, Qgis, QgsTask, QgsApplication
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any, Callable
 from urllib.parse import urlencode, urlparse, urlunparse
-import json
-import threading
-import hashlib
-import base64
-import logging
+
+from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsTask
+from qgis.PyQt.QtCore import QObject, QUrl, QUrlQuery, pyqtSignal
+from qgis.PyQt.QtGui import QDesktopServices
 import requests
+
+from ..compat import QGSTASK_CAN_CANCEL, QGSTASK_SILENT
 from .settings import CONSTANTS
-from ..compat import QGSTASK_CAN_CANCEL
+
 # Disable all the weird terminal noise from urllib3
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("urllib3").propagate = False
 
-CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
+CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
 MAX_RETRIES = 5
 
 # BASE is the name we want to use inside the settings keys
-MESSAGE_CATEGORY = CONSTANTS['logCategory']
+MESSAGE_CATEGORY = CONSTANTS["logCategory"]
 
 
-class GraphQLAPIException(Exception):
+class GraphQLAPIError(Exception):
     """Exception raised for errors in the GraphQLAPI.
 
     Attributes:
         message -- explanation of the error
     """
 
-    def __init__(self, message="GraphQLAPI encountered an error"):
+    def __init__(self, message: str = "GraphQLAPI encountered an error") -> None:
         self.message = message
         super().__init__(self.message)
 
-    def __str__(self):
-        return f"GraphQLAPIException: {self.message}"
+    def __str__(self) -> str:
+        return f"GraphQLAPIError: {self.message}"
 
 
 class RunGQLQueryTask(QgsTask):
-    def __init__(self, api, query, variables):
-        super().__init__('RunGQLQueryTask', QGSTASK_CAN_CANCEL)
+    def __init__(self, api: GraphQLAPI, query: str, variables: dict) -> None:
+        super().__init__("RunGQLQueryTask", QGSTASK_CAN_CANCEL | QGSTASK_SILENT)
         self.api = api
         self.query = query
         self.variables = variables
@@ -53,33 +57,23 @@ class RunGQLQueryTask(QgsTask):
         self.success = False
 
     def debug_log(self) -> str:
-        debug_obj = {
-            'url': self.api.uri,
-            'query': self.query,
-            'error': str(self.error),
-            'variables': self.variables,
-            'response': self.response
-        }
+        debug_obj = {"url": self.api.uri, "query": self.query, "error": str(self.error), "variables": self.variables, "response": self.response}
         json_str = json.dumps(debug_obj, indent=4, sort_keys=True)
         # Replace all \n line breaks with a newline character
-        json_str = json_str.replace('\\n', '\n                ')
+        json_str = json_str.replace("\\n", "\n                ")
         return json_str
 
-    def run(self, retries=0):
+    def run(self, retries: int = 0) -> bool | None:
         try:
-            headers = {"authorization": "Bearer " +
-                       self.api.access_token} if self.api.access_token else {}
+            headers = {"authorization": "Bearer " + self.api.access_token} if self.api.access_token else {}
 
-            request = requests.post(self.api.uri, json={
-                'query': self.query,
-                'variables': self.variables
-            }, headers=headers, timeout=30)
+            request = requests.post(self.api.uri, json={"query": self.query, "variables": self.variables}, headers=headers, timeout=30)
 
             if request.status_code == 200:
                 resp_json = request.json()
-                if 'errors' in resp_json and len(resp_json['errors']) > 0:
+                if "errors" in resp_json and len(resp_json["errors"]) > 0:
                     # Authentication timeout: re-login and retry the query
-                    if len(list(filter(lambda err: 'You must be authenticated' in err['message'], resp_json['errors']))) > 0:
+                    if len(list(filter(lambda err: "You must be authenticated" in err["message"], resp_json["errors"]))) > 0:
                         if retries < MAX_RETRIES:
                             self.api.log("Authentication timed out. Fetching new token...")
                             try:
@@ -89,27 +83,25 @@ class RunGQLQueryTask(QgsTask):
                                 return  # or handle the error in some other way
 
                             self.api.log("   done. Re-trying query...")
-                            return self.run(retries=retries+1)
+                            return self.run(retries=retries + 1)
                         else:
                             self.api.log("Failed to authenticate after multiple attempts.")
                             return  # or handle the error in some other way
-                    
+
                     # Log the error to the console
-                    for err in resp_json['errors']:
+                    for err in resp_json["errors"]:
                         self.api.log(f"GraphQL Error: {err['message']}", Qgis.Critical)
-                        
-                    raise GraphQLAPIException(
-                        f"Query failed to run by returning code of {request.status_code}. ERRORS: {json.dumps(resp_json, indent=4, sort_keys=True)}")
+
+                    raise GraphQLAPIError(f"Query failed to run by returning code of {request.status_code}. ERRORS: {json.dumps(resp_json, indent=4, sort_keys=True)}")
                 else:
                     self.response = request.json()
                     self.success = True
                     return True
             else:
                 self.api.log(f"Query failed with code {request.status_code}: {self.query}", Qgis.Critical)
-                raise GraphQLAPIException(
-                    f"Query failed to run by returning code of {request.status_code}. {self.query} {json.dumps(self.variables)}")
-        except GraphQLAPIException as e:
-            self.api.log(f"GraphQLAPIException: {e}", Qgis.Critical)
+                raise GraphQLAPIError(f"Query failed to run by returning code of {request.status_code}. {self.query} {json.dumps(self.variables)}")
+        except GraphQLAPIError as e:
+            self.api.log(f"GraphQLAPIError: {e}", Qgis.Critical)
             self.error = e
             return False
         except Exception as e:
@@ -118,22 +110,54 @@ class RunGQLQueryTask(QgsTask):
             return False
 
 
-class GraphQLAPIConfig():
+class FetchJsonTask(QgsTask):
+    """Background task that GETs a URL and parses the response as JSON.
 
-    def __init__(self, domain: str, audience: str, clientId: str, scope: str, port: int, success_url: int) -> None:
+    The *callback* is invoked on the **main thread** inside ``finished()``
+    with the task itself as the sole argument, so callers can inspect
+    ``task.success``, ``task.result``, and ``task.error``.
+    """
+
+    def __init__(self, url: str, callback: Callable[[FetchJsonTask], None]) -> None:
+        super().__init__("FetchJsonTask", QGSTASK_CAN_CANCEL | QGSTASK_SILENT)
+        self.url = url
+        self._callback = callback
+        self.result: dict | None = None
+        self.error: Exception | None = None
+        self.success = False
+
+    def run(self) -> bool:
+        try:
+            response = requests.get(self.url, timeout=10)
+            if response.status_code == 200:
+                self.result = response.json()
+                self.success = True
+                return True
+            self.error = ValueError(f"HTTP {response.status_code} from {self.url}")
+            return False
+        except Exception as exc:
+            self.error = exc
+            return False
+
+    def finished(self, result: bool) -> None:
+        self._callback(self)
+
+
+class GraphQLAPIConfig:
+    def __init__(self, domain: str, audience: str, clientId: str, scope: str, port: int, success_url: str) -> None:
         # Now do some checking
         if not domain:
-            raise GraphQLAPIException("Domain is required")
+            raise GraphQLAPIError("Domain is required")
         if not clientId:
-            raise GraphQLAPIException("clientId is required")
+            raise GraphQLAPIError("clientId is required")
         if not scope:
-            raise GraphQLAPIException("scope is required")
+            raise GraphQLAPIError("scope is required")
         if not audience:
-            raise GraphQLAPIException("audience is required")
+            raise GraphQLAPIError("audience is required")
         if not port or port < 1:
-            raise GraphQLAPIException("port is required")
+            raise GraphQLAPIError("port is required")
         if not success_url:
-            raise GraphQLAPIException("success_url is required")
+            raise GraphQLAPIError("success_url is required")
 
         self.domain = domain
         self.clientId = clientId
@@ -144,24 +168,21 @@ class GraphQLAPIConfig():
 
 
 class RefreshTokenTask(QgsTask):
-    def __init__(self, api, force=False):
-        super().__init__('RefreshTokenTask', QGSTASK_CAN_CANCEL)
+    def __init__(self, api: GraphQLAPI, force: bool = False) -> None:
+        super().__init__("RefreshTokenTask", QGSTASK_CAN_CANCEL | QGSTASK_SILENT)
         self.api = api
         self.force = force
         self.success = False
         self.error = None
 
     def debug_log(self) -> str:
-        debug_obj = {
-            'url': self.api.uri,
-            'error': str(self.error)
-        }
+        debug_obj = {"url": self.api.uri, "error": str(self.error)}
         json_str = json.dumps(debug_obj, indent=4, sort_keys=True)
         # Replace all \n line breaks with a newline character
-        json_str = json_str.replace('\\n', '\n                ')
+        json_str = json_str.replace("\\n", "\n                ")
         return json_str
 
-    def run(self):
+    def run(self) -> bool:
         try:
             self.api._refresh_token(self.force)
             self.success = True
@@ -172,21 +193,24 @@ class RefreshTokenTask(QgsTask):
 
 
 class GraphQLAPI(QObject):
-
     stateChange = pyqtSignal()
+    # Signal emitted (always on the main thread) to open a browser URL.
+    # Connecting to QDesktopServices.openUrl in __init__ keeps all GUI calls
+    # off the background auth thread.
+    open_browser_signal = pyqtSignal(QUrl)
     # Shared access token and expiration time
     _shared_access_token = None
     _shared_token_expires = None
     _shared_auth_lock = threading.Lock()
 
-    """This class is a wrapper around the GraphQL API. It handles authentication and provides a 
+    """This class is a wrapper around the GraphQL API. It handles authentication and provides a
     simple interface for making queries.
 
     this is meant to be wrapped for specific APIs. for example, the DE API and Phlux can both use this
     class but they will have different configurations.
     """
 
-    def __init__(self, apiUrl: str, config: GraphQLAPIConfig, dev_headers: Dict[str, str] = None):
+    def __init__(self, apiUrl: str, config: GraphQLAPIConfig, dev_headers: dict[str, str] | None = None):
         super().__init__()
 
         self.config = config
@@ -196,16 +220,18 @@ class GraphQLAPI(QObject):
         self.loading = False
 
         self.uri = apiUrl
+        # Cross-thread browser open: emit a queued signal so the GUI call
+        # always executes on the main thread, never from RefreshTokenTask.
+        self.open_browser_signal.connect(lambda url: QDesktopServices.openUrl(url))
         # We use a class-level lock to prevent multiple instances from authenticating at once
         self._auth_lock = GraphQLAPI._shared_auth_lock
-        
+
         if GraphQLAPI._shared_access_token and GraphQLAPI._shared_token_expires:
             if float(GraphQLAPI._shared_token_expires) > time.time() + 300:
                 self.access_token = GraphQLAPI._shared_access_token
                 expires_in = float(GraphQLAPI._shared_token_expires) - time.time()
                 self.log(f"   Using shared in-memory token (expires in {int(expires_in)}s)")
                 return
-
 
     # Add a destructor to make sure any timeout threads are cleaned up
     def __del__(self):
@@ -215,19 +241,10 @@ class GraphQLAPI(QObject):
         QgsMessageLog.logMessage(msg, MESSAGE_CATEGORY, level=level)
 
     def _generate_challenge(self, code: str) -> str:
-        return self._base64_url(hashlib.sha256(code.encode('utf-8')).digest())
-
-    def _generate_state(self, length: int) -> str:
-        result = ''
-        i = length
-        chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        while i > 0:
-            result += chars[int(round(os.urandom(1)[0] * (len(chars) - 1)))]
-            i -= 1
-        return result
+        return self._base64_url(hashlib.sha256(code.encode("utf-8")).digest())
 
     def _base64_url(self, string: bytes) -> str:
-        """ Convert a string to a base64url string
+        """Convert a string to a base64url string
 
         Args:
             string (bytes): this is the string to convert
@@ -235,10 +252,10 @@ class GraphQLAPI(QObject):
         Returns:
             str: the base64url string
         """
-        return base64.urlsafe_b64encode(string).decode('utf-8').replace('=', '').replace('+', '-').replace('/', '_')
+        return base64.urlsafe_b64encode(string).decode("utf-8").replace("=", "").replace("+", "-").replace("/", "_")
 
     def _generate_random(self, size: int) -> str:
-        """ Generate a random string of a given size
+        """Generate a random string of a given size
 
         Args:
             size (int): the size of the string to generate
@@ -251,17 +268,16 @@ class GraphQLAPI(QObject):
         for b in buffer:
             index = b % len(CHARSET)
             state.append(CHARSET[index])
-        return ''.join(state)
+        return "".join(state)
 
-    def shutdown(self):
-        """_summary_
-        """
+    def shutdown(self) -> None:
+        """_summary_"""
         self.log(f"Shutting down GraphQL API: {self.uri}")
         if self.token_timeout:
             self.token_timeout.cancel()
 
-    def refresh_token(self, callback: Callable[[RefreshTokenTask], None] = None, force=False):
-        """ Refresh the authentication token
+    def refresh_token(self, callback: Callable[[RefreshTokenTask], None] | None = None, force=False):
+        """Refresh the authentication token
 
         Raises:
             error: _description_
@@ -275,8 +291,8 @@ class GraphQLAPI(QObject):
         QgsApplication.taskManager().addTask(task)
         return task
 
-    def _refresh_token(self, force: bool = False):
-        """ This is the actual code for refreshing the token. It is called by the RefreshTokenTask
+    def _refresh_token(self, force: bool = False) -> GraphQLAPI:
+        """This is the actual code for refreshing the token. It is called by the RefreshTokenTask
         so that it can be run asynchronously
 
         Raises:
@@ -288,7 +304,7 @@ class GraphQLAPI(QObject):
         self.log(f"Authenticating on GraphQL API: {self.uri}")
         if self._auth_lock.locked():
             self.log("   Authentication already in progress. Waiting for lock...")
-        
+
         with self._auth_lock:
             if self.token_timeout:
                 self.token_timeout.cancel()
@@ -330,10 +346,9 @@ class GraphQLAPI(QObject):
             self.loading = True
             self.stateChange.emit()
 
-            # Now open the browser so we can authenticate
+            # Open the browser from the main thread via a queued signal.
             auth_url = QUrl(urlunparse(login_url))
-            # self.log(f"Opening browser for authentication: {auth_url}", Qgis.Info)
-            QDesktopServices.openUrl(auth_url)
+            self.open_browser_signal.emit(auth_url)
 
             auth_code = self._wait_for_auth_code()
             authentication_url = f"https://{self.config.domain}/oauth/token"
@@ -349,10 +364,10 @@ class GraphQLAPI(QObject):
             response = requests.post(authentication_url, headers={"content-type": "application/x-www-form-urlencoded"}, data=data, timeout=60)
             response.raise_for_status()
             res = response.json()
-            
+
             self.access_token = res["access_token"]
             expires_at = time.time() + res["expires_in"]
-            
+
             # Update shared state
             GraphQLAPI._shared_access_token = self.access_token
             GraphQLAPI._shared_token_expires = expires_at
@@ -360,14 +375,14 @@ class GraphQLAPI(QObject):
             self.token_timeout = threading.Timer(res["expires_in"] - 60, self._refresh_token)
             self.token_timeout.daemon = True
             self.token_timeout.start()
-            
+
             self.log("SUCCESSFUL Browser Authentication", Qgis.Success)
             self.loading = False
             self.stateChange.emit()
             return self
 
-    def _wait_for_auth_code(self):
-        """ Wait for the auth code to come back from the server using a simple HTTP server
+    def _wait_for_auth_code(self) -> str:
+        """Wait for the auth code to come back from the server using a simple HTTP server
 
         Raises:
             Exception: _description_
@@ -411,13 +426,12 @@ class GraphQLAPI(QObject):
                 self.logger(f"{self.address_string()} - - [{self.log_date_time_string()}] {message}", Qgis.Info)
 
             def do_GET(self):
-                """ Do all the server stuff here
-                """
+                """Do all the server stuff here"""
                 url = QUrl(self.path)
                 query = QUrlQuery(url.query())
                 # Now get the items as a key-value dictionary
                 self.server.query_resp = {k: v for k, v in query.queryItems()}
-                success = 'code' in self.server.query_resp and 'error' not in self.server.query_resp
+                success = "code" in self.server.query_resp and "error" not in self.server.query_resp
 
                 success_html_body = f"""
                     <html>
@@ -464,7 +478,7 @@ class GraphQLAPI(QObject):
                         # Drop a stacktrace too
                         self.logger(f"LOGIN ERROR STACKTRACE: {traceback.format_exc()}", Qgis.Warning)
                 else:
-                    self.logger(f"Connection Closed. Killing the server", Qgis.Warning)
+                    self.logger("Connection Closed. Killing the server", Qgis.Warning)
                 # Now regardless of the result shut down the server and return
                 try:
                     self.server.shutdown()
@@ -497,20 +511,18 @@ class GraphQLAPI(QObject):
 
         auth_code = None
         if not hasattr(server, "query_resp"):
-            raise GraphQLAPIException(
-                "Authentication failed with unknown return")
+            raise GraphQLAPIError("Authentication failed with unknown return")
         else:
             query_resp = server.query_resp
-            if 'error' in query_resp or 'code' not in query_resp:
-                raise GraphQLAPIException(
-                    f"Authentication failed: {json.dumps(query_resp, indent=4, sort_keys=True)}")
+            if "error" in query_resp or "code" not in query_resp:
+                raise GraphQLAPIError(f"Authentication failed: {json.dumps(query_resp, indent=4, sort_keys=True)}")
 
-            auth_code = query_resp['code']
+            auth_code = query_resp["code"]
 
         return auth_code
 
-    def run_query(self, query: str, variables: Dict[str, Any], callback: Callable[[RunGQLQueryTask], None]):
-        """ Run a query asynchronously against the GraphQL API
+    def run_query(self, query: str, variables: dict[str, Any], callback: Callable[[RunGQLQueryTask], None]) -> RunGQLQueryTask:
+        """Run a query asynchronously against the GraphQL API
 
         Args:
             query (_type_): _description_
@@ -535,28 +547,3 @@ class GraphQLAPI(QObject):
 
         QgsApplication.taskManager().addTask(task)
         return task
-
-    def run_query_sync(self, query: str, variables: Dict[str, any]):
-        """ Run a query against the GraphQL API synchronously. 
-
-        this WILL block the main thread so use with caution
-
-        Args:
-            query (_type_): _description_
-            variables (_type_): _description_
-
-        Raises:
-            Exception: _description_
-
-        Returns:
-            _type_: _description_
-        """
-        self.loading = True
-        self.stateChange.emit()
-        task = RunGQLQueryTask(self, query, variables)
-
-        # For Async usage
-        response = task.run()
-        self.loading = False
-        self.stateChange.emit()
-        return response

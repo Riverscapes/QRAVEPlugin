@@ -215,9 +215,7 @@ class Ui_Dialog(object):
         self.openWebProjectBtn = QtWidgets.QPushButton("View In Data Exchange")
         self.layoutStep3.addWidget(self.openWebProjectBtn)
 
-        self.lblUploadComplete = QtWidgets.QLabel(
-            "Project upload complete! Click 'Ok' to close this window."
-        )
+        self.lblUploadComplete = QtWidgets.QLabel("Project upload complete! Click 'Ok' to close this window.")
         font_complete = QtGui.QFont()
         font_complete.setBold(True)
         font_complete.setPointSize(11)

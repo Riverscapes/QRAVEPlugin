@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 /***************************************************************************
  Riverscapes Viewer
@@ -22,22 +21,15 @@
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
 """
-import os
-import json
-
-# noinspection PyPep8Naming
-# config is where we keep our constants and configuration strings
 
 
-def classFactory(iface):  # pylint: disable=invalid-name
+def classFactory(iface):
     """Load QRAVE class from file QRAVE.
 
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
-    # Yeah, this is annoying but QGIS needs it so....
-    # pylint: disable=import-error
+    from .__version__ import __version__  # noqa: F401
     from .src.qrave_toolbar import QRAVE
-    from .__version__ import __version__
 
     return QRAVE(iface)

@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 import math
-from typing import List, Optional
-from qgis.PyQt.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTreeWidget, QTreeWidgetItem, QHeaderView
+
 from qgis.PyQt.QtCore import Qt, pyqtSignal
 from qgis.PyQt.QtGui import QBrush, QColor
-from .compat import CHECKED, UNCHECKED, ITEM_FLAG_CHECKABLE, ALIGN_RIGHT, ALIGN_VCENTER, COLOR_GRAY, HEADER_STRETCH, HEADER_RESIZE_TO_CONTENTS, USER_ROLE
+from qgis.PyQt.QtWidgets import QHBoxLayout, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+
+from .compat import ALIGN_RIGHT, ALIGN_VCENTER, CHECKED, COLOR_GRAY, HEADER_RESIZE_TO_CONTENTS, HEADER_STRETCH, ITEM_FLAG_CHECKABLE, UNCHECKED, USER_ROLE
 
 
 class SortableTreeWidgetItem(QTreeWidgetItem):
-    def __lt__(self, other):
+    def __lt__(self, other) -> bool:
         column = self.treeWidget().sortColumn()
         if column == 1:  # Size column
             size_raw_self = self.data(column, USER_ROLE)
@@ -21,13 +24,14 @@ class ProjectFileSelectionWidget(QWidget):
     """
     A reusable widget for selecting files within a Riverscapes project.
     """
+
     selectionChanged = pyqtSignal()
 
-    def __init__(self, parent=None):
-        super(ProjectFileSelectionWidget, self).__init__(parent)
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
         self.setup_ui()
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
 
@@ -38,12 +42,13 @@ class ProjectFileSelectionWidget(QWidget):
         self.selectionLayout.addWidget(self.btnSelectAll)
         self.selectionLayout.addWidget(self.btnDeselectAll)
         self.selectionLayout.addStretch()
-        
+
         from qgis.PyQt.QtWidgets import QCheckBox
+
         self.chkAllowDelete = QCheckBox("Delete remote files that are not present locally")
         self.chkAllowDelete.setChecked(False)
         self.selectionLayout.addWidget(self.chkAllowDelete)
-        
+
         self.layout.addLayout(self.selectionLayout)
 
         # Tree widget
@@ -65,10 +70,10 @@ class ProjectFileSelectionWidget(QWidget):
         self.chkAllowDelete.toggled.connect(self._handle_delete_toggle)
         self.treeFiles.itemChanged.connect(lambda item, col: self.selectionChanged.emit())
 
-    def set_allow_delete_visible(self, visible: bool):
+    def set_allow_delete_visible(self, visible: bool) -> None:
         self.chkAllowDelete.setVisible(visible)
 
-    def _handle_delete_toggle(self, checked: bool):
+    def _handle_delete_toggle(self, checked: bool) -> None:
         root = self.treeFiles.invisibleRootItem()
         for i in range(root.childCount()):
             item = root.child(i)
@@ -81,34 +86,29 @@ class ProjectFileSelectionWidget(QWidget):
                     item.setCheckState(0, UNCHECKED)
         self.selectionChanged.emit()
 
-    def clear(self):
+    def clear(self) -> None:
         self.treeFiles.clear()
 
-    def set_sorting_enabled(self, enabled: bool):
+    def set_sorting_enabled(self, enabled: bool) -> None:
         self.treeFiles.setSortingEnabled(enabled)
 
-    def sort_by_column(self, column: int, order: Qt.SortOrder):
+    def sort_by_column(self, column: int, order: Qt.SortOrder) -> None:
         self.treeFiles.sortByColumn(column, order)
 
-    def select_all(self):
+    def select_all(self) -> None:
         self._set_all_check_state(CHECKED)
 
-    def deselect_all(self):
+    def deselect_all(self) -> None:
         self._set_all_check_state(UNCHECKED)
 
-    def _set_all_check_state(self, state: Qt.CheckState):
+    def _set_all_check_state(self, state: Qt.CheckState) -> None:
         root = self.treeFiles.invisibleRootItem()
         for i in range(root.childCount()):
             item = root.child(i)
             if item.flags() & ITEM_FLAG_CHECKABLE:
                 item.setCheckState(0, state)
 
-    def add_file_item(self, rel_path: str, size: int, status_text: str, 
-                      checked: bool = True, 
-                      is_locked: bool = False, 
-                      is_mandatory: bool = False,
-                      highlight_color: Optional[str] = None,
-                      tooltip: Optional[str] = None):
+    def add_file_item(self, rel_path: str, size: int, status_text: str, checked: bool = True, is_locked: bool = False, is_mandatory: bool = False, highlight_color: str | None = None, tooltip: str | None = None):
         """
         Adds a file item to the tree.
         """
@@ -117,7 +117,7 @@ class ProjectFileSelectionWidget(QWidget):
         item.setText(1, self.human_size(size))
         item.setTextAlignment(1, ALIGN_RIGHT | ALIGN_VCENTER)
         item.setText(2, status_text)
-        
+
         item.setData(0, USER_ROLE, rel_path)
         item.setData(1, USER_ROLE, size)  # Store raw size for sorting
 
@@ -143,16 +143,16 @@ class ProjectFileSelectionWidget(QWidget):
             font = item.font(0)
             font.setStrikeOut(True)
             item.setFont(0, font)
-        
+
         if highlight_color:
             item.setForeground(2, QBrush(QColor(highlight_color)))
 
         if tooltip:
             item.setToolTip(0, tooltip)
-        
+
         return item
 
-    def get_selected_files(self) -> List[str]:
+    def get_selected_files(self) -> list[str]:
         selected = []
         root = self.treeFiles.invisibleRootItem()
         for i in range(root.childCount()):
@@ -162,21 +162,21 @@ class ProjectFileSelectionWidget(QWidget):
         return selected
 
     @staticmethod
-    def human_size(nbytes):
+    def human_size(nbytes: int) -> str:
         if nbytes == 0:
-            return '0 B'
-        suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+            return "0 B"
+        suffixes = ["B", "KB", "MB", "GB", "TB", "PB"]
         i = 0
-        while nbytes >= 1024 and i < len(suffixes)-1:
-            nbytes /= 1024.
+        while nbytes >= 1024 and i < len(suffixes) - 1:
+            nbytes /= 1024.0
             i += 1
-            
-        precision = 2 - int(math.floor(math.log10(abs(nbytes)))) - 1
+
+        precision = 2 - math.floor(math.log10(abs(nbytes))) - 1
         nbytes = round(nbytes, precision)
-            
+
         if nbytes >= 10:
             f = str(int(nbytes))
         else:
-            f = ("%.1f" % nbytes).rstrip('0').rstrip('.')
-            
-        return '%s %s' % (f, suffixes[i])
+            f = (f"{nbytes:.1f}").rstrip("0").rstrip(".")
+
+        return f"{f} {suffixes[i]}"

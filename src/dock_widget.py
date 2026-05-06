@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 /***************************************************************************
  QRAVEDockWidget
@@ -21,42 +20,41 @@
  *                                                                         *
  ***************************************************************************/
 """
+
 from __future__ import annotations
-from typing import List, Dict
-import os
+
+from collections.abc import Iterator
 import json
-import requests
+import os
 
-from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot, Qt, QModelIndex, QUrl, QTimer
-from qgis.PyQt.QtWidgets import QDockWidget, QFileDialog, QMessageBox, QApplication
-from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem, QDesktopServices
-from qgis.core import Qgis, QgsProject
+from qgis.core import Qgis, QgsApplication, QgsProject
+from qgis.PyQt.QtCore import QModelIndex, Qt, QTimer, QUrl, pyqtSignal, pyqtSlot
+from qgis.PyQt.QtGui import QDesktopServices, QStandardItem, QStandardItemModel
+from qgis.PyQt.QtWidgets import QApplication, QDockWidget, QFileDialog, QMessageBox
 
-
-from .ui.dock_widget import Ui_QRAVEDockWidgetBase
-from .meta_widget import MetaType
-
-from .project_upload_dialog import ProjectUploadDialog
-from .project_download_dialog import ProjectDownloadDialog
-from .classes.rspaths import safe_make_abspath, safe_make_relpath
-from .classes.telemetry import Telemetry
-from .classes.qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
-from .classes.context_menu import ContextMenu
-from .classes.project import Project, ProjectTreeData
-from .classes.remote_project import RemoteProject
 from .classes.basemaps import BaseMaps, QRaveBaseMap
-from .classes.settings import Settings, CONSTANTS, MESSAGE_CATEGORY
+from .classes.context_menu import ContextMenu
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
-from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
+from .classes.GraphQLAPI import FetchJsonTask, RefreshTokenTask, RunGQLQueryTask
+from .classes.project import Project, ProjectTreeData
+from .classes.qrave_map_layer import QRaveMapLayer, QRaveTreeTypes
+from .classes.remote_project import RemoteProject
+from .classes.rspaths import safe_make_abspath, safe_make_relpath
+from .classes.settings import CONSTANTS, MESSAGE_CATEGORY, Settings
+from .classes.telemetry import Telemetry
+from .compat import MSGBOX_BTN_NO, MSGBOX_BTN_YES, USER_ROLE
 from .icon_utils import qrave_icon
-from .compat import MSGBOX_BTN_YES, MSGBOX_BTN_NO, USER_ROLE
+from .meta_widget import MetaType
+from .project_download_dialog import ProjectDownloadDialog
+from .project_upload_dialog import ProjectUploadDialog
+from .ui.dock_widget import Ui_QRAVEDockWidgetBase
 
-
-ADD_TO_MAP_TYPES = ['polygon', 'raster', 'point', 'line']
+ADD_TO_MAP_TYPES = ["polygon", "raster", "point", "line"]
 
 
 class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
     """QGIS Plugin Implementation."""
+
     layerMenuOpen = pyqtSignal(ContextMenu, QStandardItem, ProjectTreeData)
 
     closingPlugin = pyqtSignal()
@@ -66,7 +64,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
     def __init__(self, parent=None):
         """Constructor."""
-        super(QRAVEDockWidget, self).__init__(parent)
+        super().__init__(parent)
 
         self.setupUi(self)
         self.settings = Settings()
@@ -76,7 +74,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.qproject.homePathChanged.connect(self.project_homePathChanged)
         self.qproject.readProject.connect(self.reload_tree)
 
-        self.treeView.setContextMenuPolicy(getattr(Qt, 'CustomContextMenu', Qt.ContextMenuPolicy.CustomContextMenu))
+        self.treeView.setContextMenuPolicy(getattr(Qt, "CustomContextMenu", Qt.ContextMenuPolicy.CustomContextMenu))
         self.treeView.customContextMenuRequested.connect(self.open_menu)
         self.treeView.doubleClicked.connect(self.default_tree_action)
         self.treeView.clicked.connect(self.item_change)
@@ -87,6 +85,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.failed_loads = []
         self._remote_project_cache = {}
         self._fetching_projects = set()
+        self.dataExchangeAPI: DataExchangeAPI | None = None
 
         self.model = QStandardItemModel()
 
@@ -98,13 +97,13 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         # self.fix_broken_project_paths()
         self.reload_tree()
 
-    def expand_tree_item(self, idx: QModelIndex):
+    def expand_tree_item(self, idx: QModelIndex) -> None:
         item = self.model.itemFromIndex(idx)
         item_data = item.data(USER_ROLE)
         if item_data and item_data.data and isinstance(item_data.data, QRaveBaseMap):
             item_data.data.load_layers()
 
-    def _get_projects(self):
+    def _get_projects(self) -> list:
         """Get the list of loaded projects
 
         Returns:
@@ -118,16 +117,11 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             child_item = root_item.child(row)
             if child_item is not None:
                 item_data = child_item.data(USER_ROLE)
-                if (
-                    item_data
-                    and hasattr(item_data, 'project')
-                    and item_data.project is not None
-                    and getattr(item_data, 'type', None) != QRaveTreeTypes.PROJECT_LOAD_ERROR
-                ):
+                if item_data and hasattr(item_data, "project") and item_data.project is not None and getattr(item_data, "type", None) != QRaveTreeTypes.PROJECT_LOAD_ERROR:
                     projects.append(item_data.project)
         return projects
 
-    def _get_project_by_name(self, name):
+    def _get_project_by_name(self, name: str) -> Project | RemoteProject | None:
         try:
             for project in self._get_projects():
                 if project.qproject.text() == name:
@@ -137,7 +131,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             return None
 
     @pyqtSlot()
-    def reload_tree(self):
+    def reload_tree(self) -> None:
         # re-initialize our model and reload the projects from file
         # Try not to do this too often if you can
 
@@ -172,7 +166,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 expanded_paths_by_project[project_name] = paths
 
         basemap_paths = None
-        region = self.settings.getValue('basemapRegion')
+        region = self.settings.getValue("basemapRegion")
         if self.basemaps.regions is not None and len(self.basemaps.regions) > 0:
             if region in self.basemaps.regions:
                 # We need to find the basemap item in the current model
@@ -186,7 +180,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         qrave_projects = self.get_project_settings()
 
         for project_name, _basename, project_path in qrave_projects:
-            if project_path.startswith('remote:'):
+            if project_path.startswith("remote:"):
                 project_id = project_path[7:]
                 if project_id in self._remote_project_cache:
                     project = RemoteProject(self._remote_project_cache[project_id])
@@ -195,11 +189,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                         project.qproject.setText(project_name)
                         self.model.appendRow(project.qproject)
                         if project_name in expanded_paths_by_project:
-                            self.restore_expanded_state(self.model.indexFromItem(
-                                project.qproject), expanded_paths_by_project[project_name], "")
+                            self.restore_expanded_state(self.model.indexFromItem(project.qproject), expanded_paths_by_project[project_name], "")
                         else:
-                            self.expand_children_recursive(
-                                self.model.indexFromItem(project.qproject))
+                            self.expand_children_recursive(self.model.indexFromItem(project.qproject))
                 else:
                     self.show_loading(project_name)
                     self.fetch_missing_remote_project(project_id)
@@ -208,18 +200,13 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             project = Project(project_path)
             project.load()
 
-            if project is not None \
-                    and project.exists is True \
-                    and project.qproject is not None \
-                    and project.loadable is True:
+            if project is not None and project.exists and project.qproject is not None and project.loadable:
                 project.qproject.setText(project_name)
                 self.model.appendRow(project.qproject)
                 if project_name in expanded_paths_by_project:
-                    self.restore_expanded_state(self.model.indexFromItem(
-                        project.qproject), expanded_paths_by_project[project_name], "")
+                    self.restore_expanded_state(self.model.indexFromItem(project.qproject), expanded_paths_by_project[project_name], "")
                 else:
-                    self.expand_children_recursive(
-                        self.model.indexFromItem(project.qproject))
+                    self.expand_children_recursive(self.model.indexFromItem(project.qproject))
             else:
                 # Project failed to load: show a placeholder error node so the
                 # user can see what failed and choose to remove or retry it.
@@ -230,26 +217,19 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.basemaps.load()
 
         # Now load the basemaps
-        region = self.settings.getValue('basemapRegion')
-        if self.settings.getValue('basemapsInclude') is True \
-                and region is not None and len(region) > 0 \
-                and region in self.basemaps.regions.keys():
+        region = self.settings.getValue("basemapRegion")
+        if self.settings.getValue("basemapsInclude") and region is not None and len(region) > 0 and region in self.basemaps.regions.keys():
             self.model.appendRow(self.basemaps.regions[region])
             if basemap_paths is not None:
-                self.restore_expanded_state(self.model.indexFromItem(
-                    self.basemaps.regions[region]), basemap_paths, "")
+                self.restore_expanded_state(self.model.indexFromItem(self.basemaps.regions[region]), basemap_paths, "")
             else:
-                self.expand_children_recursive(
-                    self.model.indexFromItem(self.basemaps.regions[region]))
+                self.expand_children_recursive(self.model.indexFromItem(self.basemaps.regions[region]))
 
-    def get_project_settings(self):
+    def get_project_settings(self) -> list:
         """Return the list of projects from settings, no user interaction."""
         try:
-            qrave_projects_raw, type_conversion_ok = self.qproject.readEntry(
-                CONSTANTS['settingsCategory'],
-                'qrave_projects'
-            )
-            if type_conversion_ok is False:
+            qrave_projects_raw, type_conversion_ok = self.qproject.readEntry(CONSTANTS["settingsCategory"], "qrave_projects")
+            if not type_conversion_ok:
                 qrave_projects = []
             else:
                 qrave_projects = json.loads(qrave_projects_raw)
@@ -258,36 +238,29 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     qrave_projects = []
 
         except Exception as e:
-            self.settings.log(f'Error loading project settings: {e}', Qgis.Warning)
+            self.settings.log(f"Error loading project settings: {e}", Qgis.Warning)
             return []
 
         qgs_path = self.qproject.absoluteFilePath()
         if os.path.isfile(qgs_path):
             qgs_path_dir = os.path.dirname(qgs_path)
             # Change all relative paths back to absolute ones
-            qrave_projects = [(name, basename, xml_path if xml_path.startswith('remote:') else safe_make_abspath(
-                xml_path, qgs_path_dir)) for name, basename, xml_path in qrave_projects]
+            qrave_projects = [(name, basename, xml_path if xml_path.startswith("remote:") else safe_make_abspath(xml_path, qgs_path_dir)) for name, basename, xml_path in qrave_projects]
 
         return qrave_projects
 
-    def fix_broken_project_paths(self):
+    def fix_broken_project_paths(self) -> None:
         """Prompt user to fix broken project paths, update settings if fixed."""
         qrave_projects = self.get_project_settings()
         clean_projects = []
         for name, basename, xml_path in qrave_projects:
             if not os.path.isfile(xml_path):
                 result = QMessageBox.question(
-                    self,
-                    "Locate Missing Project",
-                    f"The Riverscapes project file for '{name}' could not be found "
-                    f"at the expected location:\n\n{xml_path}\n\nWould you like to locate it?",
-                    MSGBOX_BTN_YES | MSGBOX_BTN_NO,
-                    MSGBOX_BTN_NO
+                    self, "Locate Missing Project", f"The Riverscapes project file for '{name}' could not be found at the expected location:\n\n{xml_path}\n\nWould you like to locate it?", MSGBOX_BTN_YES | MSGBOX_BTN_NO, MSGBOX_BTN_NO
                 )
                 if result != MSGBOX_BTN_YES:
                     continue
-                new_path, _ = QFileDialog.getOpenFileName(
-                    self, f"Locate missing project file for '{name}'", "", "Riverscapes Project (*.xml);;All Files (*)")
+                new_path, _ = QFileDialog.getOpenFileName(self, f"Locate missing project file for '{name}'", "", "Riverscapes Project (*.xml);;All Files (*)")
                 if new_path:
                     clean_projects.append((name, basename, new_path))
             else:
@@ -295,41 +268,31 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         self.set_project_settings(clean_projects)
 
     @pyqtSlot()
-    def project_homePathChanged(self):
-        """Trigger an event before saving the project so we have an opportunity to corrent the paths
-        """
+    def project_homePathChanged(self) -> None:
+        """Trigger an event before saving the project so we have an opportunity to corrent the paths"""
         projects = self.get_project_settings()
         self.set_project_settings(projects)
 
-    def set_project_settings(self, projects: List[str]):
+    def set_project_settings(self, projects: list[tuple]) -> None:
         qgs_path = self.qproject.absoluteFilePath()
         if projects and os.path.isdir(os.path.dirname(qgs_path)):
             qgs_path_dir = os.path.dirname(qgs_path)
             # Swap all abspaths for relative ones
-            projects = [
-                (name, basename,
-                 xml_path if xml_path.startswith('remote:') else safe_make_relpath(xml_path, qgs_path_dir))
-                for name, basename, xml_path in projects
-            ]
-        self.qproject.writeEntry(
-            CONSTANTS['settingsCategory'], 'qrave_projects', json.dumps(projects))
+            projects = [(name, basename, xml_path if xml_path.startswith("remote:") else safe_make_relpath(xml_path, qgs_path_dir)) for name, basename, xml_path in projects]
+        self.qproject.writeEntry(CONSTANTS["settingsCategory"], "qrave_projects", json.dumps(projects))
 
-    def remove_project_settings(self):
-        self.qproject.removeEntry(
-            CONSTANTS['settingsCategory'], 'qrave_projects')
+    def remove_project_settings(self) -> None:
+        self.qproject.removeEntry(CONSTANTS["settingsCategory"], "qrave_projects")
 
     @pyqtSlot(str)
-    def add_project(self, xml_path: str):
+    def add_project(self, xml_path: str) -> None:
         qrave_projects = self.get_project_settings()
 
         # Prevent the same project file from being loaded more than once
         abs_xml_path = os.path.abspath(xml_path)
-        if any(
-            not p.startswith('remote:') and os.path.abspath(p) == abs_xml_path
-            for _, _, p in qrave_projects
-        ):
+        if any(not p.startswith("remote:") and os.path.abspath(p) == abs_xml_path for _, _, p in qrave_projects):
             self.settings.msg_bar(
-                'Project already open',
+                "Project already open",
                 abs_xml_path,
                 Qgis.Warning,
             )
@@ -337,13 +300,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         test_project = Project(xml_path)
         test_project.load()
-        if test_project.loadable is False or test_project.exists is False or test_project.qproject is None:
-            self.settings.log(
-                f'Error loading project: {xml_path}', Qgis.Warning)
+        if not test_project.loadable or not test_project.exists or test_project.qproject is None:
+            self.settings.log(f"Error loading project: {xml_path}", Qgis.Warning)
             return
         basename = test_project.qproject.text()
         count = [project[1] for project in qrave_projects].count(basename)
-        name = f'{basename} Copy {count:02d}' if count > 0 else basename
+        name = f"{basename} Copy {count:02d}" if count > 0 else basename
         qrave_projects.insert(0, (name, basename, xml_path))
         self.set_project_settings(qrave_projects)
         self.reload_tree()
@@ -351,29 +313,27 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         new_project = self._get_project_by_name(name)
 
         # If this is a fresh load and the setting is set we load the default view
-        load_default_setting = self.settings.getValue('loadDefaultView')
+        load_default_setting = self.settings.getValue("loadDefaultView")
 
         if new_project is not None:
             self.zoom_to_project(new_project)
-            if load_default_setting is True \
-                    and new_project.default_view is not None \
-                    and new_project.default_view in new_project.views:
+            if load_default_setting and new_project.default_view is not None and new_project.default_view in new_project.views:
                 self.add_children_to_map(new_project.qproject, new_project.views[new_project.default_view])
 
             # Optional telemetry
-            Telemetry(MESSAGE_CATEGORY).send('Load_Project')
+            Telemetry(MESSAGE_CATEGORY).send("Load_Project")
             self._add_to_recent_projects(xml_path)
 
-    def _add_to_recent_projects(self, xml_path: str):
+    def _add_to_recent_projects(self, xml_path: str) -> None:
         """Prepend xml_path to the recent projects list, capped at 5."""
-        recent = self.settings.getValue('recentProjects') or []
+        recent = self.settings.getValue("recentProjects") or []
         abs_path = os.path.abspath(xml_path)
         recent = [p for p in recent if p != abs_path]
         recent.insert(0, abs_path)
-        self.settings.setValue('recentProjects', recent[:5])
+        self.settings.setValue("recentProjects", recent[:5])
 
     @pyqtSlot(dict)
-    def add_remote_project(self, gql_data: Dict):
+    def add_remote_project(self, gql_data: dict) -> None:
         qrave_projects = self.get_project_settings()
 
         test_project = RemoteProject(gql_data)
@@ -383,19 +343,19 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         remote_key = f"remote:{test_project.id}"
         if any(p == remote_key for _, _, p in qrave_projects):
             self.settings.msg_bar(
-                'Remote project already open',
+                "Remote project already open",
                 str(test_project.id),
                 Qgis.Warning,
             )
             return
 
         if test_project.qproject is None:
-            self.settings.log('Error loading remote project', Qgis.Warning)
+            self.settings.log("Error loading remote project", Qgis.Warning)
             return
 
         basename = test_project.qproject.text()
         count = [project[1] for project in qrave_projects].count(basename)
-        name = f'{basename} Copy {count:02d}' if count > 0 else basename
+        name = f"{basename} Copy {count:02d}" if count > 0 else basename
 
         # We store it with a 'remote:' prefix in the xml_path field
         qrave_projects.insert(0, (name, basename, f"remote:{test_project.id}"))
@@ -406,7 +366,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         # However, reload_tree clears the model.
 
         # I'll add a cache for remote project data
-        if not hasattr(self, '_remote_project_cache'):
+        if not hasattr(self, "_remote_project_cache"):
             self._remote_project_cache = {}
         self._remote_project_cache[test_project.id] = gql_data
 
@@ -415,30 +375,25 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # If this is a fresh load and the setting is set we load the default view
         new_project = self._get_project_by_name(name)
-        load_default_setting = self.settings.getValue('loadDefaultView')
+        load_default_setting = self.settings.getValue("loadDefaultView")
 
         if new_project:
             self.zoom_to_project(new_project)
-            if (
-                load_default_setting
-                and new_project.default_view is not None
-                and new_project.default_view in new_project.views
-                and new_project.views[new_project.default_view] is not None
-            ):
+            if load_default_setting and new_project.default_view is not None and new_project.default_view in new_project.views and new_project.views[new_project.default_view] is not None:
                 view_layers = new_project.views[new_project.default_view]
                 self.add_children_to_map(new_project.qproject, view_layers)
 
-    def show_loading(self, label: str):
+    def show_loading(self, label: str) -> None:
         """Add a temporary loading item to the tree"""
         # Make sure it's not already there
         self.hide_loading()
 
-        loading_item = QStandardItem(qrave_icon('refresh.png'), f"Loading Remote: {label}...")
+        loading_item = QStandardItem(qrave_icon("refresh.png"), f"Loading Remote: {label}...")
         # Use a special data role to identify it
         loading_item.setData("LOADING_PLACEHOLDER", USER_ROLE + 10)
         self.model.insertRow(0, loading_item)
 
-    def hide_loading(self):
+    def hide_loading(self) -> None:
         """Remove any loading items from the tree"""
         root = self.model.invisibleRootItem()
         for i in range(root.rowCount()):
@@ -448,9 +403,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 # We return here because we only expect one, and loop indices change after removeRow
                 return
 
-    def _make_load_error_node(
-        self, project_name: str, project_path: str, project: "Project"
-    ) -> QStandardItem:
+    def _make_load_error_node(self, project_name: str, project_path: str, project: Project) -> QStandardItem:
         """Create a top-level error placeholder for a project that failed to load.
 
         Args:
@@ -475,18 +428,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if not project.exists:
             tip = f"Project file not found:\n{project_path}"
         elif project.load_error:
-            tip = (
-                f"Failed to load project.\n"
-                f"Path: {project_path}\n"
-                f"Error: {project.load_error}\n"
-                f"Check the Riverscapes Viewer log panel for details."
-            )
+            tip = f"Failed to load project.\nPath: {project_path}\nError: {project.load_error}\nCheck the Riverscapes Viewer log panel for details."
         else:
-            tip = (
-                f"Failed to load project.\n"
-                f"Path: {project_path}\n"
-                f"Check the Riverscapes Viewer log panel for details."
-            )
+            tip = f"Failed to load project.\nPath: {project_path}\nCheck the Riverscapes Viewer log panel for details."
         item.setToolTip(tip)
 
         # Store structured data so context-menu and click handlers can detect
@@ -501,25 +445,23 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         )
         return item
 
-    def closeEvent(self, event):
-        """ When the user clicks the "X" in the dockwidget titlebar
-        """
+    def closeEvent(self, event) -> None:
         self.hide()
-        self.qproject.removeEntry(CONSTANTS['settingsCategory'], 'enabled')
+        self.qproject.removeEntry(CONSTANTS["settingsCategory"], "enabled")
         self.closingPlugin.emit()
         event.accept()
 
-    def zoom_to_project(self, project: Project | RemoteProject):
+    def zoom_to_project(self, project: Project | RemoteProject) -> None:
         """Zoom to the project extent"""
         if not project.bounds:
             return
 
-        from qgis.core import QgsRectangle, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject
+        from qgis.core import QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject, QgsRectangle
         from qgis.utils import iface
 
         if isinstance(project, RemoteProject):
             # Remote project bounds are [minLng, minLat, maxLng, maxLat]
-            bbox = project.bounds.get('bbox')
+            bbox = project.bounds.get("bbox")
             if bbox and len(bbox) >= 4:
                 rect = QgsRectangle(bbox[0], bbox[1], bbox[2], bbox[3])
             else:
@@ -527,12 +469,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         else:
             # Local project bounds are dictionary with minLat, minLng, maxLat, maxLng
             try:
-                rect = QgsRectangle(
-                    project.bounds['minLng'],
-                    project.bounds['minLat'],
-                    project.bounds['maxLng'],
-                    project.bounds['maxLat']
-                )
+                rect = QgsRectangle(project.bounds["minLng"], project.bounds["minLat"], project.bounds["maxLng"], project.bounds["maxLat"])
             except (KeyError, TypeError):
                 return
 
@@ -548,7 +485,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         iface.mapCanvas().setExtent(rect)
         iface.mapCanvas().refresh()
 
-    def expand_children_recursive(self, idx: QModelIndex = None, force=False):
+    def expand_children_recursive(self, idx: QModelIndex | None = None, force: bool = False) -> None:
         """Expand all the children of a QTreeView node. Do it recursively
         TODO: Recursion might not be the best for large trees here.
 
@@ -574,11 +511,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # Collapsed is an attribute set in the business logic
         # Never expand the QRaveBaseMap object becsause there's a network call involved
-        elif isinstance(item_data.data, QRaveBaseMap) or (
-            isinstance(item_data.data, dict)
-            and 'collapsed' in item_data.data
-            and str(item_data.data['collapsed']).lower() == 'true'
-        ):
+        elif isinstance(item_data.data, QRaveBaseMap) or (isinstance(item_data.data, dict) and "collapsed" in item_data.data and str(item_data.data["collapsed"]).lower() == "true"):
             collapsed = True
 
         else:
@@ -587,7 +520,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if not self.treeView.isExpanded(idx) and not collapsed:
             self.treeView.setExpanded(idx, True)
 
-    def restore_expanded_state(self, idx: QModelIndex, expanded_paths: set, current_path=""):
+    def restore_expanded_state(self, idx: QModelIndex, expanded_paths: set[str], current_path: str = "") -> None:
         """Expand all the children of a QTreeView node based on saved paths.
 
         Args:
@@ -621,7 +554,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             if not self.treeView.isExpanded(idx):
                 self.treeView.setExpanded(idx, True)
 
-    def default_tree_action(self, idx: QModelIndex):
+    def default_tree_action(self, idx: QModelIndex) -> None:
         if not idx.isValid():
             return
 
@@ -650,7 +583,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         # Expand is the default option for wms because we might need to load the layers
         elif isinstance(item_data.data, QRaveBaseMap):
-            if item_data.data.tile_type == 'wms':
+            if item_data.data.tile_type == "wms":
                 pass
             # All the XYZ layers can be added normally.
             else:
@@ -660,14 +593,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             self.change_meta(item, item_data, True)
 
         # For folder-y types we want Expand and contract is already implemented as a default
-        elif item_data.type in [
-            QRaveTreeTypes.PROJECT_FOLDER,
-            QRaveTreeTypes.PROJECT_REPEATER_FOLDER,
-            QRaveTreeTypes.PROJECT_VIEW_FOLDER,
-            QRaveTreeTypes.BASEMAP_ROOT,
-            QRaveTreeTypes.BASEMAP_SUPER_FOLDER,
-            QRaveTreeTypes.BASEMAP_SUB_FOLDER
-        ]:
+        elif item_data.type in [QRaveTreeTypes.PROJECT_FOLDER, QRaveTreeTypes.PROJECT_REPEATER_FOLDER, QRaveTreeTypes.PROJECT_VIEW_FOLDER, QRaveTreeTypes.BASEMAP_ROOT, QRaveTreeTypes.BASEMAP_SUPER_FOLDER, QRaveTreeTypes.BASEMAP_SUB_FOLDER]:
             # print("Default Folder Action")
             pass
 
@@ -675,7 +601,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             pass
             self.add_view_to_map(item_data)
 
-    def item_change(self, pos):
+    def item_change(self, pos: QModelIndex | None) -> None:
         """Triggered when the user selects a new item in the tree
 
         Args:pos
@@ -699,7 +625,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         # Update the metadata if we need to
         self.change_meta(item, data_item)
 
-    def change_meta(self, item: QStandardItem, item_data: ProjectTreeData, show=False):
+    def change_meta(self, item: QStandardItem, item_data: ProjectTreeData, show: bool = False) -> None:
         """Update the MetaData dock widget with new information
 
         Args:
@@ -719,20 +645,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         elif item_data.type == QRaveTreeTypes.PROJECT_ROOT:
             description = item_data.project.description
-            self.metaChange.emit(item.text(), MetaType.PROJECT, {
-                'project': item_data.project.meta,
-                'warehouse': item_data.project.warehouse_meta
-            }, description, show)
-        elif item_data.type in [
-            QRaveTreeTypes.PROJECT_FOLDER,
-            QRaveTreeTypes.PROJECT_REPEATER_FOLDER,
-            QRaveTreeTypes.PROJECT_VIEW_FOLDER,
-            QRaveTreeTypes.BASEMAP_ROOT,
-            QRaveTreeTypes.BASEMAP_SUPER_FOLDER,
-            QRaveTreeTypes.BASEMAP_SUB_FOLDER
-        ]:
-            self.metaChange.emit(
-                item.text(), MetaType.FOLDER, data or {}, None, show)
+            self.metaChange.emit(item.text(), MetaType.PROJECT, {"project": item_data.project.meta, "warehouse": item_data.project.warehouse_meta}, description, show)
+        elif item_data.type in [QRaveTreeTypes.PROJECT_FOLDER, QRaveTreeTypes.PROJECT_REPEATER_FOLDER, QRaveTreeTypes.PROJECT_VIEW_FOLDER, QRaveTreeTypes.BASEMAP_ROOT, QRaveTreeTypes.BASEMAP_SUPER_FOLDER, QRaveTreeTypes.BASEMAP_SUB_FOLDER]:
+            self.metaChange.emit(item.text(), MetaType.FOLDER, data or {}, None, show)
         elif isinstance(data, dict):
             # this is just the generic case for any kind of metadata
             self.metaChange.emit(item.text(), MetaType.NONE, data or {}, None, show)
@@ -740,35 +655,32 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             # Do not  update the metadata if we have nothing to show
             self.metaChange.emit(item.text(), MetaType.NONE, {}, None, show)
 
-    def get_warehouse_url(self, wh_meta: Dict[str, str]):
+    def get_warehouse_url(self, wh_meta: dict[str, str]) -> str | None:
 
         if wh_meta is not None:
+            if "program" in wh_meta and "id" in wh_meta:
+                return "/".join([CONSTANTS["warehouseUrl"], wh_meta["program"][0], wh_meta["id"][0]])
 
-            if 'program' in wh_meta and 'id' in wh_meta:
-                return '/'.join([CONSTANTS['warehouseUrl'], wh_meta['program'][0], wh_meta['id'][0]])
-
-            elif '_rs_wh_id' in wh_meta and '_rs_wh_program' in wh_meta:
-                return '/'.join([CONSTANTS['warehouseUrl'], wh_meta['_rs_wh_program'][0], wh_meta['_rs_wh_id'][0]])
-            elif 'id' in wh_meta:
-                return '/'.join([CONSTANTS['warehouseUrl'], 'p', wh_meta['id'][0]])
+            elif "_rs_wh_id" in wh_meta and "_rs_wh_program" in wh_meta:
+                return "/".join([CONSTANTS["warehouseUrl"], wh_meta["_rs_wh_program"][0], wh_meta["_rs_wh_id"][0]])
+            elif "id" in wh_meta:
+                return "/".join([CONSTANTS["warehouseUrl"], "p", wh_meta["id"][0]])
 
         return None
 
-    def project_warehouse_view(self, project: Project):
-        """Open this project in the warehouse if the warehouse meta entries exist
-        """
+    def project_warehouse_view(self, project: Project) -> None:
+        """Open this project in the warehouse if the warehouse meta entries exist"""
         url = self.get_warehouse_url(project.warehouse_meta)
         if url is not None:
             QDesktopServices.openUrl(QUrl(url))
 
-    def layer_warehouse_view(self, data: ProjectTreeData):
-        """Open this project in the warehouse if the warehouse meta entries exist
-        """
+    def layer_warehouse_view(self, data: ProjectTreeData) -> None:
+        """Open this project in the warehouse if the warehouse meta entries exist"""
         url = self.get_warehouse_url(data.data.meta)
         if url is not None:
             QDesktopServices.openUrl(QUrl(url))
 
-    def close_all(self):
+    def close_all(self) -> None:
         projects = list(self._get_projects())
         if len(projects) == 0:
             return
@@ -777,24 +689,21 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             try:
                 self.close_project(project, reload_tree=False)
             except Exception as e:
-                self.settings.log(f'Error closing project: {e}', Qgis.Warning)
+                self.settings.log(f"Error closing project: {e}", Qgis.Warning)
 
         QTimer.singleShot(0, self.reload_tree)
 
-    def close_project(self, project: Project, reload_tree=True):
-        """ Close the project
-        """
+    def close_project(self, project: Project, reload_tree: bool = True) -> None:
+        """Close the project"""
         try:
             qrave_projects = self.get_project_settings()
         except Exception as e:
-            self.settings.log(
-                'Error closing project: {}'.format(e), Qgis.Warning)
+            self.settings.log(f"Error closing project: {e}", Qgis.Warning)
             qrave_projects = []
 
         # Filter out the project we want to close and reload the tree
         project_name = project.qproject.text()
-        qrave_projects = [(name, basename, xml) for name, basename,
-                          xml in qrave_projects if name != project_name]
+        qrave_projects = [(name, basename, xml) for name, basename, xml in qrave_projects if name != project_name]
 
         QRaveMapLayer.remove_project_from_map(project_name)
         QApplication.processEvents()
@@ -805,7 +714,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if reload_tree:
             QTimer.singleShot(0, self.reload_tree)
 
-    def file_system_open(self, fpath: str):
+    def file_system_open(self, fpath: str) -> None:
         """Open a file on the operating system using the default action
 
         Args:
@@ -814,7 +723,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         qurl = QUrl.fromLocalFile(fpath)
         QDesktopServices.openUrl(QUrl(qurl))
 
-    def file_system_locate(self, fpath: str):
+    def file_system_locate(self, fpath: str) -> None:
         """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
         It should open the folder of the item in question
 
@@ -828,27 +737,26 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         qurl = QUrl.fromLocalFile(final_path)
         QDesktopServices.openUrl(qurl)
 
-    def open_remote_file_in_browser(self, item_data: ProjectTreeData):
-        """ Fetch a signed URL for a remote file and open it in the browser
-        """
-        def _handle_download_url(task: RunGQLQueryTask, resp: Dict):
-            if task.success and resp and 'downloadUrl' in resp:
-                QDesktopServices.openUrl(QUrl(resp['downloadUrl']))
+    def open_remote_file_in_browser(self, item_data: ProjectTreeData) -> None:
+        """Fetch a signed URL for a remote file and open it in the browser"""
+
+        def _handle_download_url(task: RunGQLQueryTask, resp: dict):
+            if task.success and resp and "downloadUrl" in resp:
+                QDesktopServices.openUrl(QUrl(resp["downloadUrl"]))
             else:
                 self.settings.log(f"Error fetching download URL: {task.error}", Qgis.Warning)
                 QMessageBox.warning(self, "Download Failed", f"Could not fetch download URL for {item_data.data.label}")
 
-        if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
+        if self.dataExchangeAPI is None:
             self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_download_login(task, item_data))
         else:
             self.dataExchangeAPI.get_download_url(item_data.project.id, item_data.data.layer_uri, _handle_download_url)
 
-    def open_remote_report_in_browser(self, item_data: ProjectTreeData):
-        """ Construct and open a remote report URL in the browser
-        """
+    def open_remote_report_in_browser(self, item_data: ProjectTreeData) -> None:
+        """Construct and open a remote report URL in the browser"""
         project_type = item_data.project.project_type
         project_id = item_data.project.id
-        rs_xpath = item_data.data.bl_attr.get('rsXPath', '')
+        rs_xpath = item_data.data.bl_attr.get("rsXPath", "")
 
         if not rs_xpath:
             self.settings.log("Cannot open report: rsXPath is missing", Qgis.Warning)
@@ -856,141 +764,122 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             return
 
         # replace # with _ in rs_xpath
-        rs_xpath_sani = rs_xpath.replace('#', '_')
-        base_wh_url = CONSTANTS['warehouseUrl'].rstrip('/')
+        rs_xpath_sani = rs_xpath.replace("#", "_")
+        base_wh_url = CONSTANTS["warehouseUrl"].rstrip("/")
         report_url = f"{base_wh_url}/tiles/{project_type}/{project_id}/{rs_xpath_sani}/index.html"
         QDesktopServices.openUrl(QUrl(report_url))
 
-    def fetch_and_add_remote_layer(self, item: QStandardItem, item_data: ProjectTreeData):
-        """ Fetch tile metadata and add the remote layer to the map
-        """
-        def _handle_tile_metadata(task: RunGQLQueryTask, resp: Dict):
+    def fetch_and_add_remote_layer(self, item: QStandardItem, item_data: ProjectTreeData) -> None:
+        """Fetch tile metadata and add the remote layer to the map"""
+
+        def _handle_tile_metadata(task: RunGQLQueryTask, resp: dict):
             if task.success and resp:
                 # Check for tiling error
-                if resp.get('state') == 'TILING_ERROR':
+                if resp.get("state") == "TILING_ERROR":
                     self.settings.log(f"Tile service is in error state for {item_data.data.label}.", Qgis.Warning)
-                    QMessageBox.warning(
-                        self, "Add Layer Failed",
-                        "Tile service is in error state on the server. "
-                        "Please check the Riverscapes Data Exchange."
-                    )
+                    QMessageBox.warning(self, "Add Layer Failed", "Tile service is in error state on the server. Please check the Riverscapes Data Exchange.")
                     return
 
                 # Fetch more details from the indexUrl if it exists
                 # This is a workaround because the GQL API doesn't return all metadata yet
 
-                url_val = resp.get('url')
+                url_val = resp.get("url")
                 if not url_val:
                     self.settings.log(f"Tile service URL is missing for {item_data.data.label}.", Qgis.Warning)
-                    QMessageBox.warning(
-                        self, "Add Layer Failed",
-                        f"Tile service URL could not be found for {item_data.data.label}."
-                    )
+                    QMessageBox.warning(self, "Add Layer Failed", f"Tile service URL could not be found for {item_data.data.label}.")
                     return
 
-                base_url = url_val.rstrip('/')
+                base_url = url_val.rstrip("/")
                 map_layer: QRaveMapLayer = item_data.data
-                layer_name = map_layer.layer_name or map_layer.bl_attr.get('nodeId', '')
+                layer_name = map_layer.layer_name or map_layer.bl_attr.get("nodeId", "")
                 if not layer_name:
-                    xpath = map_layer.bl_attr.get('rsXPath', '')
-                    if '#' in xpath:
-                        layer_name = xpath.split('/')[-1].split('#')[1]
+                    xpath = map_layer.bl_attr.get("rsXPath", "")
+                    if "#" in xpath:
+                        layer_name = xpath.split("/")[-1].split("#")[1]
                     else:
-                        layer_name = xpath.split('/')[-1]
+                        layer_name = xpath.split("/")[-1]
 
                 index_url = f"{base_url}/{layer_name}/index.json"
 
-                if index_url:
-                    def _fetch_json(url):
-                        headers = {}
-                        try:
-                            resp_json = requests.get(url, headers=headers, timeout=10)
-                            if resp_json.status_code == 200:
-                                return resp_json.json()
-                            else:
-                                self.settings.log(
-                                    f"Failed to fetch JSON from {url}. Status: {resp_json.status_code}",
-                                    Qgis.Warning,
-                                )
-                        except Exception as e:
-                            self.settings.log(f"Error fetching JSON from {url}: {e}", Qgis.Warning)
-                        return None
+                # ── helpers (close over item / item_data / resp) ────────────
 
-                    index_data = _fetch_json(index_url)
+                def _finish_with_resp() -> None:
+                    """Continue after index.json has been merged into resp."""
 
-                    if index_data:
+                    # Now fetch symbology
+                    def _handle_symbology(symb_task: RunGQLQueryTask, symb_resp: dict) -> None:
+                        if symb_task.success and symb_resp:
+                            resp["mapboxJson"] = symb_resp.get("mapboxJson")
+                            self.settings.log(
+                                f"Successfully fetched remote symbology for {item_data.data.label}",
+                                Qgis.Info,
+                            )
+                        else:
+                            self.settings.log(
+                                f"No remote symbology found or error for {item_data.data.label}",
+                                Qgis.Info,
+                            )
+
+                        if item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER:
+                            QRaveMapLayer.add_remote_raster_layer_to_map(item, resp)
+                        else:
+                            QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
+
+                    # Inject project bounds if they exist to limit the layer extent
+                    if item_data.project.bounds:
+                        from .classes.remote_project import RemoteProject
+
+                        if isinstance(item_data.project, RemoteProject):
+                            resp["bounds"] = item_data.project.bounds.get("bbox")
+                        else:
+                            b = item_data.project.bounds
+                            resp["bounds"] = [b["minLng"], b["minLat"], b["maxLng"], b["maxLat"]]
+
+                    symbology_name = item_data.data.bl_attr.get("symbology")
+                    if symbology_name:
+                        project_type_id = item_data.project.project_type
+                        is_raster = item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER
+                        self.dataExchangeAPI.get_web_symbology(
+                            project_type_id,
+                            symbology_name,
+                            is_raster,
+                            _handle_symbology,
+                        )
+                    else:
+                        if item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER:
+                            QRaveMapLayer.add_remote_raster_layer_to_map(item, resp)
+                        else:
+                            QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
+
+                def _on_index_fetched(fetch_task: FetchJsonTask) -> None:
+                    """Called on the main thread when the background index.json fetch completes."""
+                    if fetch_task.success and fetch_task.result:
                         self.settings.log(f"Successfully fetched index metadata from {index_url}", Qgis.Info)
-                        resp.update(index_data)
+                        resp.update(fetch_task.result)
                     else:
                         self.settings.log(
-                            f"Failed to fetch valid JSON from indexUrl or fallback: {index_url}",
+                            f"Failed to fetch valid JSON from {index_url}",
                             Qgis.Warning,
                         )
+                    _finish_with_resp()
 
-                # Now fetch symbology
-                def _handle_symbology(symb_task: RunGQLQueryTask, symb_resp: Dict):
-                    if symb_task.success and symb_resp:
-                        resp['mapboxJson'] = symb_resp.get('mapboxJson')
-                        self.settings.log(
-                            f"Successfully fetched remote symbology for {item_data.data.label}",
-                            Qgis.Info,
-                        )
-                    else:
-                        self.settings.log(
-                            f"No remote symbology found or error for {item_data.data.label}",
-                            Qgis.Info,
-                        )
-
-                    if item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER:
-                        QRaveMapLayer.add_remote_raster_layer_to_map(item, resp)
-                    else:
-                        QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
-
-                # Inject project bounds if they exist to limit the layer extent
-                if item_data.project.bounds:
-                    from .classes.remote_project import RemoteProject
-                    if isinstance(item_data.project, RemoteProject):
-                        resp['bounds'] = item_data.project.bounds.get('bbox')
-                    else:
-                        b = item_data.project.bounds
-                        resp['bounds'] = [b['minLng'], b['minLat'], b['maxLng'], b['maxLat']]
-
-                symbology_name = item_data.data.bl_attr.get('symbology')
-                if symbology_name:
-                    project_type_id = item_data.project.project_type
-                    is_raster = item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER
-                    self.dataExchangeAPI.get_web_symbology(
-                        project_type_id,
-                        symbology_name,
-                        is_raster,
-                        _handle_symbology,
-                    )
-                else:
-                    if item_data.data.layer_type == QRaveMapLayer.LayerTypes.RASTER:
-                        QRaveMapLayer.add_remote_raster_layer_to_map(item, resp)
-                    else:
-                        QRaveMapLayer.add_remote_vector_layer_to_map(item, resp)
+                # Dispatch to a background task — keeps the GUI thread free.
+                QgsApplication.taskManager().addTask(FetchJsonTask(index_url, _on_index_fetched))
             else:
                 self.settings.log(f"Error fetching tile metadata: {task.error}", Qgis.Warning)
-                QMessageBox.warning(
-                    self, "Add Layer Failed",
-                    f"Could not fetch tile metadata for {item_data.data.label}"
-                )
+                QMessageBox.warning(self, "Add Layer Failed", f"Could not fetch tile metadata for {item_data.data.label}")
 
-        if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
-            self.dataExchangeAPI = DataExchangeAPI(
-                on_login=lambda task: self._on_add_layer_login(task, item, item_data)
-            )
+        if self.dataExchangeAPI is None:
+            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_add_layer_login(task, item, item_data))
         else:
-            if hasattr(item_data.project, 'id'):
+            if hasattr(item_data.project, "id"):
                 project_id = item_data.project.id
-            elif (item_data.project.warehouse_meta
-                    and 'id' in item_data.project.warehouse_meta):
-                project_id = item_data.project.warehouse_meta['id'][0]
+            elif item_data.project.warehouse_meta and "id" in item_data.project.warehouse_meta:
+                project_id = item_data.project.warehouse_meta["id"][0]
             else:
                 project_id = None
             project_type_id = item_data.project.project_type
-            rs_xpath = item_data.data.bl_attr.get('rsXPath', '')
+            rs_xpath = item_data.data.bl_attr.get("rsXPath", "")
             if not rs_xpath:
                 self.settings.log("Cannot add layer: rsXPath is missing", Qgis.Warning)
                 return
@@ -999,31 +888,29 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 return
             self.dataExchangeAPI.get_layer_tiles(project_id, project_type_id, rs_xpath, _handle_tile_metadata)
 
-    def _on_add_layer_login(self, task: RefreshTokenTask, item: QStandardItem, item_data: ProjectTreeData):
+    def _on_add_layer_login(self, task: RefreshTokenTask, item: QStandardItem, item_data: ProjectTreeData) -> None:
         if task.success:
             self.fetch_and_add_remote_layer(item, item_data)
         else:
             QMessageBox.critical(self, "Login Failed", "Could not log in to Riverscapes API for layer addition.")
 
-    def _on_download_login(self, task: RefreshTokenTask, item_data: ProjectTreeData):
+    def _on_download_login(self, task: RefreshTokenTask, item_data: ProjectTreeData) -> None:
         if task.success:
             self.open_remote_file_in_browser(item_data)
         else:
             QMessageBox.critical(self, "Login Failed", "Could not log in to Riverscapes API for download.")
 
-    def fetch_missing_remote_project(self, project_id: str):
+    def fetch_missing_remote_project(self, project_id: str) -> None:
         if project_id in self._fetching_projects:
             return
         self._fetching_projects.add(project_id)
 
-        if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
-            self.dataExchangeAPI = DataExchangeAPI(
-                on_login=lambda task: self._on_missing_remote_fetch_login(task, project_id)
-            )
+        if self.dataExchangeAPI is None:
+            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_missing_remote_fetch_login(task, project_id))
         else:
             self.dataExchangeAPI.get_remote_project(project_id, self._on_missing_remote_project_fetched)
 
-    def _on_missing_remote_fetch_login(self, task: RefreshTokenTask, project_id: str):
+    def _on_missing_remote_fetch_login(self, task: RefreshTokenTask, project_id: str) -> None:
         if task.success:
             self.dataExchangeAPI.get_remote_project(project_id, self._on_missing_remote_project_fetched)
         else:
@@ -1031,12 +918,12 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 self._fetching_projects.remove(project_id)
             self.settings.log(f"Login failed while fetching missing remote project: {project_id}", Qgis.Warning)
 
-    def _on_missing_remote_project_fetched(self, task: RunGQLQueryTask, response: Dict):
-        project_id = task.variables.get('id')
+    def _on_missing_remote_project_fetched(self, task: RunGQLQueryTask, response: dict) -> None:
+        project_id = task.variables.get("id")
         if project_id in self._fetching_projects:
             self._fetching_projects.remove(project_id)
 
-        if task.success and response and 'data' in response and response['data']['project']:
+        if task.success and response and "data" in response and response["data"]["project"]:
             self._remote_project_cache[project_id] = response
             self.reload_tree()
             # Now fetch the metadata asynchronously
@@ -1044,14 +931,14 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         else:
             self.settings.log(f"Failed to fetch missing remote project: {project_id}", Qgis.Warning)
 
-    def fetch_dataset_metadata(self, project_id: str, offset=0, limit=50):
+    def fetch_dataset_metadata(self, project_id: str, offset: int = 0, limit: int = 50) -> None:
         """Fetch metadata for datasets in chunks"""
         self.settings.log(f"Fetching dataset metadata for {project_id} (offset={offset}, limit={limit})", Qgis.Info)
 
-        def _handle_metadata(task: RunGQLQueryTask, datasets_data: Dict):
+        def _handle_metadata(task: RunGQLQueryTask, datasets_data: dict):
             if task.success and datasets_data:
-                items = datasets_data.get('items', [])
-                total = datasets_data.get('total', 0)
+                items = datasets_data.get("items", [])
+                total = datasets_data.get("total", 0)
 
                 # 1. Update the cache
                 if project_id in self._remote_project_cache:
@@ -1059,26 +946,26 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
                     # Robust lookup of project data in cache
                     proj_data = None
-                    if 'data' in cached_proj and 'project' in cached_proj['data']:
-                        proj_data = cached_proj['data']['project']
-                    elif 'project' in cached_proj:
-                        proj_data = cached_proj['project']
+                    if "data" in cached_proj and "project" in cached_proj["data"]:
+                        proj_data = cached_proj["data"]["project"]
+                    elif "project" in cached_proj:
+                        proj_data = cached_proj["project"]
                     else:
                         proj_data = cached_proj
 
                     if proj_data:
-                        if 'datasets' not in proj_data or proj_data['datasets'] is None:
-                            proj_data['datasets'] = {'items': []}
+                        if "datasets" not in proj_data or proj_data["datasets"] is None:
+                            proj_data["datasets"] = {"items": []}
 
-                        cached_items = proj_data['datasets']['items']
+                        cached_items = proj_data["datasets"]["items"]
                         # Create a map for easier update
-                        cached_map = {i['id']: i for i in cached_items if i and 'id' in i}
+                        cached_map = {i["id"]: i for i in cached_items if i and "id" in i}
 
                         for new_item in items:
                             if not new_item:
                                 continue
-                            if new_item['id'] in cached_map:
-                                cached_map[new_item['id']].update(new_item)
+                            if new_item["id"] in cached_map:
+                                cached_map[new_item["id"]].update(new_item)
                             else:
                                 cached_items.append(new_item)
 
@@ -1099,15 +986,13 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             else:
                 self.settings.log(f"Failed to fetch dataset metadata for {project_id}: {task.error}", Qgis.Warning)
 
-        if not hasattr(self, 'dataExchangeAPI') or self.dataExchangeAPI is None:
+        if self.dataExchangeAPI is None:
             # Should have been initialized by get_remote_project call, but just in case
-            self.dataExchangeAPI = DataExchangeAPI(
-                on_login=lambda task: self.fetch_dataset_metadata(project_id, offset, limit)
-            )
+            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self.fetch_dataset_metadata(project_id, offset, limit))
         else:
             self.dataExchangeAPI.get_dataset_metadata(project_id, limit, offset, _handle_metadata)
 
-    def toggleSubtree(self, item: QStandardItem = None, expand=True):
+    def toggleSubtree(self, item: QStandardItem = None, expand: bool = True) -> None:
 
         def _recurse(curritem):
             # Use curritem (the recursion variable), not item (the outer param)
@@ -1119,14 +1004,14 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 _recurse(curritem.child(row))
 
         if item is None:
-            if expand is True:
+            if expand:
                 self.treeView.expandAll()
             else:
                 self.treeView.collapseAll()
         else:
             _recurse(item)
 
-    def add_view_to_map(self, item_data: ProjectTreeData):
+    def add_view_to_map(self, item_data: ProjectTreeData) -> None:
         """Add a view and all its layers to the map
 
         Args:
@@ -1134,7 +1019,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         """
         self.add_children_to_map(item_data.project.qproject, item_data.data)
 
-    def add_children_to_map(self, item: QStandardItem, bl_ids: List[str] = None):
+    def add_children_to_map(self, item: QStandardItem, bl_ids: list[str] | None = None) -> None:
         """Iteratively add all children to the map
 
         Args:
@@ -1151,18 +1036,18 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 loadme = False
                 # If this layer matches the businesslogic id filter
                 if bl_ids is not None and len(bl_ids) > 0:
-                    if 'id' in data.bl_attr and data.bl_attr['id'] in bl_ids:
+                    if "id" in data.bl_attr and data.bl_attr["id"] in bl_ids:
                         loadme = True
                 else:
                     loadme = True
 
-                if loadme is True:
+                if loadme:
                     if isinstance(project_tree_data.project, RemoteProject):
                         self.fetch_and_add_remote_layer(child, project_tree_data)
                     else:
                         data.add_layer_to_map(child)
 
-    def _get_children(self, root_item: QStandardItem):
+    def _get_children(self, root_item: QStandardItem) -> Iterator[QStandardItem]:
         """Recursion is going to kill us here so do an iterative solution instead
            https://stackoverflow.com/questions/41949370/collect-all-items-in-qtreeview-recursively
 
@@ -1179,7 +1064,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                     if child.hasChildren():
                         stack.append(child)
 
-    def _get_parents(self, start_item: QStandardItem):
+    def _get_parents(self, start_item: QStandardItem) -> list[QStandardItem]:
         """Return ordered list of parent QStandardItems from root down to the
         immediate parent of *start_item* (exclusive of the invisible root).
 
@@ -1196,7 +1081,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         stack.reverse()  # in-place; return the stack, not None
         return stack
 
-    def open_menu(self, position):
+    def open_menu(self, position) -> None:
 
         indexes = self.treeView.selectedIndexes()
         if len(indexes) < 1:
@@ -1226,7 +1111,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         elif isinstance(data, QRaveBaseMap):
             # A WMS QARaveBaseMap is just a container for layers
-            if data.tile_type == 'wms':
+            if data.tile_type == "wms":
                 self.folder_dumb_context_menu(menu, idx, item, project_tree_data)
             # Every other kind of basemap is an add-able layer
             else:
@@ -1235,18 +1120,10 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         elif project_tree_data.type == QRaveTreeTypes.PROJECT_ROOT:
             self.project_context_menu(menu, idx, item, project_tree_data)
 
-        elif project_tree_data.type in [
-            QRaveTreeTypes.PROJECT_VIEW_FOLDER,
-            QRaveTreeTypes.BASEMAP_ROOT,
-            QRaveTreeTypes.BASEMAP_SUPER_FOLDER
-        ]:
+        elif project_tree_data.type in [QRaveTreeTypes.PROJECT_VIEW_FOLDER, QRaveTreeTypes.BASEMAP_ROOT, QRaveTreeTypes.BASEMAP_SUPER_FOLDER]:
             self.folder_dumb_context_menu(menu, idx, item, project_tree_data)
 
-        elif project_tree_data.type in [
-            QRaveTreeTypes.PROJECT_FOLDER,
-            QRaveTreeTypes.PROJECT_REPEATER_FOLDER,
-            QRaveTreeTypes.BASEMAP_SUB_FOLDER
-        ]:
+        elif project_tree_data.type in [QRaveTreeTypes.PROJECT_FOLDER, QRaveTreeTypes.PROJECT_REPEATER_FOLDER, QRaveTreeTypes.BASEMAP_SUB_FOLDER]:
             self.folder_context_menu(menu, idx, item, project_tree_data)
 
         elif project_tree_data.type == QRaveTreeTypes.PROJECT_VIEW:
@@ -1257,70 +1134,62 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         menu.exec(self.treeView.viewport().mapToGlobal(position))
 
-    def map_layer_context_menu(
-        self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData
-    ):
+    def map_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData) -> None:
         if isinstance(item_data.project, RemoteProject):
-            menu.addAction('ADD_TO_MAP', lambda: self.fetch_and_add_remote_layer(item, item_data))
+            menu.addAction("ADD_TO_MAP", lambda: self.fetch_and_add_remote_layer(item, item_data))
         else:
-            menu.addAction('ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(item), enabled=item_data.data.exists)
+            menu.addAction("ADD_TO_MAP", lambda: QRaveMapLayer.add_layer_to_map(item), enabled=item_data.data.exists)
 
-        menu.addAction('VIEW_LAYER_META', lambda: self.change_meta(item, item_data, True))
+        menu.addAction("VIEW_LAYER_META", lambda: self.change_meta(item, item_data, True))
 
         # If the project has a warehouse tag, add "Add WebTiles to map" (for local projects)
         wh_meta = item_data.project.warehouse_meta
-        if not isinstance(item_data.project, RemoteProject) and wh_meta and 'id' in wh_meta:
-            if item_data.data.bl_attr.get('rsXPath'):
-                menu.addAction('ADD_WEB_TILES_TO_MAP', lambda: self.fetch_and_add_remote_layer(item, item_data))
+        if not isinstance(item_data.project, RemoteProject) and wh_meta and "id" in wh_meta:
+            if item_data.data.bl_attr.get("rsXPath"):
+                menu.addAction("ADD_WEB_TILES_TO_MAP", lambda: self.fetch_and_add_remote_layer(item, item_data))
 
         if bool(self.get_warehouse_url(item_data.data.meta)):
-            menu.addAction('VIEW_WEB_SOURCE', lambda: self.layer_warehouse_view(item_data))
+            menu.addAction("VIEW_WEB_SOURCE", lambda: self.layer_warehouse_view(item_data))
 
         if isinstance(item_data.project, RemoteProject):
             project_id = item_data.project.id
             url = f"{CONSTANTS['warehouseUrl'].rstrip('/')}/p/{project_id}/datasets"
-            menu.addAction('BROWSE_REMOTE_DATA_EXCHANGE', lambda: QDesktopServices.openUrl(QUrl(url)))
+            menu.addAction("BROWSE_REMOTE_DATA_EXCHANGE", lambda: QDesktopServices.openUrl(QUrl(url)))
         else:
-            menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
+            menu.addAction("BROWSE_FOLDER", lambda: self.file_system_locate(item_data.data.layer_uri))
         self.layerMenuOpen.emit(menu, item, item_data)
 
-    def file_layer_context_menu(
-        self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData
-    ):
+    def file_layer_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData) -> None:
         if isinstance(item_data.project, RemoteProject):
             if item_data.data.layer_type == QRaveMapLayer.LayerTypes.REPORT:
-                menu.addAction('OPEN_REPORT', lambda: self.open_remote_report_in_browser(item_data))
+                menu.addAction("OPEN_REPORT", lambda: self.open_remote_report_in_browser(item_data))
             else:
-                menu.addAction('OPEN_FILE', lambda: self.open_remote_file_in_browser(item_data))
+                menu.addAction("OPEN_FILE", lambda: self.open_remote_file_in_browser(item_data))
 
         else:
-            menu.addAction('OPEN_FILE', lambda: self.file_system_open(item_data.data.layer_uri))
-            menu.addAction('BROWSE_FOLDER', lambda: self.file_system_locate(item_data.data.layer_uri))
+            menu.addAction("OPEN_FILE", lambda: self.file_system_open(item_data.data.layer_uri))
+            menu.addAction("BROWSE_FOLDER", lambda: self.file_system_locate(item_data.data.layer_uri))
 
     # Basemap context items
-    def basemap_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
-        menu.addAction(
-            'ADD_TO_MAP', lambda: QRaveMapLayer.add_layer_to_map(item))
+    def basemap_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData) -> None:
+        menu.addAction("ADD_TO_MAP", lambda: QRaveMapLayer.add_layer_to_map(item))
 
     # Folder-level context menu
-    def folder_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
+    def folder_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData) -> None:
         if not isinstance(data.project, RemoteProject):
-            menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
+            menu.addAction("ADD_ALL_TO_MAP", lambda: self.add_children_to_map(item))
         menu.addSeparator()
-        menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
-        menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(item, True))
+        menu.addAction("COLLAPSE_ALL", lambda: self.toggleSubtree(item, False))
+        menu.addAction("EXPAND_ALL", lambda: self.toggleSubtree(item, True))
 
     # Some folders don't have the 'ADD_ALL_TO_MAP' functionality enabled
-    def folder_dumb_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
-        menu.addAction(
-            'COLLAPSE_ALL', lambda: self.toggleSubtree(item, False))
-        menu.addAction(
-            'EXPAND_ALL', lambda: self.toggleSubtree(item, True))
+    def folder_dumb_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData) -> None:
+        menu.addAction("COLLAPSE_ALL", lambda: self.toggleSubtree(item, False))
+        menu.addAction("EXPAND_ALL", lambda: self.toggleSubtree(item, True))
 
     # View context items
-    def view_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData):
-        menu.addAction(
-            'ADD_ALL_TO_MAP', lambda: self.add_view_to_map(item_data))
+    def view_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, item_data: ProjectTreeData) -> None:
+        menu.addAction("ADD_ALL_TO_MAP", lambda: self.add_view_to_map(item_data))
 
     def load_error_context_menu(
         self,
@@ -1343,7 +1212,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             lambda p=project_path: self._close_error_project(p),
         )
 
-    def _close_error_project(self, project_path: str):
+    def _close_error_project(self, project_path: str) -> None:
         """Remove a failed-load project from settings by its file path."""
         try:
             qrave_projects = self.get_project_settings()
@@ -1351,43 +1220,34 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             self.settings.log(f"Error closing error project: {e}", Qgis.Warning)
             qrave_projects = []
 
-        qrave_projects = [
-            (name, basename, xml)
-            for name, basename, xml in qrave_projects
-            if xml != project_path
-        ]
+        qrave_projects = [(name, basename, xml) for name, basename, xml in qrave_projects if xml != project_path]
         self.set_project_settings(qrave_projects)
         QTimer.singleShot(0, self.reload_tree)
 
     # Project-level context menu
-    def project_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData):
-        menu.addAction('COLLAPSE_ALL', lambda: self.toggleSubtree(None, False))
-        menu.addAction('EXPAND_ALL', lambda: self.toggleSubtree(None, True))
-        menu.addAction('ZOOM_TO_PROJECT', lambda: self.zoom_to_project(data.project), enabled=data.project.has_bounds)
-        menu.addAction('ADD_PROJECT_BOUNDS_TO_MAP', lambda: QRaveMapLayer.add_project_bounds_to_map(
-            data.project.bounds_path, 'Project Bounds', data.project.qproject.text()
-        ), enabled=data.project.has_bounds_layer)
+    def project_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData) -> None:
+        menu.addAction("COLLAPSE_ALL", lambda: self.toggleSubtree(None, False))
+        menu.addAction("EXPAND_ALL", lambda: self.toggleSubtree(None, True))
+        menu.addAction("ZOOM_TO_PROJECT", lambda: self.zoom_to_project(data.project), enabled=data.project.has_bounds)
+        menu.addAction("ADD_PROJECT_BOUNDS_TO_MAP", lambda: QRaveMapLayer.add_project_bounds_to_map(data.project.bounds_path, "Project Bounds", data.project.qproject.text()), enabled=data.project.has_bounds_layer)
         menu.addSeparator()
-        menu.addAction('UPLOAD_PROJECT', lambda: self.project_upload_load(data.project))
+        menu.addAction("UPLOAD_PROJECT", lambda: self.project_upload_load(data.project))
         wh_meta = data.project.warehouse_meta
-        if isinstance(data.project, RemoteProject) or (wh_meta and 'id' in wh_meta):
-            menu.addAction('DOWNLOAD_ADD_PROJECT', lambda: self.project_download_load(data.project))
+        if isinstance(data.project, RemoteProject) or (wh_meta and "id" in wh_meta):
+            menu.addAction("DOWNLOAD_ADD_PROJECT", lambda: self.project_download_load(data.project))
         menu.addSeparator()
         if not isinstance(data.project, RemoteProject):
-            menu.addAction('BROWSE_PROJECT_FOLDER', lambda: self.file_system_locate(data.project.project_xml_path))
-        menu.addAction('VIEW_PROJECT_META', lambda: self.change_meta(item, data, True))
-        menu.addAction(
-            'WAREHOUSE_VIEW', lambda: self.project_warehouse_view(data.project),
-            enabled=bool(self.get_warehouse_url(data.project.warehouse_meta))
-        )
-        menu.addAction('ADD_ALL_TO_MAP', lambda: self.add_children_to_map(item))
+            menu.addAction("BROWSE_PROJECT_FOLDER", lambda: self.file_system_locate(data.project.project_xml_path))
+        menu.addAction("VIEW_PROJECT_META", lambda: self.change_meta(item, data, True))
+        menu.addAction("WAREHOUSE_VIEW", lambda: self.project_warehouse_view(data.project), enabled=bool(self.get_warehouse_url(data.project.warehouse_meta)))
+        menu.addAction("ADD_ALL_TO_MAP", lambda: self.add_children_to_map(item))
         menu.addSeparator()
-        menu.addAction('REFRESH_PROJECT_HIERARCHY', self.reload_tree)
-        menu.addAction('CUSTOMIZE_PROJECT_HIERARCHY', enabled=False)
+        menu.addAction("REFRESH_PROJECT_HIERARCHY", self.reload_tree)
+        menu.addAction("CUSTOMIZE_PROJECT_HIERARCHY", enabled=False)
         menu.addSeparator()
-        menu.addAction('CLOSE_PROJECT', lambda: self.close_project(data.project), enabled=bool(data.project))
+        menu.addAction("CLOSE_PROJECT", lambda: self.close_project(data.project), enabled=bool(data.project))
 
-    def project_upload_load(self, project):
+    def project_upload_load(self, project: Project | RemoteProject) -> None:
         """
         Open the Project Upload dialog
         """
@@ -1397,7 +1257,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         # Reload the project after the upload (and even just on upload cancel)
         self.reload_tree()
 
-    def project_download_load(self, project):
+    def project_download_load(self, project: Project | RemoteProject) -> None:
         """
         Open the Project Download dialog
         """
@@ -1408,7 +1268,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             project_id = project.id
         else:
             wh_meta = project.warehouse_meta
-            project_id = wh_meta['id'][0] if wh_meta and 'id' in wh_meta else None
+            project_id = wh_meta["id"][0] if wh_meta and "id" in wh_meta else None
             local_path = project.project_xml_path
 
         dialog = ProjectDownloadDialog(None, project_id=project_id, local_path=local_path)

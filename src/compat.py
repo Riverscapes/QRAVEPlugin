@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Qt 5 / Qt 6 (QGIS 3 / QGIS 4) enum compatibility constants.
 
 In Qt 6 / PyQt6, enums are scoped (e.g. ``Qt.AlignmentFlag.AlignCenter``).
@@ -177,7 +176,7 @@ except AttributeError:
     QABSTRACTITEMVIEW_NO_EDIT_TRIGGERS = QAbstractItemView.NoEditTriggers  # type: ignore[attr-defined]
 
 
-from qgis.PyQt.QtNetwork import QNetworkRequest, QNetworkReply
+from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
 
 try:
     # Qt 6 / PyQt6
@@ -192,7 +191,7 @@ except AttributeError:
 
 
 # ── QGIS API compatibility ────────────────────────────────────────────────────
-from qgis.core import Qgis, QgsTask, QgsVectorFileWriter, QgsMapLayer  # noqa: E402
+from qgis.core import Qgis, QgsMapLayer, QgsTask, QgsVectorFileWriter
 
 try:
     # QGIS 4 / PyQt6 — scoped flag form
@@ -200,6 +199,13 @@ try:
 except AttributeError:
     # QGIS 3 / PyQt5 — flat flag form
     QGSTASK_CAN_CANCEL = QgsTask.CanCancel  # type: ignore[attr-defined]
+
+try:
+    # QGIS 4 / PyQt6 — suppresses OS-level completion notifications
+    QGSTASK_SILENT = QgsTask.Flag.Silent
+except AttributeError:
+    # QGIS 3 does not have this flag; fall back to zero (no-op OR)
+    QGSTASK_SILENT = 0  # type: ignore[assignment]
 
 try:
     # QGIS 4 / PyQt6
@@ -233,7 +239,7 @@ except AttributeError:
 
 
 # ── QClipboard ───────────────────────────────────────────────────────────────
-from qgis.PyQt.QtGui import QClipboard  # noqa: E402
+from qgis.PyQt.QtGui import QClipboard
 
 try:
     # Qt 6 / PyQt6 — scoped enum
@@ -249,7 +255,7 @@ except AttributeError:
 try:
     from qgis.core import (
         QgsMapBoxGlStyleConverter as _QgsMapBoxGlStyleConverter,
-    )  # noqa: E402
+    )
 
     try:
         # QGIS 4 / Qt 6 — scoped enum

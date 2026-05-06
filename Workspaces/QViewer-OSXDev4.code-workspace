@@ -1,0 +1,49 @@
+{
+    "folders": [
+        {
+            "path": ".."
+        }
+    ],
+    "settings": {
+        // ── Personal aesthetic: yellow title bar distinguishes QGIS 4 from QGIS 3 ─
+        // FROM: https://gist.github.com/NicolaiMogensen/acfd8723720c4761aefef3cdfc2aa55a
+        "workbench.colorCustomizations": {
+            "titleBar.activeBackground": "#ffbb00"
+        },
+
+        // ── macOS QGIS 4 — machine-specific paths set via $QGIS4_PATH env var ────
+        // Add  export QGIS4_PATH=/Applications/QGIS4.app  (or wherever installed)
+        // to your shell profile so the paths below resolve correctly.
+        "terminal.integrated.env.osx": {
+            // PYTHONHOME redirects Python's stdlib lookup from the baked-in CI
+            // build-server path to the actual stdlib inside the app bundle.
+            // Without this, any standalone invocation of python3.12 crashes with
+            // "ModuleNotFoundError: No module named 'encodings'".
+            "PYTHONHOME": "${env:QGIS4_PATH}/Contents/Frameworks",
+            "PYTHONPATH": "${env:QGIS4_PATH}/Contents/Resources/qgis/python:${env:QGIS4_PATH}/Contents/Resources/qgis/python/plugins:${env:QGIS4_PATH}/Contents/Resources/python3.11/site-packages:${env:QGIS4_PATH}/Contents/Resources/python3.11/site-packages/PyQt6:${env:QGIS4_PATH}/Contents/PlugIns/PyQt6:${workspaceFolder}/wheels",
+            "PATH": "${env:PATH}:${env:QGIS4_PATH}/Contents/MacOS",
+            "QGIS_PREFIX_PATH": "${env:QGIS4_PATH}/Contents/MacOS"
+        },
+        "python.analysis.extraPaths": [
+            "${workspaceFolder}/wheels",
+            "${env:QGIS4_PATH}/Contents/Resources/qgis/python",
+            "${env:QGIS4_PATH}/Contents/Resources/qgis/python/plugins",
+            "${env:QGIS4_PATH}/Contents/Resources/python3.11/site-packages",
+            "${env:QGIS4_PATH}/Contents/Resources/python3.11/site-packages/PyQt6",
+            "${env:QGIS4_PATH}/Contents/PlugIns/PyQt6"
+        ],
+        // python.defaultInterpreterPath is intentionally omitted — it does not
+        // support ${env:...} variable expansion and the path is machine-specific.
+        // Do NOT point VS Code at the raw python3.12 binary — its stdlib path is
+        // baked in to the CI build server and crashes when run standalone.
+        // Use the wrapper: /Applications/QGIS-final-4_0_1.app/Contents/MacOS/python
+        //
+        //   Cmd+Shift+P → "Python: Select Interpreter" → "Enter path…" →
+        //   /Applications/QGIS-final-4_0_1.app/Contents/MacOS/python
+        "terminal.integrated.defaultProfile.osx": "zsh"
+    },
+    "launch": {
+        "configurations": [],
+        "compounds": []
+    }
+}

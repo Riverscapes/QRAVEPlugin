@@ -1,35 +1,32 @@
 from __future__ import annotations
-import os
+
 import json
-from typing import Optional
-import lxml.etree
+import os
+import re
 import traceback
 
+import lxml.etree
 from qgis.core import Qgis
-from qgis.PyQt.QtGui import QStandardItem, QBrush
+from qgis.PyQt.QtGui import QBrush, QStandardItem
 
-from .qrave_map_layer import QRaveMapLayer, QRaveTreeTypes, ProjectTreeData
+from ..compat import COLOR_GRAY, FOREGROUND_ROLE, USER_ROLE
+from ..icon_utils import qrave_icon
+from .qrave_map_layer import ProjectTreeData, QRaveMapLayer, QRaveTreeTypes
 from .rspaths import parse_rel_path
 from .settings import CONSTANTS, Settings
-from ..icon_utils import qrave_icon
-from ..compat import COLOR_GRAY, FOREGROUND_ROLE, USER_ROLE
 
-import re
+MESSAGE_CATEGORY = CONSTANTS["logCategory"]
 
-MESSAGE_CATEGORY = CONSTANTS['logCategory']
-
-BL_XML_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'resources', CONSTANTS['businessLogicDir'])
+BL_XML_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "resources", CONSTANTS["businessLogicDir"])
 
 VERSIONS = {
-    "V1": "/V1/[a-zA-Z]+.xsd",
-    "V2": "/V2/RiverscapesProject.xsd",
+    "V1": re.compile(r"/V1/[a-zA-Z]+.xsd"),
+    "V2": re.compile(r"/V2/RiverscapesProject.xsd"),
 }
 
 
 class Project:
-
     def __init__(self, project_xml_path: str):
-        self.exists = False
         self.meta = None
         self.description = None
         self.warehouse_meta = None
@@ -40,7 +37,7 @@ class Project:
         self.project_xml_path = os.path.abspath(project_xml_path)
         self.project = None
         self.bounds = None
-        self.bounds_path: Optional[str] = None
+        self.bounds_path: str | None = None
         self.loadable = False
         self.load_errs = False
         self.project_type = None
@@ -49,75 +46,68 @@ class Project:
         self.qproject = None
         self.project_dir = None
         self.version = None
-        self.load_error: Optional[str] = None
+        self.load_error: str | None = None
         self.exists = os.path.isfile(self.project_xml_path)
         if self.exists:
             self.project_dir = os.path.dirname(self.project_xml_path)
 
-    def load(self):
+    def load(self) -> None:
         self.load_errs = False
-        if self.exists is True:
+        if self.exists:
             try:
                 self._load_project()
                 # Retrieve schema URL from project XML.  XML attribute order is
                 # not guaranteed across lxml versions, so we must scan all
-                # attributes before raising – not on the first non-match.
-                schema_location_attrib = next(
-                    (v for k, v in self.project.attrib.items()
-                     if 'noNamespaceSchemaLocation' in k),
-                    None
-                )
+                # attributes before raising - not on the first non-match.
+                schema_location_attrib = next((v for k, v in self.project.attrib.items() if "noNamespaceSchemaLocation" in k), None)
                 if schema_location_attrib is None:
-                    raise Exception('Error finding schema location in project')
+                    raise Exception("Error finding schema location in project")
 
                 if re.search(VERSIONS["V1"], schema_location_attrib):
-                    self.version = 'V1'
+                    self.version = "V1"
                 elif re.search(VERSIONS["V2"], schema_location_attrib):
-                    self.version = 'V2'
+                    self.version = "V2"
                 else:
                     raise Exception("Error determining version of Riverscapes Project")
 
                 self._load_businesslogic()
                 self._build_tree()
                 self.loadable = True
-                if self.load_errs is False:
-                    self.settings.msg_bar('Project Loaded', self.project_xml_path, Qgis.Success)
+                if not self.load_errs:
+                    self.settings.msg_bar("Project Loaded", self.project_xml_path, Qgis.Success)
                 else:
-                    self.settings.msg_bar(
-                        'Project Loaded with errors', "(See Riverscapes Viewer logs for details)", Qgis.Critical
-                    )
+                    self.settings.msg_bar("Project Loaded with errors", "(See Riverscapes Viewer logs for details)", Qgis.Critical)
             except Exception as e:
                 self.load_error = str(e)
                 self.settings.msg_bar(
                     "Error loading project",
-                    "Project: {}\n (See Riverscapes Viewer logs for specifics)".format(self.project_xml_path),
+                    f"Project: {self.project_xml_path}\n (See Riverscapes Viewer logs for specifics)",
                     Qgis.Critical,
                 )
-                self.settings.log("Exception {}\n\nTrace: {}".format(e, traceback.format_exc()), Qgis.Critical)
+                self.settings.log(f"Exception {e}\n\nTrace: {traceback.format_exc()}", Qgis.Critical)
         else:
-            self.settings.msg_bar("Project Not Found", self.project_xml_path,
-                                  Qgis.Critical)
+            self.settings.msg_bar("Project Not Found", self.project_xml_path, Qgis.Critical)
 
-    def _load_project(self):
+    def _load_project(self) -> None:
         if os.path.isfile(self.project_xml_path):
             self.project = lxml.etree.parse(self.project_xml_path).getroot()
 
-            self.meta = self.extract_meta(self.project.findall('MetaData/Meta'))
-            desc_node = self.project.find('Description')
+            self.meta = self.extract_meta(self.project.findall("MetaData/Meta"))
+            desc_node = self.project.find("Description")
             self.description = desc_node.text if desc_node is not None else None
-            if self.version == 'V1':
-                self.warehouse_meta = self.extract_meta(self.project.findall('Warehouse/Meta'))
+            if self.version == "V1":
+                self.warehouse_meta = self.extract_meta(self.project.findall("Warehouse/Meta"))
             else:
                 # Version 2 has a different warehouse structure
-                wh_tag = self.project.find('Warehouse')
+                wh_tag = self.project.find("Warehouse")
                 if wh_tag is not None:
                     self.warehouse_meta = self.extract_warehouse(wh_tag)
 
-            self.project_type = self.project.find('ProjectType').text
+            self.project_type = self.project.find("ProjectType").text
 
-            pb_node = self.project.find('ProjectBounds')
+            pb_node = self.project.find("ProjectBounds")
             if pb_node is not None:
-                bbox_node = pb_node.find('BoundingBox')
+                bbox_node = pb_node.find("BoundingBox")
                 if bbox_node is not None:
                     try:
                         # Helper to safely extract floats from expected child nodes
@@ -125,30 +115,22 @@ class Project:
                             node = parent.find(tag)
                             return float(node.text) if node is not None and node.text else None
 
-                        extracted = {
-                            'minLat': _get_f(bbox_node, 'MinLat'),
-                            'minLng': _get_f(bbox_node, 'MinLng'),
-                            'maxLat': _get_f(bbox_node, 'MaxLat'),
-                            'maxLng': _get_f(bbox_node, 'MaxLng')
-                        }
+                        extracted = {"minLat": _get_f(bbox_node, "MinLat"), "minLng": _get_f(bbox_node, "MinLng"), "maxLat": _get_f(bbox_node, "MaxLat"), "maxLng": _get_f(bbox_node, "MaxLng")}
                         # Only set self.bounds if all values were successfully parsed
                         if all(v is not None for v in extracted.values()):
                             self.bounds = extracted
                     except (ValueError, TypeError):
                         self.bounds = None
 
-                path_el = pb_node.find('Path')
+                path_el = pb_node.find("Path")
                 if path_el is not None and path_el.text:
                     candidate = os.path.join(self.project_dir, path_el.text.strip())
                     if os.path.isfile(candidate):
                         self.bounds_path = candidate
 
-            realizations = self.project.find('Realizations')
+            realizations = self.project.find("Realizations")
             if realizations is None:
-                raise Exception(
-                    'Could not find the <Realizations> node. Are you sure the xml file you opened is '
-                    'Riverscapes Project? File: {}'.format(self.project_xml_path)
-                )
+                raise Exception(f"Could not find the <Realizations> node. Are you sure the xml file you opened is Riverscapes Project? File: {self.project_xml_path}")
 
     @property
     def has_bounds(self) -> bool:
@@ -160,32 +142,32 @@ class Project:
         """Check if the project has a bounds GeoJSON layer file"""
         return self.bounds_path is not None
 
-    def extract_meta(self, nodelist):
+    def extract_meta(self, nodelist: list) -> dict:
         meta = {}
         for meta_node in nodelist:
-            key = meta_node.attrib['name']
+            key = meta_node.attrib["name"]
             value = meta_node.text
-            type = meta_node.attrib['type'] if 'type' in meta_node.attrib else None
-            meta[key] = (value, type)
+            meta_type = meta_node.attrib["type"] if "type" in meta_node.attrib else None
+            meta[key] = (value, meta_type)
         return meta
 
-    def extract_warehouse(self, node):
+    def extract_warehouse(self, node) -> dict:
         meta = {}
-        meta['id'] = (node.attrib['id'], 'string')
-        meta['apiUrl'] = (node.attrib['apiUrl'], 'string')
-        if 'ref' in node.attrib:
-            meta['ref'] = (node.attrib['ref'], 'string')
+        meta["id"] = (node.attrib["id"], "string")
+        meta["apiUrl"] = (node.attrib["apiUrl"], "string")
+        if "ref" in node.attrib:
+            meta["ref"] = (node.attrib["ref"], "string")
         return meta
 
-    def _load_businesslogic(self):
+    def _load_businesslogic(self) -> None:
         if self.project is None or self.project_type is None:
             return
 
         self.business_logic = None
 
         # Case-sensitive filename we expect
-        bl_filename = '{}.xml'.format(self.project_type)
-        if self.version == 'V1' or self.version == 'V2':
+        bl_filename = f"{self.project_type}.xml"
+        if self.version == "V1" or self.version == "V2":
             web_bl_filename = os.path.join(self.version, bl_filename)
         else:
             raise Exception("Error: Unable to get web BusinessLogic filename from version")
@@ -194,15 +176,11 @@ class Project:
             # 1. first check for a businesslogic file next to the project file
             parse_rel_path(os.path.join(os.path.dirname(self.project_xml_path), bl_filename)),
             # 1.5. Check for a local business logic folder
-            (
-                parse_rel_path(os.path.join(self.settings.getValue('localBLFolder'), bl_filename))
-                if self.settings.getValue('localBLFolder')
-                else None
-            ),
+            (parse_rel_path(os.path.join(self.settings.getValue("localBLFolder"), bl_filename)) if self.settings.getValue("localBLFolder") else None),
             # 2. Second, check the businesslogic we've got from the web
             parse_rel_path(os.path.join(BL_XML_DIR, web_bl_filename)),
             # 3. Fall back to the default xml file
-            parse_rel_path(os.path.join(BL_XML_DIR, 'V2', 'default.xml'))
+            parse_rel_path(os.path.join(BL_XML_DIR, "V2", "default.xml")),
         ]
 
         # Drop any None values
@@ -216,26 +194,23 @@ class Project:
             try:
                 self.business_logic = lxml.etree.parse(self.business_logic_path).getroot()
                 # Let the user know what business logic we're using
-                self.settings.log("Using business logic file: {}".format(self.business_logic_path), Qgis.Info)
+                self.settings.log(f"Using business logic file: {self.business_logic_path}", Qgis.Info)
             except TypeError as e:
-                raise Exception('Error parsing business logic file: {}, {}'.format(self.business_logic_path, e))
+                raise Exception(f"Error parsing business logic file: {self.business_logic_path}, {e}")
             except lxml.etree.XMLSyntaxError as e:
-                raise Exception('XML Syntax error while parsing file: {}, {}'.format(self.business_logic_path, e))
+                raise Exception(f"XML Syntax error while parsing file: {self.business_logic_path}, {e}")
             except Exception as e:
-                raise Exception('Unknown XML File error: {}, {}'.format(self.business_logic_path, e))
+                raise Exception(f"Unknown XML File error: {self.business_logic_path}, {e}")
         else:
             paths_str = json.dumps(hierarchy, indent=2)
-            raise Exception(f'Could not find a valid business logic file. Valid paths are: \n{paths_str}')
+            raise Exception(f"Could not find a valid business logic file. Valid paths are: \n{paths_str}")
 
         # Check for a different kind of file
-        root_node = self.business_logic.find('Node')
+        root_node = self.business_logic.find("Node")
         if root_node is None:
-            raise Exception(
-                'Could not find the root <Node> element. Are you sure the xml file you opened is '
-                'Riverscapes Business logic XML? File: {}'.format(self.business_logic_path)
-            )
+            raise Exception(f"Could not find the root <Node> element. Are you sure the xml file you opened is Riverscapes Business logic XML? File: {self.business_logic_path}")
 
-    def _build_tree(self, force=False):
+    def _build_tree(self, force: bool = False) -> None:
         """
         Parse the XML and return any basemaps you find
         """
@@ -252,30 +227,30 @@ class Project:
             self.qproject = self._recurse_tree()
             self._build_views()
 
-    def _build_views(self):
+    def _build_views(self) -> None:
         if self.business_logic is None or self.qproject is None:
             return
 
-        views = self.business_logic.find('Views')
-        if views is None or 'default' not in views.attrib:
-            self.settings.log('Default view could not be located', Qgis.Warning)
+        views = self.business_logic.find("Views")
+        if views is None or "default" not in views.attrib:
+            self.settings.log("Default view could not be located", Qgis.Warning)
             return
 
-        self.default_view = views.attrib['default']
+        self.default_view = views.attrib["default"]
         self.views = {}
 
-        curr_item = QStandardItem(qrave_icon('BrowseFolder.png'), "Project Views")
+        curr_item = QStandardItem(qrave_icon("BrowseFolder.png"), "Project Views")
         curr_item.setData(ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW_FOLDER, project=self), USER_ROLE)
 
-        for view in self.business_logic.findall('Views/View'):
-            name = view.attrib['name']
-            view_id = view.attrib['id'] if 'id' in view.attrib else None
+        for view in self.business_logic.findall("Views/View"):
+            name = view.attrib["name"]
+            view_id = view.attrib["id"] if "id" in view.attrib else None
 
             if name is None or view_id is None:
                 continue
 
-            view_item = QStandardItem(qrave_icon('view.svg'), name)
-            view_layer_ids = [layer.attrib['id'] for layer in view.findall('Layers/Layer')]
+            view_item = QStandardItem(qrave_icon("view.svg"), name)
+            view_layer_ids = [layer.attrib["id"] for layer in view.findall("Layers/Layer")]
             self.views[view_id] = view_layer_ids
             view_item.setData(
                 ProjectTreeData(QRaveTreeTypes.PROJECT_VIEW, project=self, data=view_layer_ids),
@@ -285,13 +260,13 @@ class Project:
 
         self.qproject.appendRow(curr_item)
 
-    def _recurse_tree(self, bl_el=None, proj_el=None, parent: QStandardItem = None):
+    def _recurse_tree(self, bl_el=None, proj_el=None, parent: QStandardItem = None) -> QStandardItem | None:
         if bl_el is None:
-            bl_el = self.business_logic.find('Node')
+            bl_el = self.business_logic.find("Node")
 
         if bl_el is None:
             self.settings.log(
-                'No default businesslogic root node could be located in file: {}'.format(self.business_logic_path),
+                f"No default businesslogic root node could be located in file: {self.business_logic_path}",
                 Qgis.Critical,
             )
             return
@@ -303,156 +278,156 @@ class Project:
             proj_el = self.project
 
         new_proj_el = proj_el
-        if 'xpath' in bl_el.attrib:
-            if len(bl_el.attrib['xpath']) == 0:
+        if "xpath" in bl_el.attrib:
+            if len(bl_el.attrib["xpath"]) == 0:
                 self.load_errs = True
                 self.settings.log(
-                    "Empty Xpath detected on line {} of file: {}".format(bl_el.sourceline, self.business_logic_path),
+                    f"Empty Xpath detected on line {bl_el.sourceline} of file: {self.business_logic_path}",
                     Qgis.Critical,
                 )
                 return
-            new_proj_el = xpathone_withref(self.project, proj_el, bl_el.attrib['xpath'])
+            new_proj_el = xpathone_withref(self.project, proj_el, bl_el.attrib["xpath"])
             if new_proj_el is None:
                 # We just ignore layers we can't find. Log them though
                 return
 
         # The label is either explicit or it's an xpath lookup
-        curr_label = '<unknown>'
-        if 'label' in bl_el.attrib:
-            curr_label = bl_el.attrib['label']
-        elif 'xpathlabel' in bl_el.attrib:
-            if len(bl_el.attrib['xpathlabel']) == 0:
+        curr_label = "<unknown>"
+        if "label" in bl_el.attrib:
+            curr_label = bl_el.attrib["label"]
+        elif "xpathlabel" in bl_el.attrib:
+            if len(bl_el.attrib["xpathlabel"]) == 0:
                 self.load_errs = True
                 self.settings.log(
-                    "Empty xpathlabel detected on line {} of file: {}".format(
-                        bl_el.sourceline, self.business_logic_path
-                    ),
+                    f"Empty xpathlabel detected on line {bl_el.sourceline} of file: {self.business_logic_path}",
                     Qgis.Critical,
                 )
                 return
-            found = new_proj_el.xpath(bl_el.attrib['xpathlabel'])
-            curr_label = found[0].text if found is not None and len(found) > 0 else '<unknown>'
+            found = new_proj_el.xpath(bl_el.attrib["xpathlabel"])
+            curr_label = found[0].text if found is not None and len(found) > 0 else "<unknown>"
 
         curr_item = QStandardItem()
         curr_item.setText(curr_label)
 
-        children_container = bl_el.find('Children')
+        children_container = bl_el.find("Children")
 
         # If there are children then this is a branch
         if children_container is not None:
-            if is_root is True:
-                curr_item.setIcon(qrave_icon('viewer-icon.svg'))
-                curr_item.setData(
-                    ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self, data=dict(children_container.attrib)),
-                    USER_ROLE,
-                ),
+            if is_root:
+                curr_item.setIcon(qrave_icon("viewer-icon.svg"))
+                (
+                    curr_item.setData(
+                        ProjectTreeData(QRaveTreeTypes.PROJECT_ROOT, project=self, data=dict(children_container.attrib)),
+                        USER_ROLE,
+                    ),
+                )
             else:
-                curr_item.setIcon(qrave_icon('BrowseFolder.png'))
-                curr_item.setData(
-                    ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data=dict(children_container.attrib)),
-                    USER_ROLE,
-                ),
+                curr_item.setIcon(qrave_icon("BrowseFolder.png"))
+                (
+                    curr_item.setData(
+                        ProjectTreeData(QRaveTreeTypes.PROJECT_FOLDER, project=self, data=dict(children_container.attrib)),
+                        USER_ROLE,
+                    ),
+                )
 
-            for child_node in children_container.xpath('*'):
+            for child_node in children_container.xpath("*"):
                 # Handle any explicit <Node> children
-                if child_node.tag == 'Node':
+                if child_node.tag == "Node":
                     self._recurse_tree(child_node, new_proj_el, curr_item)
 
                 # Repeaters are a separate case
-                elif child_node.tag == 'Repeater':
-                    qrepeater = QStandardItem(qrave_icon('BrowseFolder.png'), child_node.attrib['label'])
-                    qrepeater.setData(
-                        ProjectTreeData(
-                            QRaveTreeTypes.PROJECT_REPEATER_FOLDER,
-                            project=self,
-                            data=dict(children_container.attrib),
+                elif child_node.tag == "Repeater":
+                    qrepeater = QStandardItem(qrave_icon("BrowseFolder.png"), child_node.attrib["label"])
+                    (
+                        qrepeater.setData(
+                            ProjectTreeData(
+                                QRaveTreeTypes.PROJECT_REPEATER_FOLDER,
+                                project=self,
+                                data=dict(children_container.attrib),
+                            ),
+                            USER_ROLE,
                         ),
-                        USER_ROLE,
-                    ),
+                    )
                     curr_item.appendRow(qrepeater)
 
-                    if len(child_node.attrib['xpath']) == 0:
+                    if len(child_node.attrib["xpath"]) == 0:
                         self.load_errs = True
                         self.settings.log(
-                            "Empty repeater xpath detected on line {} of file: {}".format(
-                                child_node.sourceline, self.business_logic_path
-                            ),
+                            f"Empty repeater xpath detected on line {child_node.sourceline} of file: {self.business_logic_path}",
                             Qgis.Critical,
                         )
                         return
 
-                    repeat_xpath = child_node.attrib['xpath']
-                    repeat_node = child_node.find('Node')
+                    repeat_xpath = child_node.attrib["xpath"]
+                    repeat_node = child_node.find("Node")
                     if repeat_node is not None:
                         for repeater_el in new_proj_el.xpath(repeat_xpath):
                             self._recurse_tree(repeat_node, repeater_el, qrepeater)
 
         # Otherwise this is a leaf
         else:
-            bl_type = bl_el.attrib['type']
-            if bl_type == 'polygon':
-                curr_item.setIcon(qrave_icon('layers/Polygon.png'))
-            elif bl_type == 'line':
-                curr_item.setIcon(qrave_icon('layers/Polyline.png'))
-            elif bl_type == 'point':
-                curr_item.setIcon(qrave_icon('layers/MultiDot.png'))
-            elif bl_type == 'raster':
-                curr_item.setIcon(qrave_icon('layers/Raster.png'))
-            elif bl_type == 'file':
-                curr_item.setIcon(qrave_icon('draft.svg'))
-            elif bl_type == 'report':
-                curr_item.setIcon(qrave_icon('description.svg'))
-            elif bl_type == 'tin':
-                curr_item.setIcon(qrave_icon('layers/tin.svg'))
+            bl_type = bl_el.attrib["type"]
+            if bl_type == "polygon":
+                curr_item.setIcon(qrave_icon("layers/Polygon.png"))
+            elif bl_type == "line":
+                curr_item.setIcon(qrave_icon("layers/Polyline.png"))
+            elif bl_type == "point":
+                curr_item.setIcon(qrave_icon("layers/MultiDot.png"))
+            elif bl_type == "raster":
+                curr_item.setIcon(qrave_icon("layers/Raster.png"))
+            elif bl_type == "file":
+                curr_item.setIcon(qrave_icon("draft.svg"))
+            elif bl_type == "report":
+                curr_item.setIcon(qrave_icon("description.svg"))
+            elif bl_type == "tin":
+                curr_item.setIcon(qrave_icon("layers/tin.svg"))
             else:
-                curr_item.setIcon(qrave_icon('viewer-icon.svg'))
+                curr_item.setIcon(qrave_icon("viewer-icon.svg"))
 
             # Couldn't find this node. Ignore it.
-            meta = self.extract_meta(new_proj_el.findall('MetaData/Meta'))
+            meta = self.extract_meta(new_proj_el.findall("MetaData/Meta"))
 
             layer_name = None
 
             # Construct the rsXPath for this element
             rs_xpath = get_xml_xpath(new_proj_el)
-            bl_attr['rsXPath'] = rs_xpath
+            bl_attr["rsXPath"] = rs_xpath
 
             # If this is a geopackage it's special
-            if new_proj_el.getparent().tag == 'Layers':
+            if new_proj_el.getparent().tag == "Layers":
                 if self.version == "V1":
-                    path_el = new_proj_el.find('Path')
+                    path_el = new_proj_el.find("Path")
                     layer_name = path_el.text if path_el is not None else None
                 elif self.version == "V2":
-                    layer_name = new_proj_el.attrib['lyrName']
+                    layer_name = new_proj_el.attrib["lyrName"]
                 else:
                     raise Exception("Error: Unable to get layer name from version")
 
-                parent_path_el = new_proj_el.getparent().getparent().find('Path')
+                parent_path_el = new_proj_el.getparent().getparent().find("Path")
                 parent_path = parent_path_el.text if parent_path_el is not None else None
                 layer_uri = os.path.join(self.project_dir, parent_path) if parent_path else None
 
                 # THe XPath for geopackages has everything after the /Layers/.* stripped off
-                bl_attr['rsXPath'] = re.sub(r'/Layers/.*', '', bl_attr['rsXPath'])
-            elif bl_type == 'tin':
+                bl_attr["rsXPath"] = re.sub(r"/Layers/.*", "", bl_attr["rsXPath"])
+            elif bl_type == "tin":
                 # TIN layers cannot be loaded in QGIS, so just keep them in the tree
-                path_el = new_proj_el.find('Path')
+                path_el = new_proj_el.find("Path")
                 path_text = path_el.text if path_el is not None else None
                 layer_uri = os.path.join(self.project_dir, path_text) if path_text else None
             else:
-                path_el = new_proj_el.find('Path')
+                path_el = new_proj_el.find("Path")
                 path_text = path_el.text if path_el is not None else None
                 layer_uri = os.path.join(self.project_dir, path_text) if path_text else None
                 if path_text is None:
                     self.settings.log(
-                        "Could not find <Path> element on line {} of file: {}".format(
-                            new_proj_el.sourceline, self.business_logic_path
-                        ),
+                        f"Could not find <Path> element on line {new_proj_el.sourceline} of file: {self.business_logic_path}",
                         Qgis.Critical,
                     )
                     return
 
-            layer_type = bl_attr['type'] if 'type' in bl_attr else 'unknown'
+            layer_type = bl_attr["type"] if "type" in bl_attr else "unknown"
 
-            desc_el = new_proj_el.find('Description')
+            desc_el = new_proj_el.find("Description")
             layer_description = desc_el.text.strip() if desc_el is not None and desc_el.text else None
 
             map_layer = QRaveMapLayer(
@@ -466,11 +441,11 @@ class Project:
             )
             curr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, project=self, data=map_layer), USER_ROLE)
 
-            if bl_type == 'tin':
+            if bl_type == "tin":
                 curr_item_font = curr_item.font()
                 curr_item_font.setItalic(True)
                 curr_item.setFont(curr_item_font)
-                curr_item.setToolTip('TIN files cannot be loaded in QGIS. File: {}'.format(layer_uri))
+                curr_item.setToolTip(f"TIN files cannot be loaded in QGIS. File: {layer_uri}")
             elif not map_layer.exists:
                 # We are disabling this for now becuase missing files are now allowed
                 # settings.msg_bar(
@@ -478,13 +453,13 @@ class Project:
                 #     'Error finding file with path={}'.format(map_layer.layer_uri),
                 #     Qgis.Warning)
                 # We will send it to the console as an error though
-                self.settings.log("Error finding file with path={}".format(map_layer.layer_uri), Qgis.Warning)
+                self.settings.log(f"Error finding file with path={map_layer.layer_uri}", Qgis.Warning)
                 curr_item.setData(QBrush(COLOR_GRAY), FOREGROUND_ROLE)
                 curr_item_font = curr_item.font()
                 curr_item_font.setItalic(True)
                 curr_item.setFont(curr_item_font)
 
-                curr_item.setToolTip('File is not available locally: {}'.format(map_layer.layer_uri))
+                curr_item.setToolTip(f"File is not available locally: {map_layer.layer_uri}")
             elif map_layer.layer_uri:
                 curr_item.setToolTip(map_layer.layer_uri)
 
@@ -509,20 +484,18 @@ def xpathone_withref(root_el, el, xpath_str):
     settings = Settings()
     # If the node is not found we need to check if it's a reference
     if found is None or len(found) < 1:
-        if '@id=' in xpath_str:
-            ref_found = el.xpath(xpath_str.replace('@id=', '@ref='))
+        if "@id=" in xpath_str:
+            ref_found = el.xpath(xpath_str.replace("@id=", "@ref="))
             # If not even the ref is found then this is not valid
             if ref_found is not None and len(ref_found) > 0:
-                ref_str = ref_found[0].attrib['ref']
+                ref_str = ref_found[0].attrib["ref"]
                 return xpath_findref(root_el, ref_str, xpath_str)
 
-        settings.log(
-            'Optional project xml node not found with path="{}"'.format(xpath_str),
-            Qgis.Info)
+        settings.log(f'Optional project xml node not found with path="{xpath_str}"', Qgis.Info)
     else:
         # If the node is found and is not a reference this is the easy case
-        if 'ref' in found[0].attrib:
-            ref_str = found[0].attrib['ref']
+        if "ref" in found[0].attrib:
+            ref_str = found[0].attrib["ref"]
             return xpath_findref(root_el, ref_str, xpath_str)
         else:
             return found[0]
@@ -542,13 +515,10 @@ def xpath_findref(root_el, ref_str, xpath_str):
     """
     settings = Settings()
     # Now we go hunting for the origin of the reference
-    origin = root_el.xpath('Inputs/*[@id="{}"]'.format(ref_str))
+    origin = root_el.xpath(f'Inputs/*[@id="{ref_str}"]')
     # we found the origin but the reference could not be found
     if origin is None or len(origin) < 1:
-        settings.log(
-            'Missing Node',
-            'Error finding input node with xpath={} and ref="{}"'.format(xpath_str, ref_str),
-            Qgis.Warning)
+        settings.log("Missing Node", f'Error finding input node with xpath={xpath_str} and ref="{ref_str}"', Qgis.Warning)
         return
     else:
         return origin[0]
@@ -563,12 +533,12 @@ def get_xml_xpath(el: lxml.etree._Element) -> str:
     Returns:
         str: The constructed XPath
     """
-    rs_xpath = ''
+    rs_xpath = ""
     curr = el
     while curr is not None:
-        node_id = curr.attrib.get('id') or curr.attrib.get('name') or curr.attrib.get('lyrName')
-        node_id_str = f'#{node_id}' if node_id else ''
-        sep = '/' if rs_xpath else ''
+        node_id = curr.attrib.get("id") or curr.attrib.get("name") or curr.attrib.get("lyrName")
+        node_id_str = f"#{node_id}" if node_id else ""
+        sep = "/" if rs_xpath else ""
         rs_xpath = f"{curr.tag}{node_id_str}{sep}{rs_xpath}"
         curr = curr.getparent()
     return rs_xpath

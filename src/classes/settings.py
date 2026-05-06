@@ -1,47 +1,49 @@
-import os
+from __future__ import annotations
+
 import json
-import html
-from qgis.core import QgsMessageLog, Qgis, QgsProject, QgsSettings
+import os
+from typing import Any, ClassVar
+
+from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsSettings
 
 try:
-    with open(os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')) as cfg_file:
+    with open(os.path.join(os.path.dirname(__file__), "..", "..", "config.json")) as cfg_file:
         cfg_json = json.load(cfg_file)
         # For debugging purposes we can set the warehouse URL to the staging server
         # NOTE: This is maybe a little clumsy but most people will never hit this code and it does the job well enough
         if os.environ.get("RS_STAGING", "False").lower() == "true":
-            cfg_json['constants']['warehouseUrl'] = "https://staging.data.riverscapes.net"
-            cfg_json['constants']['DE_API_URL'] = "https://api.data.riverscapes.net/staging"
-            QgsMessageLog.logMessage(f"RS_STAGING detected. Using Staging URLS for Data Exchange: {cfg_json['constants']['warehouseUrl']} and {cfg_json['constants']['DE_API_URL']}",
-                                     cfg_json['constants']['logCategory'], level=Qgis.Warning)
+            cfg_json["constants"]["warehouseUrl"] = "https://staging.data.riverscapes.net"
+            cfg_json["constants"]["DE_API_URL"] = "https://api.data.riverscapes.net/staging"
+            QgsMessageLog.logMessage(f"RS_STAGING detected. Using Staging URLS for Data Exchange: {cfg_json['constants']['warehouseUrl']} and {cfg_json['constants']['DE_API_URL']}", cfg_json["constants"]["logCategory"], level=Qgis.Warning)
 except FileNotFoundError:
-    QgsMessageLog.logMessage(
-        "Riverscapes Viewer: config.json not found — plugin cannot load.",
-        "RiverscapesViewer", level=Qgis.Critical
-    )
+    QgsMessageLog.logMessage("Riverscapes Viewer: config.json not found — plugin cannot load.", "RiverscapesViewer", level=Qgis.Critical)
     raise
 except json.JSONDecodeError as _cfg_err:
-    QgsMessageLog.logMessage(
-        f"Riverscapes Viewer: config.json is malformed ({_cfg_err}) — plugin cannot load.",
-        "RiverscapesViewer", level=Qgis.Critical
-    )
+    QgsMessageLog.logMessage(f"Riverscapes Viewer: config.json is malformed ({_cfg_err}) — plugin cannot load.", "RiverscapesViewer", level=Qgis.Critical)
     raise
 
 
 # We include these so that
-_DEFAULTS = cfg_json['defaultSettings']
-CONSTANTS = cfg_json['constants']
+_DEFAULTS = cfg_json["defaultSettings"]
+CONSTANTS = cfg_json["constants"]
 
 # BASE is the name we want to use inside the settings keys
-MESSAGE_CATEGORY = CONSTANTS['logCategory']
+MESSAGE_CATEGORY = CONSTANTS["logCategory"]
 AUTH_CONFIG_NAME = "RiverscapesDataExchangeToken"
 
 
-class SettingsBorg(object):
-    _shared_state = {}
-    _initdone = False
+from .borg import Borg
 
-    def __init__(self):
-        self.__dict__ = self._shared_state
+
+class SettingsBorg(Borg):
+    """Shared-state base class (Borg pattern).  All Settings instances share
+    the same ``__dict__``, making them behave like a singleton."""
+
+    _shared_state: ClassVar[dict] = {}  # own dict — separate from Borg._shared_state
+    _initdone: ClassVar[bool] = False  # class-level default; overridden in shared_state
+
+    # __init__ is inherited from Borg: ``self.__dict__ = self._shared_state``
+
 
 # https://docs.qgis.org/testing/en/docs/pyqgis_developer_cookbook/settings.html
 # NB: We use json here to get better simple values back. This is a bit hack-y
@@ -56,14 +58,14 @@ class Settings(SettingsBorg):
         SettingsBorg.__init__(self)
 
         # The iface is important as a pointer so we can get to the messagebar
-        if 'iface' not in self.__dict__:
+        if "iface" not in self.__dict__:
             self.iface = None
         if iface is not None:
             self.iface = iface
         if not self._initdone:
             self.proj = QgsProject.instance()
             self.s = QgsSettings()
-            self.s.beginGroup(CONSTANTS['settingsCategory'])
+            self.s.beginGroup(CONSTANTS["settingsCategory"])
 
             # Do a sanity check and reset anything that looks fishy
             for key in _DEFAULTS.keys():
@@ -88,10 +90,9 @@ class Settings(SettingsBorg):
             self.iface.messageBar().pushMessage(title, msg, level=level, duration=duration)
         # Fall back to regular logging
         else:
-            QgsMessageLog.logMessage("{}: {}".format(
-                title, msg), MESSAGE_CATEGORY, level=level)
+            QgsMessageLog.logMessage(f"{title}: {msg}", MESSAGE_CATEGORY, level=level)
 
-    def resetAllSettings(self):
+    def resetAllSettings(self) -> None:
         for key in _DEFAULTS.keys():
             self.setValue(key, _DEFAULTS[key])
         # Remove any settings that aren't in the defaults. This way we don't get settings building
@@ -100,7 +101,7 @@ class Settings(SettingsBorg):
             if key not in _DEFAULTS:
                 self.s.remove(key)
 
-    def getValue(self, key):
+    def getValue(self, key: str) -> Any:
         """
         Get one setting from the in-memory store and if not present then the settings file
         :return:
@@ -108,13 +109,13 @@ class Settings(SettingsBorg):
         value = None
         try:
             default = _DEFAULTS[key] if key in _DEFAULTS else None
-            value = json.loads(self.s.value(key, default))['v']
+            value = json.loads(self.s.value(key, default))["v"]
         except Exception as e:
             QgsMessageLog.logMessage(f"Error reading setting '{key}': {e}", MESSAGE_CATEGORY, level=Qgis.Warning)
             value = None
         return value
 
-    def setValue(self, key, value):
+    def setValue(self, key: str, value: Any) -> None:
         """
         Write or overwrite a setting. Update the in-memory store  at the same time
         :param name:

@@ -1,16 +1,30 @@
 import json
-import xml.etree.ElementTree as ET
 from xml.dom import minidom
+import xml.etree.ElementTree as ET
 
+from qgis.core import (
+    Qgis,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsCoordinateTransformContext,
+    QgsFeature,
+    QgsFeatureRequest,
+    QgsGeometry,
+    QgsMapLayer,
+    QgsMessageLog,
+    QgsProject,
+    QgsRectangle,
+    QgsVectorFileWriter,
+    QgsVectorLayer,
+)
 from qgis.PyQt import QtWidgets
-from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsVectorLayer, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRectangle, QgsGeometry, QgsFeatureRequest, QgsMapLayer, QgsFeature, QgsVectorFileWriter, QgsCoordinateTransformContext
+
 from .compat import SPSZ_EXPANDING, SPSZ_MINIMUM, VFW_NO_ERROR
 
 
 class FrmProjectBounds(QtWidgets.QDialog):
-
     def __init__(self, parent=None):
-        super(FrmProjectBounds, self).__init__(parent)
+        super().__init__(parent)
         self.setupUi()
 
         # Add all layers to the combo box, layer name as text, layer id as data
@@ -44,11 +58,11 @@ class FrmProjectBounds(QtWidgets.QDialog):
 
         # First check if there are any features in the layer
         if self.chkUseSelected.isChecked():
-            if len(layer.selectedFeatureIds())== 0:
+            if len(layer.selectedFeatureIds()) == 0:
                 self.txtOutput.setPlainText("No features selected in layer")
                 self.btnCopy.setEnabled(False)
                 return
-        
+
         if layer.featureCount() == 0:
             self.txtOutput.setPlainText("No features selected in layer")
             self.btnCopy.setEnabled(False)
@@ -65,12 +79,12 @@ class FrmProjectBounds(QtWidgets.QDialog):
         if output is not None:
             self.btnCopy.setEnabled(True)
 
-    def get_layer_bounds(self, layer: QgsVectorLayer, use_selected: bool=False) -> QgsRectangle:
-        
+    def get_layer_bounds(self, layer: QgsVectorLayer, use_selected: bool = False) -> QgsRectangle:
+
         # Given we need typically this information in WGS84, transform the data into this project if the source layer is in another projection.
         transform = None
         working_layer: QgsVectorLayer = layer.clone()
-        if layer.crs().authid() != 'EPSG:4326':
+        if layer.crs().authid() != "EPSG:4326":
             epsg4326 = QgsCoordinateReferenceSystem("EPSG:4326")
             working_layer.setCrs(epsg4326)
             transform = QgsCoordinateTransform(layer.crs(), epsg4326, QgsProject.instance())
@@ -88,7 +102,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
         return bounds
 
     def generate_xml(self, bounds: QgsRectangle, precision: int, include_bounds_file: bool = True):
-        
+
         centroid = bounds.center()
 
         project_bounds = ET.Element("ProjectBounds")
@@ -113,27 +127,21 @@ class FrmProjectBounds(QtWidgets.QDialog):
             path_elem = ET.SubElement(project_bounds, "Path")
             path_elem.text = "project_bounds.geojson"
 
-        xml_str = ET.tostring(project_bounds, encoding='unicode', method='xml')
+        xml_str = ET.tostring(project_bounds, encoding="unicode", method="xml")
         pretty_xml_str = minidom.parseString(xml_str).toprettyxml(indent="  ")
         # Remove the XML declaration
-        pretty_xml_str = '\n'.join(pretty_xml_str.split('\n')[1:])
-        
+        pretty_xml_str = "\n".join(pretty_xml_str.split("\n")[1:])
+
         return pretty_xml_str
-    
+
     def generate_json(self, bounds: QgsRectangle, precision: int, include_bounds_file: bool = True):
 
         centroid = bounds.center()
 
         project_bounds = {
             "ProjectBounds": {
-                "Centroid": {
-                    "Lat": round(centroid.y(), precision), 
-                    "Lng": round(centroid.x(), precision)},
-                "BoundingBox": {
-                    "MinLng": round(bounds.xMinimum(), precision),
-                    "MinLat": round(bounds.yMinimum(), precision),
-                    "MaxLng": round(bounds.xMaximum(), precision),
-                    "MaxLat": round(bounds.yMaximum(), precision)}
+                "Centroid": {"Lat": round(centroid.y(), precision), "Lng": round(centroid.x(), precision)},
+                "BoundingBox": {"MinLng": round(bounds.xMinimum(), precision), "MinLat": round(bounds.yMinimum(), precision), "MaxLng": round(bounds.xMaximum(), precision), "MaxLat": round(bounds.yMaximum(), precision)},
             }
         }
 
@@ -141,7 +149,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
             project_bounds["ProjectBounds"]["Path"] = "project_bounds.geojson"
 
         return json.dumps(project_bounds, indent=4)
-    
+
     def copy_output(self):
         # Copy to clipboard
         clipboard = QtWidgets.QApplication.clipboard()
@@ -149,7 +157,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
         self.btnCopy.setText("Copied!")
 
     def btn_generate_bounds_file_clicked(self):
-        
+
         layer: QgsMapLayer = QgsProject.instance().mapLayer(self.cmbLayer.currentData())
         crs = layer.crs()
         feature_request = QgsFeatureRequest()
@@ -158,20 +166,20 @@ class FrmProjectBounds(QtWidgets.QDialog):
 
         transform = None
         reverse_transform = None
-        
+
         # Initialize an empty geometry
         geom = QgsGeometry()
         # Combine all geometries into a single multipart geometry
-        
+
         if crs.isGeographic():
             # Find a suitable UTM zone for the centroid of the layer
             centroid = self.get_layer_bounds(layer, use_selected=self.chkUseSelected.isChecked()).center()
             utm_zone = int((centroid.x() + 180) / 6) + 1
-            utm_crs = QgsCoordinateReferenceSystem(f'EPSG:326{utm_zone:02d}')
+            utm_crs = QgsCoordinateReferenceSystem(f"EPSG:326{utm_zone:02d}")
             # Transform the layer to the UTM CRS
             transform = QgsCoordinateTransform(crs, utm_crs, QgsProject.instance())
             reverse_transform = QgsCoordinateTransform(utm_crs, crs, QgsProject.instance())
-            
+
         for f in layer.getFeatures(feature_request):
             g = f.geometry()
             if transform is not None:
@@ -201,17 +209,11 @@ class FrmProjectBounds(QtWidgets.QDialog):
         if not out_file[0]:
             return
 
-        error = QgsVectorFileWriter.writeAsVectorFormatV3(
-            geojson_layer,
-            out_file[0],
-            QgsCoordinateTransformContext(),
-            options
-        )
+        error = QgsVectorFileWriter.writeAsVectorFormatV3(geojson_layer, out_file[0], QgsCoordinateTransformContext(), options)
 
         if error[0] != VFW_NO_ERROR:
             QgsMessageLog.logMessage(f"Error saving GeoJSON file: {error}", "Project Bounds", Qgis.Critical)
             return
-
 
     def setupUi(self):
         self.setWindowTitle("Project Bounds")
@@ -219,7 +221,7 @@ class FrmProjectBounds(QtWidgets.QDialog):
 
         vertLayout = QtWidgets.QVBoxLayout(self)
         self.setLayout(vertLayout)
-        
+
         gridLayout = QtWidgets.QGridLayout(self)
         vertLayout.addLayout(gridLayout)
 

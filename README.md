@@ -54,7 +54,7 @@ When you run this batch file you'll get a vscode window. Use this window to open
 Go to the terminal and install pb-tool and other python development dependencies if you haven't already:
 
 ```
-pip install pylint autopep8 ptvsd pb-tool
+pip install ruff ptvsd pb-tool
 ```
 
 

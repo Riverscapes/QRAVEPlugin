@@ -15,7 +15,7 @@
 - [X] SUCCESS: New Project (No Warehouse tag) is uploaded to ORG as PUBLIC
 - [X] SUCCESS: Uploaded project can be viewed in Data exchange
 - [X] SUCCESS: Exisiting project (with Warehouse tag) is uploaded as new
-- [X] SUCCESS: New Project is uploaded to USER 
+- [X] SUCCESS: New Project is uploaded to USER
 - [X] SUCCESS: New Project is uploaded PRIVATE
 - [X] SUCCESS: New Project is uploaded SECRET
 - [X] SUCCESS: New Project is uploaded with TAGS

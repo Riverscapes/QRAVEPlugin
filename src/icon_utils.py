@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Icon loading utility that works in both QGIS 3 (Qt5) and QGIS 4 (Qt6).
 
 In QGIS 3 / PyQt5 the compiled resources.py registers icons via
@@ -6,6 +5,7 @@ In QGIS 3 / PyQt5 the compiled resources.py registers icons via
 directly.  In QGIS 4 / PyQt6 that function no longer exists, so we fall
 back to loading icons from the ``Images/`` directory on disk.
 """
+
 import os
 
 from qgis.PyQt.QtGui import QIcon

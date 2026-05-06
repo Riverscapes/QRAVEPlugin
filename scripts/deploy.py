@@ -1,10 +1,8 @@
-import os
-import sys
 from glob import glob
-import shutil
-import re
-import zipfile
 import os
+import re
+import shutil
+import sys
 
 PLUGIN_NAME = "riverscapes_viewer"
 UI_DIR = "src/ui"
@@ -18,11 +16,11 @@ def copy_plugin(plugin_dir: str):
         print('deploy and source folders cannot be the same!')
         sys.exit(1)
 
-    print('Deploy to {}? (y/N)'.format(deploy_dir))
+    print(f'Deploy to {deploy_dir}? (y/N)')
     yesno('Exiting')
 
     if os.path.isdir(deploy_dir):
-        print('Folder exists \n{}\n and will be deleted? Is this ok? (y/N)'.format(deploy_dir))
+        print(f'Folder exists \n{deploy_dir}\n and will be deleted? Is this ok? (y/N)')
         yesno('Go change the __version__.py file and come back')
         shutil.rmtree(deploy_dir)
 
@@ -45,9 +43,6 @@ def copy_plugin(plugin_dir: str):
     for p in keep_patterns:
         files += glob(os.path.join(source_dir, *p), recursive=True)
 
-    mandatory_wheels = [
-        'rsxml',
-    ]
 
     # Match our wheel dependency and throw an error if you don't find it. Match using pattern /wheels/rsxml*.whl
     # for wheel_name in mandatory_wheels:
@@ -63,7 +58,7 @@ def copy_plugin(plugin_dir: str):
         if not os.path.isdir(dst_dir):
             os.makedirs(dst_dir, exist_ok=True)
         shutil.copy(f, dst)
-        print('\n{}\n{}\n'.format(f, dst))
+        print(f'\n{f}\n{dst}\n')
 
     return deploy_dir
 
@@ -73,10 +68,10 @@ def move_meta(deployfolder, version):
     src = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'metadata.txt'))
     dst = os.path.abspath(os.path.join(deployfolder, 'metadata.txt'))
 
-    with open(src, 'r', encoding="utf8") as f, open(dst, 'w+', encoding="utf8") as wf:
+    with open(src, encoding="utf8") as f, open(dst, 'w+', encoding="utf8") as wf:
         text = f.read()
         text = text.replace(' DEV_COPY', '')
-        text = text.replace('version=0.0.0dev', 'version={}'.format(version))
+        text = text.replace('version=0.0.0dev', f'version={version}')
         wf.write(text)
 
 
@@ -117,7 +112,7 @@ if __name__ == '__main__':
         re.M
     ).group(1)
 
-    print('Current version is: {}. Is this ok? (y/N)'.format(version))
+    print(f'Current version is: {version}. Is this ok? (y/N)')
     yesno('Go change the __version__.py file and come back')
 
     deployfolder = copy_plugin(plugin_dir)

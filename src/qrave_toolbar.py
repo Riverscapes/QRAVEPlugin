@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 /***************************************************************************
  Riverscapes Viewer
@@ -13,49 +12,51 @@
  ***************************************************************************/
 """
 
-import sys
+from __future__ import annotations
+
 import json
 import os.path
-from time import time
 from pathlib import Path
 import re
+import sys
+from time import time
 
-from qgis.core import QgsApplication, QgsProject, QgsMessageLog, Qgis, QgsMapLayer
-
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, QUrl
+from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsProject
+from qgis.PyQt.QtCore import QCoreApplication, QSettings, QTranslator, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
-from qgis.PyQt.QtWidgets import QAction, QFileDialog, QToolButton, QMenu, QMessageBox
+from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMenu, QMessageBox, QToolButton
 
-from .classes.settings import Settings, CONSTANTS
-from .classes.net_sync import NetSync
+from ..__version__ import __version__
+
+# initialize Qt resources from file resources.py
+from . import resources  # noqa: F401 — registers Qt icons/images as a side effect
+from .about_dialog import AboutDialog
+from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
+from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
 from .classes.map import get_map_center, get_zoom_level
-from .icon_utils import qrave_icon
+from .classes.net_sync import NetSync
+from .classes.settings import CONSTANTS, Settings
 from .compat import (
     LEFT_DOCK,
+    MAPLAYER_VECTOR,
+    MSGBOX_BTN_NO,
+    MSGBOX_BTN_YES,
+    MSGBOX_ICON_QUESTION,
     RIGHT_DOCK,
-    VERTICAL,
     TOOL_BTN_TEXT_BESIDE,
     TOOL_BTN_TEXT_ONLY,
-    MSGBOX_BTN_YES,
-    MSGBOX_BTN_NO,
-    MSGBOX_ICON_QUESTION,
-    MAPLAYER_VECTOR,
+    VERTICAL,
 )
+from .dock_widget import QRAVEDockWidget
+from .frm_project_bounds import FrmProjectBounds
+from .icon_utils import qrave_icon
+from .meta_widget import QRAVEMetaWidget
 
 # Initialize Qt resources from file resources.py
 # Import the code for the dialog
 from .options_dialog import OptionsDialog
-from .about_dialog import AboutDialog
-from .dock_widget import QRAVEDockWidget
-from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI
-from .meta_widget import QRAVEMetaWidget
-from .frm_project_bounds import FrmProjectBounds
-from .remote_project_dialog import RemoteProjectDialog
 from .project_download_dialog import ProjectDownloadDialog
-
-# initialize Qt resources from file resources.py
-from . import resources
-from ..__version__ import __version__
+from .remote_project_dialog import RemoteProjectDialog
 
 RESOURCES_DIR = os.path.join(os.path.dirname(__file__), "..", "resources")
 
@@ -87,12 +88,8 @@ class QRAVE:
         self.qproject = QgsProject.instance()
         self.settings = Settings(iface=self.iface)
 
-        self.settings.setValue(
-            "DEBUG", os.environ.get("RS_DEBUG", "False").lower() == "true"
-        )
-        self.settings.setValue(
-            "Staging", os.environ.get("RS_STAGING", "False").lower() == "true"
-        )
+        self.settings.setValue("DEBUG", os.environ.get("RS_DEBUG", "False").lower() == "true")
+        self.settings.setValue("Staging", os.environ.get("RS_STAGING", "False").lower() == "true")
 
         self.pluginIsActive = False
 
@@ -106,9 +103,7 @@ class QRAVE:
         self.plugin_dir = os.path.dirname(__file__)
         # initialize locale
         locale = QSettings().value("locale/userLocale")[0:2]
-        locale_path = os.path.join(
-            self.plugin_dir, "i18n", "QRAVE_{}.qm".format(locale)
-        )
+        locale_path = os.path.join(self.plugin_dir, "i18n", f"QRAVE_{locale}.qm")
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -127,7 +122,7 @@ class QRAVE:
         self.debugpy = None
         self._enable_debug()
 
-    def _enable_debug(self):
+    def _enable_debug(self) -> None:
         debug_port = 5678
         debug_host = "localhost"
         DEBUG_ON = self.settings.getValue("DEBUG")
@@ -140,9 +135,7 @@ class QRAVE:
 
                 self.debugpy = debugpy
             except ImportError:
-                self.settings.log(
-                    "Need install debugpy: pip3 install debugpy", Qgis.Warning
-                )
+                self.settings.log("Need install debugpy: pip3 install debugpy", Qgis.Warning)
 
         if self.debugpy is None:
             return
@@ -156,23 +149,16 @@ class QRAVE:
                         Path(os.__file__).parent.name,
                     )
                 elif sys.platform == "win32":
-                    python_path = os.path.join(
-                        Path(os.__file__).parents[1], "python.exe"
-                    )
+                    python_path = os.path.join(Path(os.__file__).parents[1], "python.exe")
                 else:
                     # Linux and other platforms
                     python_path = sys.executable
-                self.settings.log(
-                    f"debugpy imported and attached to: {python_path}", Qgis.Success
-                )
+                self.settings.log(f"debugpy imported and attached to: {python_path}", Qgis.Success)
                 debugpy.configure(python=python_path)
             except Exception as e:
-                self.settings.log(
-                    "Error initializing debugpy: {}".format(e), Qgis.Critical
-                )
+                self.settings.log(f"Error initializing debugpy: {e}", Qgis.Critical)
                 raise e
 
-        msgPort = f'"request": "attach", "Port": {debug_port}, "host": "{debug_host}"'
         if self.debugpy.is_client_connected():
             self.settings.log(
                 f"ALREADY ACTIVE: Remote Debug for Visual Studio is active({debug_port})",
@@ -181,16 +167,14 @@ class QRAVE:
             return
         else:
             try:
-                t_, new_port = self.debugpy.listen((debug_host, debug_port))
+                _, new_port = self.debugpy.listen((debug_host, debug_port))
             except Exception as e:
                 self.settings.log(f"Error starting debugpy: {e}", Qgis.Critical)
                 return
             msgPort = f'"request": "enable_attach", "Port": {new_port}, "host": "{debug_host}"'
-            self.settings.log(
-                f"Remote Debug for Visual Studio is running({msgPort})", Qgis.Success
-            )
+            self.settings.log(f"Remote Debug for Visual Studio is running({msgPort})", Qgis.Success)
 
-    def tr(self, message):
+    def tr(self, message: str) -> str:
         """Get the translation for a string using Qt translation API.
 
         We implement this ourselves since we do not inherit QObject.
@@ -204,7 +188,7 @@ class QRAVE:
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate("Riverscapes Viewer", message)
 
-    def initGui(self):
+    def initGui(self) -> None:
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
         self.qproject.readProject.connect(self.onProjectLoad)
 
@@ -262,12 +246,8 @@ class QRAVE:
             self.iface.mainWindow(),
         )
         self.downloadProjectAction.triggered.connect(lambda: self.downloadProjectDlg())
-        self.downloadProjectAction.setStatusTip(
-            "Download a Riverscapes project from the Data Exchange"
-        )
-        self.downloadProjectAction.setWhatsThis(
-            "Download a Riverscapes project from the Data Exchange"
-        )
+        self.downloadProjectAction.setStatusTip("Download a Riverscapes project from the Data Exchange")
+        self.downloadProjectAction.setWhatsThis("Download a Riverscapes project from the Data Exchange")
         self.actions.append(self.downloadProjectAction)
 
         self.toolsButton = QToolButton()
@@ -280,9 +260,7 @@ class QRAVE:
         m_tools.setTitle("Tools")
         m_tools.setIcon(qrave_icon("tools"))
 
-        self.raveOptionsAction = QAction(
-            qrave_icon("Options.png"), self.tr("Settings"), self.iface.mainWindow()
-        )
+        self.raveOptionsAction = QAction(qrave_icon("Options.png"), self.tr("Settings"), self.iface.mainWindow())
         self.raveOptionsAction.triggered.connect(self.options_load)
 
         self.net_sync_action = QAction(
@@ -307,9 +285,7 @@ class QRAVE:
         self.actions.append(self.generate_project_bounds)
 
         # Open a project bounds dialog
-        self.generate_project_bounds.triggered.connect(
-            lambda: self.show_project_bounds()
-        )
+        self.generate_project_bounds.triggered.connect(lambda: self.show_project_bounds())
 
         m_tools.addAction(self.net_sync_action)
         m_tools.addAction(self.find_resources_action)
@@ -332,11 +308,7 @@ class QRAVE:
             self.tr("Riverscapes Viewer Online Help"),
             self.iface.mainWindow(),
         )
-        self.helpAction.triggered.connect(
-            lambda: QDesktopServices.openUrl(
-                QUrl("https://viewer.riverscapes.net/software-help/help-qgis/")
-            )
-        )
+        self.helpAction.triggered.connect(lambda: QDesktopServices.openUrl(QUrl("https://viewer.riverscapes.net/software-help/help-qgis/")))
 
         self.about_action = QAction(
             qrave_icon("viewer-icon.svg"),
@@ -356,13 +328,9 @@ class QRAVE:
 
         # Add your actions to self.menu instead of directly to the toolbar
 
-        self.recentProjectsMenu = QMenu(
-            self.tr('Recent Riverscapes Projects')
-        )
-        self.recentProjectsMenu.setIcon(qrave_icon('open.svg'))
-        self.recentProjectsMenu.aboutToShow.connect(
-            self._populate_recent_menu
-        )
+        self.recentProjectsMenu = QMenu(self.tr("Recent Riverscapes Projects"))
+        self.recentProjectsMenu.setIcon(qrave_icon("open.svg"))
+        self.recentProjectsMenu.aboutToShow.connect(self._populate_recent_menu)
 
         self.menu.addAction(self.openProjectAction)
         self.menu.addMenu(self.recentProjectsMenu)
@@ -383,9 +351,7 @@ class QRAVE:
         self.viewer_button.setIcon(qrave_icon("viewer-icon.svg"))
         self.viewer_button.setToolButtonStyle(TOOL_BTN_TEXT_BESIDE)
         self.viewer_button.setMenu(self.menu)
-        self.viewer_button.setPopupMode(
-            INSTANT_POPUP_MODE
-        )  # Clicking anywhere opens the menu
+        self.viewer_button.setPopupMode(INSTANT_POPUP_MODE)  # Clicking anywhere opens the menu
 
         self.toolbar.addWidget(self.viewer_button)
 
@@ -398,24 +364,22 @@ class QRAVE:
 
         if versionChange:
             QgsMessageLog.logMessage(
-                "Version change detected: {} ==> {}".format(lastVersion, __version__),
+                f"Version change detected: {lastVersion} ==> {__version__}",
                 MESSAGE_CATEGORY,
                 level=Qgis.Info,
             )
             self.settings.setValue("pluginVersion", __version__)
 
         # Restore the dock widget visibility if it was open last time
-        if self.settings.getValue("dockVisible") is True:
+        if self.settings.getValue("dockVisible"):
             # Note that toggle_widget will also restore the height
             self.toggle_widget(forceOn=True)
             if self.dockwidget is not None:
                 self.dockwidget.reload_tree()
 
-    def onProjectLoad(self, doc):
+    def onProjectLoad(self, doc) -> None:
         # If the project has the plugin enabled then restore it.
-        qrave_enabled, type_conversion_ok = self.qproject.readEntry(
-            CONSTANTS["settingsCategory"], "enabled"
-        )
+        qrave_enabled, type_conversion_ok = self.qproject.readEntry(CONSTANTS["settingsCategory"], "enabled")
         if type_conversion_ok and qrave_enabled == "1":
             self.dockwidget.fix_broken_project_paths()
             self.toggle_widget(forceOn=True)
@@ -423,7 +387,7 @@ class QRAVE:
             if self.dockwidget is not None:
                 self.dockwidget.reload_tree()
 
-    def onClosePlugin(self):
+    def onClosePlugin(self) -> None:
         """Cleanup necessary items here when plugin dockwidget is closed"""
         if self.metawidget is not None:
             self.metawidget.hide()
@@ -445,7 +409,7 @@ class QRAVE:
         # remove this statement if dockwidget is to remain
         self.pluginIsActive = False
 
-    def unload(self):
+    def unload(self) -> None:
         """Removes the plugin menu item and icon from QGIS GUI."""
         if self.metawidget is not None:
             self.metawidget.hide()
@@ -474,7 +438,7 @@ class QRAVE:
             self.toolbar.deleteLater()
             self.toolbar = None
 
-    def toggle_widget(self, forceOn=False):
+    def toggle_widget(self, forceOn: bool = False) -> None:
         """Toggle the widget open and closed when clicking the toolbar"""
         if not self.pluginIsActive:
             self.pluginIsActive = True
@@ -488,11 +452,7 @@ class QRAVE:
 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
-            dock_location = (
-                LEFT_DOCK
-                if self.settings.getValue("dockLocation") == "left"
-                else RIGHT_DOCK
-            )
+            dock_location = LEFT_DOCK if self.settings.getValue("dockLocation") == "left" else RIGHT_DOCK
 
             # show the dockwidget
             self.iface.addDockWidget(dock_location, self.dockwidget)
@@ -505,7 +465,7 @@ class QRAVE:
                 if self.dockwidget.isHidden():
                     self.dockwidget.show()
                     self._restore_dock_height()
-                elif forceOn is False:
+                elif not forceOn:
                     self._save_dock_height()
                     self.dockwidget.hide()
 
@@ -514,14 +474,9 @@ class QRAVE:
             self.metawidget.hide()
 
         if self.dockwidget is not None and not self.dockwidget.isHidden():
-
             # Check if the project is already enabled. 'readEntry' might return '1' or True/False
-            qrave_enabled, type_conversion_ok = self.qproject.readEntry(
-                CONSTANTS["settingsCategory"], "enabled"
-            )
-            already_enabled = type_conversion_ok and (
-                qrave_enabled == "1" or qrave_enabled is True
-            )
+            qrave_enabled, type_conversion_ok = self.qproject.readEntry(CONSTANTS["settingsCategory"], "enabled")
+            already_enabled = type_conversion_ok and (qrave_enabled in ("1", True))
 
             # If we are just restoring the window state on startup (forceOn=True) and the project
             # is a clean/new project, we should NOT write to the project to avoid dirtying it.
@@ -542,7 +497,7 @@ class QRAVE:
             self.qproject.removeEntry(CONSTANTS["settingsCategory"], "enabled")
             self.settings.setValue("dockVisible", False)
 
-    def _save_dock_height(self):
+    def _save_dock_height(self) -> None:
         """Save the height of the dock widget to settings."""
         if self.dockwidget is not None:
             h = self.dockwidget.height()
@@ -551,15 +506,13 @@ class QRAVE:
             if h > 0:
                 self.settings.setValue("dockHeight", h)
 
-    def _restore_dock_height(self):
+    def _restore_dock_height(self) -> None:
         """Restore the height of the dock widget from settings."""
         saved_height = self.settings.getValue("dockHeight")
         if saved_height and self.dockwidget:
-            self.iface.mainWindow().resizeDocks(
-                [self.dockwidget], [saved_height], VERTICAL
-            )
+            self.iface.mainWindow().resizeDocks([self.dockwidget], [saved_height], VERTICAL)
 
-    def net_sync_load(self, force=False):
+    def net_sync_load(self, force: bool = False) -> None:
         """
         Periodically check for new files
         """
@@ -585,14 +538,10 @@ class QRAVE:
             if not plugin_init or lastVersion != __version__ or self.netsync.need_sync:
                 perform_sync = True
             # If we haven't checked for more than `digestSyncFreqHours` hours
-            elif (
-                isinstance(lastDigestSync, int)
-                and ((currTime - lastDigestSync) / 3600)
-                > CONSTANTS["digestSyncFreqHours"]
-            ):
+            elif isinstance(lastDigestSync, int) and ((currTime - lastDigestSync) / 3600) > CONSTANTS["digestSyncFreqHours"]:
                 perform_sync = True
 
-        if perform_sync is False:
+        if not perform_sync:
             self.netsync = None
             return
 
@@ -606,15 +555,13 @@ class QRAVE:
         # COMMENT THIS OUT AND USE THE LINE ABOVE FOR SYNCHRONOUS DEBUGGING
         self.tm.addTask(self.netsync)
 
-    def projectBrowserDlg(self):
+    def projectBrowserDlg(self) -> None:
         """
         Browse for a project directory
         :return:
         """
         last_browse_path = self.settings.getValue("lastBrowsePath")
-        last_dir = (
-            os.path.dirname(last_browse_path) if last_browse_path is not None else None
-        )
+        last_dir = os.path.dirname(last_browse_path) if last_browse_path is not None else None
 
         dialog_return = QFileDialog.getOpenFileName(
             self.dockwidget,
@@ -625,26 +572,22 @@ class QRAVE:
         if dialog_return is not None and len(dialog_return[0]) > 0:
             # Remember this path for next time
             self.settings.setValue("lastBrowsePath", dialog_return[0])
-        if (
-            dialog_return is not None
-            and dialog_return[0] != ""
-            and os.path.isfile(dialog_return[0])
-        ):
+        if dialog_return is not None and dialog_return[0] != "" and os.path.isfile(dialog_return[0]):
             # We set the proect path in the project settings. This way it will be saved with the QgsProject file
-            if self.dockwidget is None or self.dockwidget.isHidden() is True:
+            if self.dockwidget is None or self.dockwidget.isHidden():
                 self.toggle_widget(forceOn=True)
             self.dockwidget.add_project(dialog_return[0])
 
-    def _populate_recent_menu(self):
+    def _populate_recent_menu(self) -> None:
         """Rebuild the recent projects submenu."""
         self.recentProjectsMenu.clear()
-        stored = self.settings.getValue('recentProjects') or []
+        stored = self.settings.getValue("recentProjects") or []
         recent = [p for p in stored if os.path.isfile(p)]
         if recent != stored:
-            self.settings.setValue('recentProjects', recent)
+            self.settings.setValue("recentProjects", recent)
         if not recent:
             no_action = QAction(
-                self.tr('(No recent projects)'),
+                self.tr("(No recent projects)"),
                 self.iface.mainWindow(),
             )
             no_action.setEnabled(False)
@@ -654,25 +597,23 @@ class QRAVE:
             label = os.path.basename(os.path.dirname(path))
             action = QAction(label, self.iface.mainWindow())
             action.setToolTip(path)
-            action.triggered.connect(
-                lambda checked, p=path: self._open_recent_project(p)
-            )
+            action.triggered.connect(lambda checked, p=path: self._open_recent_project(p))
             self.recentProjectsMenu.addAction(action)
         self.recentProjectsMenu.addSeparator()
         clear_action = QAction(
-            self.tr('Clear Recent Projects'),
+            self.tr("Clear Recent Projects"),
             self.iface.mainWindow(),
         )
         clear_action.triggered.connect(self._clear_recent_projects)
         self.recentProjectsMenu.addAction(clear_action)
 
-    def _open_recent_project(self, xml_path: str):
+    def _open_recent_project(self, xml_path: str) -> None:
         """Open a project from the recent projects list."""
         if not os.path.isfile(xml_path):
-            msg = self.tr('Could not find project:\n') + xml_path
+            msg = self.tr("Could not find project:\n") + xml_path
             QMessageBox.warning(
                 self.iface.mainWindow(),
-                self.tr('Project Not Found'),
+                self.tr("Project Not Found"),
                 msg,
             )
             return
@@ -680,21 +621,19 @@ class QRAVE:
             self.toggle_widget(forceOn=True)
         self.dockwidget.add_project(xml_path)
 
-    def _clear_recent_projects(self):
+    def _clear_recent_projects(self) -> None:
         """Clear the recent projects list."""
-        self.settings.setValue('recentProjects', [])
+        self.settings.setValue("recentProjects", [])
 
-    def downloadProjectDlg(self, project_id: str = None, local_path: str = None):
+    def downloadProjectDlg(self, project_id: str | None = None, local_path: str | None = None):
         """
         Open the download dialog
         """
-        dialog = ProjectDownloadDialog(
-            self.iface.mainWindow(), project_id=project_id, local_path=local_path
-        )
+        dialog = ProjectDownloadDialog(self.iface.mainWindow(), project_id=project_id, local_path=local_path)
         dialog.projectDownloaded.connect(self.dockwidget.add_project)
         dialog.exec()
 
-    def remoteProjectDlg(self):
+    def remoteProjectDlg(self) -> None:
         """
         Open a dialog to enter a project ID or URL
         """
@@ -724,22 +663,18 @@ class QRAVE:
                 )
                 return
 
-            if self.dockwidget is None or self.dockwidget.isHidden() is True:
+            if self.dockwidget is None or self.dockwidget.isHidden():
                 self.toggle_widget(forceOn=True)
 
             if self.dockwidget:
                 self.dockwidget.show_loading(project_id)
 
             # Use DataExchangeAPI to fetch the project
-            self.dataExchangeAPI = DataExchangeAPI(
-                on_login=lambda task: self._on_remote_login(task, project_id)
-            )
+            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_remote_login(task, project_id))
 
-    def _on_remote_login(self, task, project_id):
+    def _on_remote_login(self, task: RefreshTokenTask, project_id: str) -> None:
         if task.success:
-            self.dataExchangeAPI.get_remote_project(
-                project_id, self._on_remote_project_fetched
-            )
+            self.dataExchangeAPI.get_remote_project(project_id, self._on_remote_project_fetched)
         else:
             if self.dockwidget:
                 self.dockwidget.hide_loading()
@@ -749,17 +684,12 @@ class QRAVE:
                 "Could not log in to Riverscapes API.",
             )
 
-    def _on_remote_project_fetched(self, task, response):
+    def _on_remote_project_fetched(self, task: RunGQLQueryTask, response: dict | None) -> None:
         if self.dockwidget:
             self.dockwidget.hide_loading()
 
-        if (
-            task.success
-            and response
-            and "data" in response
-            and response["data"]["project"]
-        ):
-            if self.dockwidget is None or self.dockwidget.isHidden() is True:
+        if task.success and response and "data" in response and response["data"]["project"]:
+            if self.dockwidget is None or self.dockwidget.isHidden():
                 self.toggle_widget(forceOn=True)
             self.dockwidget.add_remote_project(response)
         else:
@@ -767,26 +697,20 @@ class QRAVE:
             if task.error:
                 err_msg += f"\n\nError: {task.error}"
             elif response and "errors" in response:
-                err_msg += (
-                    f"\n\nAPI Errors:\n{json.dumps(response['errors'], indent=2)}"
-                )
-            elif (
-                response and "data" in response and response["data"]["project"] is None
-            ):
+                err_msg += f"\n\nAPI Errors:\n{json.dumps(response['errors'], indent=2)}"
+            elif response and "data" in response and response["data"]["project"] is None:
                 err_msg += "\n\nNote: The API returned null for this project ID. It may be private or deleted."
 
             QMessageBox.warning(self.iface.mainWindow(), "Project Not Found", err_msg)
 
-    def closeAllProjects(self):
+    def closeAllProjects(self) -> None:
         """Close all open projects"""
         if self.dockwidget is not None:
             if len(self.dockwidget._get_projects()) > 0:
                 msgBox = QMessageBox()
                 msgBox.setWindowTitle("Close All Riverscapes Projects?")
                 msgBox.setIcon(MSGBOX_ICON_QUESTION)
-                msgBox.setText(
-                    "Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document."
-                )
+                msgBox.setText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
                 # msgBox.setInformativeText("Are you sure that you want to close all Riverscapes projects? This will also remove the layers related to these projects from your current map document.")
                 msgBox.setStandardButtons(MSGBOX_BTN_YES | MSGBOX_BTN_NO)
                 msgBox.setDefaultButton(MSGBOX_BTN_NO)
@@ -796,7 +720,7 @@ class QRAVE:
                     if self.metawidget is not None:
                         self.metawidget.clear_and_hide()
 
-    def show_project_bounds(self):
+    def show_project_bounds(self) -> None:
         """
         Open the project bounds dialog
         """
@@ -813,7 +737,7 @@ class QRAVE:
         dialog = FrmProjectBounds()
         dialog.exec()
 
-    def locateResources(self):
+    def locateResources(self) -> None:
         """This the OS-agnostic "show in Finder" or "show in explorer" equivalent
         It should open the folder of the item in question
 
@@ -823,7 +747,7 @@ class QRAVE:
         qurl = QUrl.fromLocalFile(RESOURCES_DIR)
         QDesktopServices.openUrl(qurl)
 
-    def options_load(self):
+    def options_load(self) -> None:
         """
         Open the options/settings dialog
         """
@@ -833,22 +757,18 @@ class QRAVE:
             dialog.dataChange.connect(self.redock_widgets)
         dialog.exec()
 
-    def about_load(self):
+    def about_load(self) -> None:
         """
         Open the About dialog
         """
         dialog = AboutDialog()
         dialog.exec()
 
-    def redock_widgets(self):
+    def redock_widgets(self) -> None:
         """Redock the widget according to the saved settings.
         If the widget is hidden, set the new dock location but do not show it.
         """
-        dock_location = (
-            LEFT_DOCK
-            if self.settings.getValue("dockLocation") == "left"
-            else RIGHT_DOCK
-        )
+        dock_location = LEFT_DOCK if self.settings.getValue("dockLocation") == "left" else RIGHT_DOCK
 
         # Redock main dockwidget
         if self.dockwidget is not None:
@@ -866,7 +786,7 @@ class QRAVE:
             if not was_visible:
                 self.metawidget.hide()
 
-    def browseExchangeProjects(self):
+    def browseExchangeProjects(self) -> None:
 
         # Get the center and zoom level to build the search url
         canvas = self.iface.mapCanvas()

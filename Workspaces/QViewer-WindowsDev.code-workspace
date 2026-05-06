@@ -1,0 +1,36 @@
+{
+    "folders": [
+        {
+            "path": ".."
+        }
+    ],
+    "settings": {
+        // ── Personal aesthetic: green title bar for QGIS projects ────────────────
+        // FROM: https://gist.github.com/NicolaiMogensen/acfd8723720c4761aefef3cdfc2aa55a
+        "workbench.colorCustomizations": {
+            "titleBar.activeBackground": "#006823"
+        },
+
+        // ── Windows QGIS — machine-specific paths ────────────────────────────────
+        // Set OSGEO4W_ROOT in your Windows environment variables, e.g.
+        //   OSGEO4W_ROOT=C:\OSGeo4W
+        // python.defaultInterpreterPath is intentionally omitted — it does not
+        // support ${env:...} variable expansion and the path is machine-specific.
+        // Use Ctrl+Shift+P → "Python: Select Interpreter" and point it at:
+        //   %OSGEO4W_ROOT%\apps\Python39\python3.exe
+        // VS Code will remember your choice in your local settings.
+        "python.analysis.extraPaths": [
+            "${env:OSGEO4W_ROOT}/apps/qgis/python",
+            "${env:OSGEO4W_ROOT}/apps/qgis/python/plugins",
+            "${env:OSGEO4W_ROOT}/apps/Python39/Lib/site-packages"
+        ],
+        "terminal.integrated.env.windows": {
+            "PYTHONPATH": "${env:OSGEO4W_ROOT}/apps/qgis/python;${env:OSGEO4W_ROOT}/apps/qgis/python/plugins;${env:OSGEO4W_ROOT}/apps/Python39/Lib/site-packages",
+            "PATH": "${env:PATH};${env:OSGEO4W_ROOT}/bin"
+        }
+    },
+    "launch": {
+        "configurations": [],
+        "compounds": []
+    }
+}

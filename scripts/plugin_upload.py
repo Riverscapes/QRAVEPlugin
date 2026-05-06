@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# pylint: disable-all
+# ruff: noqa
 # coding=utf-8
 """This script uploads a plugin package to the plugin repository.
         Authors: A. Pasotti, V. Picavet

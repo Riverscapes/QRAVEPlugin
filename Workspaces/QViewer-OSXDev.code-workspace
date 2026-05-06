@@ -1,0 +1,37 @@
+{
+    "folders": [
+        {
+            "path": ".."
+        }
+    ],
+    "settings": {
+        // ── Personal aesthetic: green title bar for QGIS 3 projects ──────────────
+        // FROM: https://gist.github.com/NicolaiMogensen/acfd8723720c4761aefef3cdfc2aa55a
+        "workbench.colorCustomizations": {
+            "titleBar.activeBackground": "#006823"
+        },
+
+        // ── macOS QGIS 3 — machine-specific paths set via $QGIS_PATH env var ─────
+        // Add  export QGIS_PATH=/Applications/QGIS.app  (or wherever installed)
+        // to your shell profile so the paths below resolve correctly.
+        "terminal.integrated.env.osx": {
+            "PYTHONPATH": "${env:QGIS_PATH}/Contents/Resources/python:${env:QGIS_PATH}/Contents/Resources/python/site-packages:${env:QGIS_PATH}/Contents/Resources/python/site-packages/PyQt5:${workspaceFolder}/wheels",
+            "PATH": "${env:PATH}:${env:QGIS_PATH}/Contents/MacOS/bin"
+        },
+        "python.analysis.extraPaths": [
+            "${workspaceFolder}/wheels",
+            "${env:QGIS_PATH}/Contents/Resources/python",
+            "${env:QGIS_PATH}/Contents/Resources/python/site-packages"
+        ],
+        // python.defaultInterpreterPath is intentionally omitted — it does not
+        // support ${env:...} variable expansion and the path is machine-specific.
+        // Use Cmd+Shift+P → "Python: Select Interpreter" and point it at:
+        //   $QGIS_PATH/Contents/MacOS/bin/python3
+        // VS Code will remember your choice in your local settings.
+        "terminal.integrated.defaultProfile.osx": "zsh"
+    },
+    "launch": {
+        "configurations": [],
+        "compounds": []
+    }
+}

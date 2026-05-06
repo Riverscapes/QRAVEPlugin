@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
-from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QLabel, QDialogButtonBox, QFormLayout, QPushButton
+from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout
 
-from .compat import DLGBTN_OK, DLGBTN_CANCEL, DLGBTN_ROLE_HELP
+from .compat import DLGBTN_CANCEL, DLGBTN_OK, DLGBTN_ROLE_HELP
 
 
 class RemoteProjectDialog(QDialog):
@@ -12,7 +11,7 @@ class RemoteProjectDialog(QDialog):
     # def __init__(self, parent=None, default_id="https://data.riverscapes.net/p/ac104f27-93b7-4e47-b279-7a7dad8ccf1d/"):
     def __init__(self, parent=None, default_id=""):
         """Constructor."""
-        super(RemoteProjectDialog, self).__init__(parent)
+        super().__init__(parent)
         self.setWindowTitle("Open Remote Project")
         self.setMinimumWidth(600)
 
@@ -38,7 +37,7 @@ class RemoteProjectDialog(QDialog):
         self.line_edit.setMinimumWidth(500)
         # https://data.riverscapes.net/p/ac104f27-93b7-4e47-b279-7a7dad8ccf1d/
         self.line_edit.setPlaceholderText("e.g. ac104f27-93b7-4e47-b279-7a7dad8ccf1d or https://data.riverscapes.net/p/ac104f27-93b7-4e47-b279-7a7dad8ccf1d")
-        form_layout.addRow('Project ID or URL', self.line_edit)
+        form_layout.addRow("Project ID or URL", self.line_edit)
 
         # Button Box
         self.button_box = QDialogButtonBox(DLGBTN_OK | DLGBTN_CANCEL)

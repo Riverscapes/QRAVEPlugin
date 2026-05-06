@@ -1,19 +1,21 @@
+from __future__ import annotations
+
 import os
 import re
-from typing import List
-from qgis.PyQt.QtWidgets import QDialog, QMessageBox
-from qgis.PyQt.QtCore import pyqtSignal, QUrl
-from qgis.PyQt.QtGui import QDesktopServices
-from qgis.core import Qgis
-from .compat import ASCENDING_ORDER, MSGBOX_BTN_YES, MSGBOX_BTN_NO
 
-from .ui.project_download_dialog import Ui_ProjectDownloadDialog
+from qgis.core import Qgis
+from qgis.PyQt.QtCore import QUrl, pyqtSignal
+from qgis.PyQt.QtGui import QDesktopServices
+from qgis.PyQt.QtWidgets import QDialog, QMessageBox
+
 from .classes.data_exchange.DataExchangeAPI import DataExchangeAPI, DEProject
 from .classes.data_exchange.downloader import DownloadQueue
-from .classes.GraphQLAPI import RunGQLQueryTask
-from .classes.settings import Settings
-from .classes.util import get_project_details_html, extract_project_id
+from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
+from .classes.settings import CONSTANTS, Settings
+from .classes.util import extract_project_id, get_project_details_html
+from .compat import ASCENDING_ORDER, MSGBOX_BTN_NO, MSGBOX_BTN_YES
 from .file_selection_widget import ProjectFileSelectionWidget
+from .ui.project_download_dialog import Ui_ProjectDownloadDialog
 
 # Removed SortableTreeWidgetItem - now in file_selection_widget.py
 
@@ -21,8 +23,8 @@ from .file_selection_widget import ProjectFileSelectionWidget
 class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
     projectDownloaded = pyqtSignal(str)
 
-    def __init__(self, parent=None, project_id: str = None, local_path: str = None):
-        super(ProjectDownloadDialog, self).__init__(parent)
+    def __init__(self, parent=None, project_id: str | None = None, local_path: str | None = None):
+        super().__init__(parent)
         self.setupUi(self)
 
         self.settings = Settings()
@@ -83,11 +85,11 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
 
         # Restore last used download path if not already set
         if not self.fileWidget.filePath():
-            last_path = self.settings.getValue('lastDownloadPath')
+            last_path = self.settings.getValue("lastDownloadPath")
             if last_path and os.path.isdir(last_path):
                 self.fileWidget.setFilePath(last_path)
 
-    def _on_login(self, task):
+    def _on_login(self, task: RefreshTokenTask) -> None:
         self.btnVerifyProject.setEnabled(True)
         self.btnVerifyProject.setText("Verify Project")
 
@@ -100,21 +102,21 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             if self.locked_mode and self.initial_project_id:
                 self._verify_project()
 
-    def showHelp(self):
-        from .classes.settings import CONSTANTS
-        help_url = CONSTANTS['webUrl'].rstrip('/') + '/software-help/help-qgis/qgis-downloader'
+    def showHelp(self) -> None:
+
+        help_url = CONSTANTS["webUrl"].rstrip("/") + "/software-help/help-qgis/qgis-downloader"
         QDesktopServices.openUrl(QUrl(help_url))
 
-    def _log_msg(self, message: str, level: int = Qgis.Info):
+    def _log_msg(self, message: str, level: int = Qgis.Info) -> None:
         self.log(message, level)
 
-    def _reset_validation(self):
+    def _reset_validation(self) -> None:
         self.project = None
         self.btnNext.setEnabled(False)
         self.lblProjectDetails.setText("")
         self.frameProjectDetails.hide()
 
-    def _verify_project(self):
+    def _verify_project(self) -> None:
         project_id_raw = self.txtProjectInput.text().strip()
         if not project_id_raw:
             return
@@ -138,7 +140,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
 
         self.dataExchangeAPI.get_project(project_id, self._handle_project_response)
 
-    def _handle_project_response(self, task: RunGQLQueryTask, project: DEProject):
+    def _handle_project_response(self, task: RunGQLQueryTask, project: DEProject) -> None:
         self.btnVerifyProject.setEnabled(True)
         self.frameProjectDetails.show()
 
@@ -158,13 +160,13 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
 
             # Pre-populate folder name if not in locked mode or if it's a remote project (no local path)
             if not self.locked_mode or (self.locked_mode and not self.initial_local_path):
-                folder_name = re.sub(r'[^a-zA-Z0-9_\- ]', '', project.name).strip().replace(' ', '_')
+                folder_name = re.sub(r"[^a-zA-Z0-9_\- ]", "", project.name).strip().replace(" ", "_")
                 self.txtFolderName.setText(folder_name)
         else:
             self.lblProjectDetails.setText("<b style='color: #c0392b;'>Project not found.</b><br>Please check the ID or URL.")
             self.btnNext.setEnabled(False)
 
-    def _validate_folder(self):
+    def _validate_folder(self) -> None:
         if self.stackedWidget.currentIndex() != 1:
             return
 
@@ -177,7 +179,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             return
 
         # Save the parent folder choice
-        self.settings.setValue('lastDownloadPath', parent)
+        self.settings.setValue("lastDownloadPath", parent)
 
         full_path = os.path.join(parent, name)
 
@@ -198,7 +200,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             self.btnNext.setEnabled(True)
             self.lblFolderStatus.setText("")
 
-    def _get_target_dir(self):
+    def _get_target_dir(self) -> str | None:
         if self.locked_mode and self.initial_local_path:
             return os.path.dirname(self.initial_local_path)
         parent = self.fileWidget.filePath()
@@ -207,7 +209,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             return None
         return os.path.join(parent, name)
 
-    def _populate_file_tree(self):
+    def _populate_file_tree(self) -> None:
         self.fileSelection.set_sorting_enabled(False)
         self.fileSelection.clear()
         if not self.project:
@@ -222,7 +224,6 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
 
             status_text = "New"
             is_locked = False
-            needs_update = False
             highlight_color = None
             tooltip = None
 
@@ -230,8 +231,9 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             if file_exists:
                 try:
                     # S3 Multipart etags have a dash. If no dash, it's a simple MD5.
-                    is_single_part = not re.match(r'.*-[0-9]+$', file_info.etag)
+                    is_single_part = not re.match(r".*-[0-9]+$", file_info.etag)
                     from rsxml.etag import calculate_etag
+
                     local_etag = calculate_etag(local_file_path, force_single_part=is_single_part)
 
                     if local_etag == file_info.etag:
@@ -240,7 +242,6 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
                         tooltip = "This file is already up to date."
                     else:
                         status_text = "Update available"
-                        needs_update = True
                         highlight_color = "#2980b9"
                         tooltip = "The local file differs from the version on the Data Exchange."
                 except Exception as e:
@@ -249,21 +250,14 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
 
             # Special handling for mandatory manifest
             is_mandatory = False
-            if rel_path.lower() == 'project.rs.xml':
+            if rel_path.lower() == "project.rs.xml":
                 is_mandatory = True
                 tooltip = "This file is mandatory and required to open the project in QGIS."
                 if status_text == "New":
                     status_text = "Mandatory"
 
             self.fileSelection.add_file_item(
-                rel_path=rel_path,
-                size=file_info.size,
-                status_text=status_text,
-                checked=not is_locked or is_mandatory,
-                is_locked=is_locked,
-                is_mandatory=is_mandatory,
-                highlight_color=highlight_color,
-                tooltip=tooltip
+                rel_path=rel_path, size=file_info.size, status_text=status_text, checked=not is_locked or is_mandatory, is_locked=is_locked, is_mandatory=is_mandatory, highlight_color=highlight_color, tooltip=tooltip
             )
 
         self.fileSelection.set_sorting_enabled(True)
@@ -273,7 +267,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
 
     # Removed _human_size - now in file_selection_widget.py
 
-    def _next_step(self):
+    def _next_step(self) -> None:
         curr = self.stackedWidget.currentIndex()
         if curr == 0:  # From Step 1 to 2
             if self.locked_mode and self.initial_local_path:
@@ -296,7 +290,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
         elif curr == 2:  # From Step 3 to 4
             self._start_download()
 
-    def _prev_step(self):
+    def _prev_step(self) -> None:
         curr = self.stackedWidget.currentIndex()
         if curr == 1:
             self.stackedWidget.setCurrentIndex(0)
@@ -314,7 +308,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
                 self.btnNext.setText("Next")
                 self._validate_folder()
 
-    def _start_download(self):
+    def _start_download(self) -> None:
         self.stackedWidget.setCurrentIndex(3)
         self.btnBack.setEnabled(False)
         self.btnNext.setEnabled(False)
@@ -345,7 +339,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
         self.fetching_urls_cancelled = False
         self._fetch_urls_and_enqueue(selected_files, local_root)
 
-    def _fetch_urls_and_enqueue(self, files: List[str], local_root: str):
+    def _fetch_urls_and_enqueue(self, files: list[str], local_root: str) -> None:
         # We need to fetch URLs for each file.
         # For simplicity in this implementation, we'll do them sequentially or batch them.
         # Ideally, there might be a batch GraphQL query for this, but let's use what we have.
@@ -365,9 +359,9 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             self.lblStatus.setText(f"Getting URL for {rel_path} ({total - len(remaining)}/{total})")
 
             def _handle_url(task, ret_obj):
-                if ret_obj and 'downloadUrl' in ret_obj:
+                if ret_obj and "downloadUrl" in ret_obj:
                     abs_path = os.path.join(local_root, rel_path)
-                    self.queue.enqueue(rel_path, abs_path, ret_obj['downloadUrl'], self.project.files[rel_path].size)
+                    self.queue.enqueue(rel_path, abs_path, ret_obj["downloadUrl"], self.project.files[rel_path].size)
                     _get_next_url()
                 else:
                     self._log_msg(f"Failed to get download URL for {rel_path}", Qgis.Critical)
@@ -378,16 +372,16 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
 
         _get_next_url()
 
-    def _on_file_progress(self, rel_path, downloaded, total):
+    def _on_file_progress(self, rel_path: str, downloaded: int, total: int) -> None:
         self.lblProgressDetails.setText(f"Downloading: {rel_path}\n{ProjectFileSelectionWidget.human_size(downloaded)} / {ProjectFileSelectionWidget.human_size(total)}")
 
-    def _on_overall_progress(self, downloaded, total):
+    def _on_overall_progress(self, downloaded: int, total: int) -> None:
         if total > 0:
             percent = int((downloaded / total) * 100)
             self.progressBar.setValue(percent)
             self.lblStatus.setText(f"Overall Progress: {percent}% ({ProjectFileSelectionWidget.human_size(downloaded)} / {ProjectFileSelectionWidget.human_size(total)})")
 
-    def _on_download_complete(self):
+    def _on_download_complete(self) -> None:
         if self.queue.failed_tasks:
             self.lblStatus.setText(f"Download Finished with {len(self.queue.failed_tasks)} error(s).")
             self._log_msg(f"Failed downloads: {', '.join(self.queue.failed_tasks)}", Qgis.Warning)
@@ -402,7 +396,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
             # Emit signal with path to project.rs.xml
             parent = self.fileWidget.filePath()
             name = self.txtFolderName.text().strip()
-            project_xml = os.path.join(parent, name, 'project.rs.xml')
+            project_xml = os.path.join(parent, name, "project.rs.xml")
 
             # If we were in locked mode, use the initial path
             if self.locked_mode and self.initial_local_path:
@@ -416,7 +410,7 @@ class ProjectDownloadDialog(QDialog, Ui_ProjectDownloadDialog):
         else:
             QMessageBox.warning(self, "Download Finished with Errors", f"{len(self.queue.failed_tasks)} file(s) failed to download. Check the logs for details.")
 
-    def _handle_cancel(self):
+    def _handle_cancel(self) -> None:
         if self.stackedWidget.currentIndex() == 3 and self.btnCancel.text() == "Cancel Download":
             if QMessageBox.question(self, "Cancel Download", "Are you sure you want to cancel the download?", MSGBOX_BTN_YES | MSGBOX_BTN_NO) == MSGBOX_BTN_YES:
                 self.fetching_urls_cancelled = True

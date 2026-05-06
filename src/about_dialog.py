@@ -1,9 +1,10 @@
 from qgis.PyQt import QtGui
-from qgis.PyQt.QtWidgets import QDialog, QLabel, QVBoxLayout, QDialogButtonBox, QSizePolicy, QFormLayout, QHBoxLayout
-from qgis.PyQt.QtCore import pyqtSignal, QSize
-from .classes.settings import CONSTANTS
+from qgis.PyQt.QtCore import QSize, pyqtSignal
+from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout
+
 from ..__version__ import __version__
-from .compat import RICH_TEXT, HORIZONTAL, DIALOG_BTN_CLOSE, SPSZ_FIXED
+from .classes.settings import CONSTANTS
+from .compat import DIALOG_BTN_CLOSE, HORIZONTAL, RICH_TEXT, SPSZ_FIXED
 from .icon_utils import qrave_icon
 
 
@@ -19,15 +20,15 @@ class AboutDialog(QDialog):
         QDialog.__init__(self, parent)
         self.setupUi()
 
-        pixmap = qrave_icon('viewer-icon.svg').pixmap(128, 128)
+        pixmap = qrave_icon("viewer-icon.svg").pixmap(128, 128)
         self.logo.setPixmap(pixmap)
 
         self.setWindowTitle("About Riverscapes Viewer")
         self.version.setText(str(__version__))
-        self.website.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['webUrl']))
-        self.issues.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['issueUrl']))
-        self.changelog.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['changelogUrl']))
-        self.acknowledgements.setText('<a href="{0}">{0}</a>'.format(CONSTANTS['acknowledgementsUrl']))
+        self.website.setText('<a href="{0}">{0}</a>'.format(CONSTANTS["webUrl"]))
+        self.issues.setText('<a href="{0}">{0}</a>'.format(CONSTANTS["issueUrl"]))
+        self.changelog.setText('<a href="{0}">{0}</a>'.format(CONSTANTS["changelogUrl"]))
+        self.acknowledgements.setText('<a href="{0}">{0}</a>'.format(CONSTANTS["acknowledgementsUrl"]))
 
     def setupUi(self):
         self.resize(700, 200)

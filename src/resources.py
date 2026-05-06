@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 # Resource object code
 #
 # Created by: The Resource Compiler for PyQt (Qt v5.15.16)
@@ -2895,13 +2893,14 @@ qt_resource_struct_v2 = b"\
 \x00\x00\x01\x7c\xbf\x21\xe7\x91\
 "
 
-qt_version = [int(v) for v in QtCore.qVersion().split('.')]
+qt_version = [int(v) for v in QtCore.qVersion().split(".")]
 if qt_version < [5, 8, 0]:
     rcc_version = 1
     qt_resource_struct = qt_resource_struct_v1
 else:
     rcc_version = 2
     qt_resource_struct = qt_resource_struct_v2
+
 
 def qInitResources():
     try:

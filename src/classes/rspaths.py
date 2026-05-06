@@ -1,13 +1,15 @@
-""" handling of paths across operating systems
+"""handling of paths across operating systems
 NOTE: this originally came from riverscapes-tools and was unit tested there
 """
-from pathlib import Path, PurePosixPath
+
+from __future__ import annotations
+
 import os
 
 
 def parse_rel_path(path: str) -> str:
-    """ Path handling across platforms is gnarly. 
-    This method returns the correct path for your operating system regardless of 
+    """Path handling across platforms is gnarly.
+    This method returns the correct path for your operating system regardless of
     whether the input is a windows path or a linux path
 
     Args:
@@ -16,22 +18,12 @@ def parse_rel_path(path: str) -> str:
     Returns:
         [type]: [description]
     """
-    new_path = Path(path.replace('\\', '/')).resolve()
-    return str(new_path)
-
-
-def parse_posix_path(path: str) -> str:
-    """This method returns a posix path no matter if you pass it a windows or a linux path
-
-    Args:
-        path ([type]): [description]
-    """
-    new_path = PurePosixPath(path.replace('\\', '/'))
-    return str(new_path)
+    new_path = os.path.normpath(path.replace("\\", "/"))
+    return new_path
 
 
 def safe_make_relpath(in_path: str, cwd_path: str) -> str:
-    """ Safely create an absolute path from a relative path
+    """Safely create an absolute path from a relative path
 
     if this fails then just return the input
 
@@ -49,7 +41,7 @@ def safe_make_relpath(in_path: str, cwd_path: str) -> str:
 
 
 def safe_make_abspath(in_path: str, cwd_path: str) -> str:
-    """ Safely create an absolute path from a relative path
+    """Safely create an absolute path from a relative path
 
     if this fails then just return the input
 

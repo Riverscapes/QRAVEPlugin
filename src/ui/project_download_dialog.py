@@ -20,9 +20,7 @@ class Ui_ProjectDownloadDialog(object):
         self.lblStep1.setFont(font)
         self.layout1.addWidget(self.lblStep1)
 
-        self.lblInstructions = QtWidgets.QLabel(
-            "Find a project on the <a href='https://data.riverscapes.net'>Riverscapes Data Exchange</a>. You can copy and paste the Project ID (UUID) or the URL of the project page into the box below."  # noqa: E501
-        )
+        self.lblInstructions = QtWidgets.QLabel("Find a project on the <a href='https://data.riverscapes.net'>Riverscapes Data Exchange</a>. You can copy and paste the Project ID (UUID) or the URL of the project page into the box below.")
         self.lblInstructions.setOpenExternalLinks(True)
         self.lblInstructions.setWordWrap(True)
         self.layout1.addWidget(self.lblInstructions)
@@ -31,9 +29,7 @@ class Ui_ProjectDownloadDialog(object):
         self.layout1.addWidget(self.lblProjectInput)
 
         self.txtProjectInput = QtWidgets.QLineEdit()
-        self.txtProjectInput.setPlaceholderText(
-            "e.g. ac104f27-93b7-4e47-b279-7a7dad8ccf1d"
-        )
+        self.txtProjectInput.setPlaceholderText("e.g. ac104f27-93b7-4e47-b279-7a7dad8ccf1d")
         self.layout1.addWidget(self.txtProjectInput)
 
         self.btnVerifyProject = QtWidgets.QPushButton("Verify Project")
@@ -102,9 +98,7 @@ class Ui_ProjectDownloadDialog(object):
         self.lblStep3.setFont(font)
         self.layout3.addWidget(self.lblStep3)
 
-        self.lblStep3Instructions = QtWidgets.QLabel(
-            "You don't need to download every file in a project. Only select the files you need."
-        )
+        self.lblStep3Instructions = QtWidgets.QLabel("You don't need to download every file in a project. Only select the files you need.")
         self.lblStep3Instructions.setOpenExternalLinks(True)
         self.lblStep3Instructions.setWordWrap(True)
         self.layout3.addWidget(self.lblStep3Instructions)

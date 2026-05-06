@@ -1,19 +1,23 @@
-from typing import List, Tuple, Callable, Any
-import os
-import time
+from __future__ import annotations
+
 import json
 import math
-from qgis.core import QgsTask, QgsApplication, Qgis
-from qgis.PyQt.QtCore import QObject, QByteArray, QUrl, QIODevice, QFile, QEventLoop, pyqtSignal
+import os
+import time
+from typing import Any, Callable
+
+from qgis.core import Qgis, QgsApplication, QgsTask
+from qgis.PyQt.QtCore import QByteArray, QEventLoop, QFile, QIODevice, QObject, QUrl, pyqtSignal
 from qgis.PyQt.QtNetwork import QNetworkAccessManager, QNetworkRequest
+
+from ...compat import NET_CONTENT_LENGTH_HEADER, NET_NO_ERROR, NET_OP_CANCELED_ERROR, QGSTASK_CAN_CANCEL, QGSTASK_SILENT
 from ..util import MULTIPART_CHUNK_SIZE
-from ...compat import NET_CONTENT_LENGTH_HEADER, NET_OP_CANCELED_ERROR, NET_NO_ERROR, QGSTASK_CAN_CANCEL
 
 MAX_PROGRESS_INTERVAL = 1  # seconds
 
 # QT5 -> QT6 compatibility for QIODevice.OpenMode type
 # Qt5 exposes QIODevice.OpenMode/ReadOnly, Qt6 uses OpenModeFlag.ReadOnly.
-if hasattr(QIODevice, 'OpenModeFlag'):
+if hasattr(QIODevice, "OpenModeFlag"):
     OPEN_MODE_TYPE = QIODevice.OpenModeFlag
     READ_ONLY_MODE = QIODevice.OpenModeFlag.ReadOnly
 else:
@@ -22,8 +26,7 @@ else:
 
 
 class PartialFile(QFile):
-
-    def __init__(self, filepath: str, start: int, end: int, log_callback=None, progress_callback=None):
+    def __init__(self, filepath: str, start: int, end: int, log_callback: Callable | None = None, progress_callback: Callable | None = None):
         super().__init__(filepath)
         self.log = log_callback
         self.progress_callback = progress_callback
@@ -40,7 +43,7 @@ class PartialFile(QFile):
     def close(self) -> None:
         return super().close()
 
-    def readData(self, maxlen) -> bytes:
+    def readData(self, maxlen: int) -> bytes:
         actual_len = maxlen
 
         if self.current_pos + maxlen > self.end:
@@ -57,8 +60,8 @@ class PartialFile(QFile):
 class UploadMultiPartFileTask(QgsTask):
     cancelled = pyqtSignal()
 
-    def __init__(self, rel_path: str, abs_path: str, urls: List[str], ext_prog_callback: Callable[[int], None] = None, log_callback: Callable[[int], None] = None, retries=5):
-        super().__init__(f"Upload {rel_path}", QGSTASK_CAN_CANCEL)
+    def __init__(self, rel_path: str, abs_path: str, urls: list[str], ext_prog_callback: Callable[[int], None] | None = None, log_callback: Callable[[int], None] | None = None, retries=5):
+        super().__init__(f"Upload {rel_path}", QGSTASK_CAN_CANCEL | QGSTASK_SILENT)
         self.rel_path = rel_path
         self.file_path = abs_path
         self.log = log_callback
@@ -74,51 +77,49 @@ class UploadMultiPartFileTask(QgsTask):
         self.error = None
 
     def cancel(self) -> None:
-        """Implements a really simple cancel method that just emits a signal when the task is cancelled
-        """
+        """Implements a really simple cancel method that just emits a signal when the task is cancelled"""
         self.file_upload_log(f"Cancelling task: {self.description()}", Qgis.Info)
         super().cancel()
         self.cancelled.emit()
 
-    def file_upload_log(self, message: str, level: int, context_obj=None):
+    def file_upload_log(self, message: str, level: int, context_obj=None) -> None:
         if self.log:
-            log_str = 'UploadMultiPartFileTask: ' + message
+            log_str = "UploadMultiPartFileTask: " + message
             # indent everuything by 6 spaces
-            spacer = ' ' * 6
-            log_str = spacer + log_str.replace(os.linesep, '\n' + spacer)
+            spacer = " " * 6
+            log_str = spacer + log_str.replace(os.linesep, "\n" + spacer)
             self.log(log_str, level, context_obj)
 
     def debug_log(self) -> str:
-        """ Useful helper function for printing task state to a log file
+        """Useful helper function for printing task state to a log file
 
         Returns:
             str: _description_
         """
         debug_obj = {
-            'urls': self.urls,
-            'uploaded_size': self.uploaded_size,
-            'total_size': self.total_size,
-            'chunk_size': self.chunk_size,
-            'chunks': self.chunks,
-            'retry_count': self.retry_count,
-            'allowed_retries': self.allowed_retries,
-            'errors': str(self.error),
+            "urls": self.urls,
+            "uploaded_size": self.uploaded_size,
+            "total_size": self.total_size,
+            "chunk_size": self.chunk_size,
+            "chunks": self.chunks,
+            "retry_count": self.retry_count,
+            "allowed_retries": self.allowed_retries,
+            "errors": str(self.error),
         }
         json_str = json.dumps(debug_obj, indent=4, sort_keys=True)
         # Replace all \n line breaks with a newline character
-        json_str = json_str.replace(os.linesep, '\n                ')
+        json_str = json_str.replace(os.linesep, "\n                ")
         return json_str
 
-    def _progress_callback(self, bytesSent: int):
-        """ When we get a progress update from the task, we update the total uploaded size
-        """
+    def _progress_callback(self, bytesSent: int) -> None:
+        """When we get a progress update from the task, we update the total uploaded size"""
         # self.file_upload_log(f"      Progress callback: {bytesSent} of {self.file_path}", Qgis.Info)
         self.uploaded_size += bytesSent
         if self.ext_prog_callback:
             self.ext_prog_callback()
 
     def upload_file_part(self, url: str, start: int, end: int) -> bool:
-        """ This is the actual upload code that will physically send all or part of a local file to a single remote URL
+        """This is the actual upload code that will physically send all or part of a local file to a single remote URL
 
         Args:
             url (str): _description_
@@ -145,27 +146,26 @@ class UploadMultiPartFileTask(QgsTask):
                 request.setHeader(NET_CONTENT_LENGTH_HEADER, part_size)
 
                 partial_file = PartialFile(self.file_path, start, end, self.file_upload_log, self._progress_callback)
-                seq = partial_file.isSequential()
+                partial_file.isSequential()
                 partial_file.open(READ_ONLY_MODE)
 
                 # Start the actual Call
                 self.reply = self.nam.put(request, partial_file)
 
-                def handle_cancelled():
-                    """Make sure we clean up and close file handles if the cancel signal has been called
-                    """
+                def handle_cancelled(pf=partial_file, lp=loop):
+                    """Make sure we clean up and close file handles if the cancel signal has been called"""
                     # self.file_upload_log(f"WARNING: Task was cancelled, aborting upload of chunk {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Warning)
                     self.error = NET_OP_CANCELED_ERROR
                     self.reply.abort()
-                    partial_file.close()
+                    pf.close()
 
                 # Handle the network request completion
-                def handle_done():
+                def handle_done(pf=partial_file, lp=loop):
                     # Detect if the reply was cancelled
                     if self.reply.error() == NET_OP_CANCELED_ERROR:
                         self.error = NET_OP_CANCELED_ERROR
                         # self.file_upload_log(f"WARNING: Upload cancelled for chunk {start:,} - {end:,} for file: {self.rel_path} Retry: {self.retry_count}", Qgis.Warning)
-                        loop.quit()
+                        lp.quit()
 
                     elif self.reply.error() != NET_NO_ERROR:
                         self.error = self.reply.errorString()
@@ -176,8 +176,8 @@ class UploadMultiPartFileTask(QgsTask):
                         # self.file_upload_log(f"Response: {self.reply.readAll().data().decode()}")
                         # self.file_upload_log(f"Finished uploading chunk {start}-{end} for file: {self.rel_path}", Qgis.Info)
                         self.reply.close()
-                        partial_file.close()
-                        loop.quit()
+                        pf.close()
+                        lp.quit()
 
                 # If the task is cancelled, abort the upload
                 self.cancelled.connect(handle_cancelled)
@@ -202,15 +202,15 @@ class UploadMultiPartFileTask(QgsTask):
                     return True
             except Exception as e:
                 self.uploaded_size = original_size
-                self.error = f"Error while uploading chunk {start}-{end} to {url}: {str(e)}"
+                self.error = f"Error while uploading chunk {start}-{end} to {url}: {e!s}"
                 self.file_upload_log(f"{self.error}", Qgis.Info)
                 self.retry_count += 1
                 time.sleep(1)  # Wait for a second before retrying
 
         return False
 
-    def run(self):
-        """ Implements the QgsTask run method. This is where the actual work is done
+    def run(self) -> bool:
+        """Implements the QgsTask run method. This is where the actual work is done
 
         Returns:
             _type_: _description_
@@ -233,31 +233,31 @@ class UploadMultiPartFileTask(QgsTask):
 
 
 class UploadQueue(QObject):
-    """ _summary_
+    """_summary_
 
     Returns:
         _type_: _description_
     """
+
     progress_signal = pyqtSignal(str, int, int, int)
     complete_signal = pyqtSignal()
     cancelled_signal = pyqtSignal()
 
     MAX_CONCURRENT_UPLOADS = 4
 
-    def __init__(self, log_callback=None):
+    def __init__(self, log_callback: Callable | None = None):
         super().__init__()
         self.log_callback = log_callback
-        # datetime of last progress update
         self.active = True
         self.last_progress = None
         self.cancelled = False
 
-        self.queue: List[UploadMultiPartFileTask] = []
-        self.active_tasks: List[UploadMultiPartFileTask] = []
-        self.completed_tasks: List[UploadMultiPartFileTask] = []
-        self.cancelled_tasks: List[UploadMultiPartFileTask] = []
+        self.queue: list[UploadMultiPartFileTask] = []
+        self.active_tasks: list[UploadMultiPartFileTask] = []
+        self.completed_tasks: list[UploadMultiPartFileTask] = []
+        self.cancelled_tasks: list[UploadMultiPartFileTask] = []
 
-    def reset(self):
+    def reset(self) -> None:
         self.queue = []
         self.active_tasks = []
         self.completed_tasks = []
@@ -266,16 +266,16 @@ class UploadQueue(QObject):
         self.cancelled = False
         self.active = True
 
-    def queue_logger(self, message: str, level: int, context_obj=None):
+    def queue_logger(self, message: str, level: int, context_obj=None) -> None:
         if self.log_callback:
-            log_str = 'UploadQueue: ' + message
+            log_str = "UploadQueue: " + message
             # indent everuything by 4 spaces
-            spacer = ' ' * 4
-            log_str = spacer + log_str.replace(os.linesep, '\n' + spacer)
+            spacer = " " * 4
+            log_str = spacer + log_str.replace(os.linesep, "\n" + spacer)
             self.log_callback(log_str, level, context_obj)
 
-    def enqueue(self, rel_path, abs_path, upload_urls: List[str], retries=5):
-        """ Push a file onto the queue for upload
+    def enqueue(self, rel_path: str, abs_path: str, upload_urls: list[str], retries: int = 5) -> None:
+        """Push a file onto the queue for upload
 
         Args:
             rel_path(_type_): Relpath is used as an id of sorts here. Not for any other reason
@@ -293,7 +293,7 @@ class UploadQueue(QObject):
         self.active = True
         self.process_queue()
 
-    def get_overall_status(self, force=False) -> Tuple[float, UploadMultiPartFileTask, int, int]:
+    def get_overall_status(self, force=False) -> tuple[float, UploadMultiPartFileTask, int, int]:
         """
         Returns the overall status of the queue
         Status is the percent of the total bytes sent
@@ -325,8 +325,8 @@ class UploadQueue(QObject):
 
         return (progress, big_task, uploaded_size, total_size)
 
-    def get_biggest_active_task(self):
-        """ Pull task with the biggest file size off the stack and return it
+    def get_biggest_active_task(self) -> UploadMultiPartFileTask | None:
+        """Pull task with the biggest file size off the stack and return it
 
         Returns:
             _type_: _description_
@@ -336,10 +336,9 @@ class UploadQueue(QObject):
         else:
             return None
 
-    def process_queue(self):
-        """ Here we process the queue and start tasks as slots become available
-        """
-        while self.active is True and len(self.active_tasks) < self.MAX_CONCURRENT_UPLOADS:
+    def process_queue(self) -> None:
+        """Here we process the queue and start tasks as slots become available"""
+        while self.active and len(self.active_tasks) < self.MAX_CONCURRENT_UPLOADS:
             # There are things to queue and slots open
             if len(self.queue) > 0:
                 task = self.queue.pop(0)
@@ -349,7 +348,7 @@ class UploadQueue(QObject):
 
             # If the queue is empty and there are no active tasks, we're done
             elif len(self.queue) == 0 and len(self.active_tasks) == 0:
-                self.queue_logger(f"Queue is empty, stopping", Qgis.Info)
+                self.queue_logger("Queue is empty, stopping", Qgis.Info)
                 self.active = False
                 self.complete_signal.emit()
             else:
@@ -358,7 +357,7 @@ class UploadQueue(QObject):
                 break
 
     def task_finished(self, task: UploadMultiPartFileTask):
-        """ When a single task finishes we need to clean up and process the queue
+        """When a single task finishes we need to clean up and process the queue
 
         Args:
             task(_type_): _description_
@@ -371,7 +370,7 @@ class UploadQueue(QObject):
                 self.active_tasks.remove(task)
                 self.cancelled_tasks.append(task)
             except Exception as e:
-                self.queue_logger(f"Error removing task: {str(e)}", Qgis.Warning)
+                self.queue_logger(f"Error removing task: {e!s}", Qgis.Warning)
         else:
             self.queue_logger(f"Finished uploading: {task.rel_path}", Qgis.Info)
             # Put it on the correct list
@@ -379,14 +378,12 @@ class UploadQueue(QObject):
                 self.active_tasks.remove(task)
                 self.completed_tasks.append(task)
             except Exception as e:
-                self.queue_logger(f"Error removing task: {str(e)}", Qgis.Warning)
+                self.queue_logger(f"Error removing task: {e!s}", Qgis.Warning)
 
         # Kick off queue processing again
         self.process_queue()
 
-    def cancel_all(self):
-        """ _summary_
-        """
+    def cancel_all(self) -> None:
         self.queue_logger(f"Canceling all {len(self.active_tasks)} uploads", Qgis.Info)
         # Shut down the queue processor
         self.active = False
@@ -405,7 +402,7 @@ class UploadQueue(QObject):
             finished_tasks += 1
             self.queue_logger(f"Finished cancelling {finished_tasks} of {tasks_need_cancel} uploads", Qgis.Info)
             if finished_tasks == tasks_need_cancel:
-                self.log_callback(f"ALl uploads cancelled", Qgis.Info)
+                self.log_callback("ALl uploads cancelled", Qgis.Info)
                 loop.quit()
 
         for task_list in [self.queue, self.active_tasks]:

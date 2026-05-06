@@ -1,38 +1,37 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
+
 import json
 
-
 from qgis.core import Qgis
+from qgis.PyQt.QtCore import QUrl, pyqtSlot
 from qgis.PyQt.QtGui import (
-    QStandardItemModel,
-    QStandardItem,
+    QBrush,
     QDesktopServices,
     QGuiApplication,
-    QBrush,
+    QStandardItem,
+    QStandardItemModel,
 )
 from qgis.PyQt.QtWidgets import (
     QDockWidget,
     QMenu,
     QMessageBox,
-    QWidget,
     QTextEdit,
-    QVBoxLayout,
     QTreeView,
+    QVBoxLayout,
+    QWidget,
 )
-from qgis.PyQt.QtCore import pyqtSlot, QUrl
 
 from .classes.settings import Settings
 from .compat import (
     ALIGN_CENTER,
+    CLIPBOARD_MODE,
+    COLOR_BLUE,
     CUSTOM_CONTEXT_MENU,
     FOREGROUND_ROLE,
-    COLOR_BLUE,
-    MSGBOX_BTN_YES,
     MSGBOX_BTN_NO,
+    MSGBOX_BTN_YES,
     QABSTRACTITEMVIEW_NO_EDIT_TRIGGERS,
     USER_ROLE,
-    CLIPBOARD_MODE,
 )
 
 
@@ -44,10 +43,9 @@ class MetaType:
 
 
 class QRAVEMetaWidget(QDockWidget):
-
     def __init__(self, parent=None):
         """Constructor."""
-        super(QRAVEMetaWidget, self).__init__(parent)
+        super().__init__(parent)
         self.setupUi()
 
         self.treeView.setContextMenuPolicy(CUSTOM_CONTEXT_MENU)
@@ -89,7 +87,7 @@ class QRAVEMetaWidget(QDockWidget):
             self.descriptionBox.show()
         if meta_type == MetaType.PROJECT:
             self.treeView.setHeaderHidden(False)
-            self.setWindowTitle("Project Metadata: {}".format(label))
+            self.setWindowTitle(f"Project Metadata: {label}")
             self.treeView.setEnabled(True)
             if meta is not None and len(meta.keys()) > 0:
                 if "project" in meta and len(meta["project"].keys()) > 0:
@@ -98,27 +96,19 @@ class QRAVEMetaWidget(QDockWidget):
                     proj_meta_font.setBold(True)
                     proj_meta.setFont(proj_meta_font)
                     for k, v in meta["project"].items():
-                        self.appendMetaItem(
-                            proj_meta, k, v[0], v[1] if len(v) > 1 else None
-                        )
+                        self.appendMetaItem(proj_meta, k, v[0], v[1] if len(v) > 1 else None)
                     root_item.appendRow(proj_meta)
-                if (
-                    "warehouse" in meta
-                    and meta["warehouse"] is not None
-                    and len(meta["warehouse"].keys()) > 0
-                ):
+                if "warehouse" in meta and meta["warehouse"] is not None and len(meta["warehouse"].keys()) > 0:
                     wh_meta = QStandardItem("Warehouse Meta")
                     wh_meta_font = wh_meta.font()
                     wh_meta_font.setBold(True)
                     wh_meta.setFont(wh_meta_font)
                     for k, v in meta["warehouse"].items():
-                        self.appendMetaItem(
-                            wh_meta, k, v[0], v[1] if len(v) > 1 else None
-                        )
+                        self.appendMetaItem(wh_meta, k, v[0], v[1] if len(v) > 1 else None)
                     root_item.appendRow(wh_meta)
 
         elif meta_type == MetaType.FOLDER:
-            self.setWindowTitle("Folder: {}".format(label))
+            self.setWindowTitle(f"Folder: {label}")
             self.descriptionBox.hide()
             self.treeView.setHeaderHidden(True)
             self.treeView.setEnabled(False)
@@ -132,14 +122,12 @@ class QRAVEMetaWidget(QDockWidget):
             root_item.appendRow(no_item)
 
         elif meta_type == MetaType.LAYER:
-            self.setWindowTitle("Layer Metadata: {}".format(label))
+            self.setWindowTitle(f"Layer Metadata: {label}")
             self.treeView.setEnabled(True)
             self.treeView.setHeaderHidden(False)
             if meta is not None and len(meta.keys()) > 0:
                 for k, v in meta.items():
-                    self.appendMetaItem(
-                        root_item, k, v[0], v[1] if len(v) > 1 else None
-                    )
+                    self.appendMetaItem(root_item, k, v[0], v[1] if len(v) > 1 else None)
             else:
                 self.treeView.setHeaderHidden(True)
                 self.treeView.setEnabled(False)
@@ -156,7 +144,7 @@ class QRAVEMetaWidget(QDockWidget):
             self.treeView.setHeaderHidden(True)
             self.treeView.setEnabled(False)
             self.model.setColumnCount(1)
-            self.setWindowTitle("Riverscapes Metadata: {}".format(label))
+            self.setWindowTitle(f"Riverscapes Metadata: {label}")
             no_item = QStandardItem("This item cannot have metadata")
             no_item.setTextAlignment(ALIGN_CENTER)
             no_f = no_item.font()
@@ -170,12 +158,10 @@ class QRAVEMetaWidget(QDockWidget):
         # self._populateTree(self.tree, )
         # Finally expand all levels
         self.treeView.expandAll()
-        if show is True:
+        if show:
             self.show()
 
-    def appendMetaItem(
-        self, root_item: QStandardItem, key: str, value: str, meta_type=None
-    ):
+    def appendMetaItem(self, root_item: QStandardItem, key: str, value: str, meta_type=None):
         val_item = QStandardItem(value)
         if value is not None and len(value) > 0:
             val_item.setToolTip(value)
@@ -184,11 +170,7 @@ class QRAVEMetaWidget(QDockWidget):
         if meta_type is not None:
             meta_type_lower = meta_type.lower()
             # Getting ready for custom meta types
-            if (
-                (meta_type_lower in ["url", "link", "image", "video"])
-                and value is not None
-                and value.startswith("http")
-            ):
+            if (meta_type_lower in ["url", "link", "image", "video"]) and value is not None and value.startswith("http"):
                 val_item.setData(QBrush(COLOR_BLUE), FOREGROUND_ROLE)
         # val_item.setUnderlineStyle(QTextCharFormat.SingleUnderline)
 
@@ -204,9 +186,7 @@ class QRAVEMetaWidget(QDockWidget):
 
         if meta_type is not None and text is not None:
             meta_type_lower = meta_type.lower()
-            if (
-                meta_type_lower in ["url", "link", "image", "video"]
-            ) and text.startswith("http"):
+            if (meta_type_lower in ["url", "link", "image", "video"]) and text.startswith("http"):
                 result = QMessageBox.question(
                     self,
                     "Riverscapes Viewer",
@@ -233,9 +213,7 @@ class QRAVEMetaWidget(QDockWidget):
             row_text = {item_name.text(): item_val.text()}
             meta_type = item_val.data(USER_ROLE)
             meta_type_lower = meta_type.lower() if meta_type else ""
-            if (
-                meta_type_lower in ["url", "link", "image", "video"]
-            ) and item_val.text().startswith("http"):
+            if (meta_type_lower in ["url", "link", "image", "video"]) and item_val.text().startswith("http"):
                 self.menu.addAction(
                     "Visit URL in Browser",
                     lambda: QDesktopServices.openUrl(QUrl(item_val.text())),

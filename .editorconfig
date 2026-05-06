@@ -1,0 +1,43 @@
+# EditorConfig — https://editorconfig.org
+# Enforces consistent whitespace, indentation, and newline style across every
+# editor (VS Code, PyCharm, Vim, etc.) without relying on editor-specific
+# settings files.  VS Code respects this automatically with the EditorConfig
+# extension installed (recommended: EditorConfig.EditorConfig).
+
+root = true
+
+# ── Defaults for all files ───────────────────────────────────────────────────
+[*]
+charset                  = utf-8
+end_of_line              = lf
+insert_final_newline     = true
+trim_trailing_whitespace = true
+
+# ── Python source files ──────────────────────────────────────────────────────
+[*.py]
+indent_style = space
+indent_size  = 4
+max_line_length = 240
+
+# ── JSON / config files ──────────────────────────────────────────────────────
+[*.{json,jsonc}]
+indent_style = space
+indent_size  = 4
+
+# ── XML / UI files (Qt Designer .ui files are XML) ───────────────────────────
+[*.{xml,ui,qml}]
+indent_style = space
+indent_size  = 4
+
+# ── YAML ─────────────────────────────────────────────────────────────────────
+[*.{yml,yaml}]
+indent_style = space
+indent_size  = 2
+
+# ── Markdown — preserve trailing spaces (they create line breaks in MD) ──────
+[*.md]
+trim_trailing_whitespace = false
+
+# ── Makefiles require real tabs ───────────────────────────────────────────────
+[Makefile]
+indent_style = tab

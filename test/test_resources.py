@@ -1,4 +1,3 @@
-# coding=utf-8
 """Resources test.
 
 .. note:: This program is free software; you can redistribute it and/or modify
@@ -15,7 +14,6 @@ __copyright__ = 'Copyright 2021, North Arrow Research'
 import unittest
 
 from qgis.PyQt.QtGui import QIcon
-
 
 
 class QRAVEDialogTest(unittest.TestCase):
@@ -36,7 +34,7 @@ class QRAVEDialogTest(unittest.TestCase):
         self.assertFalse(icon.isNull())
 
 if __name__ == "__main__":
-    suite = unittest.makeSuite(QRAVEResourcesTest)
+    suite = unittest.makeSuite(QRAVEDialogTest)
     runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)
 
