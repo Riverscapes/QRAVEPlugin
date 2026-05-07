@@ -481,9 +481,13 @@ python scripts/deploy.py
 The script will:
 1. Ask you to confirm the current version (from `__version__.py`).
 2. Ask you to confirm it is safe to delete the existing deploy folder.
-3. Copy only the files listed in `keep_patterns` (Python source, resources, wheels, etc.).
+3. Copy only the files listed in `keep_patterns` (Python source, resources, wheels, `secrets.json`, etc.).
 4. Write a clean `metadata.txt` (strips the `DEV_COPY` marker, substitutes the real version).
 5. Create a `riverscapes_viewer-<version>.zip` alongside the deploy folder.
+
+> **`secrets.json` must exist before running the deploy** — without it, telemetry will
+> be silently disabled in the deployed plugin.  Copy `secrets_TEMPLATE.json` to
+> `secrets.json` and fill in the credentials before deploying (see [§6](#6-telemetry--secrets)).
 
 The `QGIS_PLUGINS` environment variable must point to your plugins directory.  The
 deploy directory must be different from the source directory.
@@ -555,6 +559,23 @@ Install these from QGIS → Plugins → Manage and Install Plugins:
 ---
 
 ## 12. Code architecture notes
+
+### Python 3.9 type annotation compatibility
+
+QGIS 3 ships Python 3.9.  The `X | None` union syntax and built-in generic
+aliases (`list[str]`, `dict[str, str]`) crash at **runtime** on Python 3.9 when
+used in annotations unless the file starts with:
+
+```python
+from __future__ import annotations
+```
+
+This import (PEP 563, available since Python 3.7) makes all annotations lazily
+evaluated strings, so the modern syntax is never executed by the interpreter.
+**Every file that uses `X | Y`, `X | None`, or built-in generics in annotations
+must have this as its first non-docstring import.**  It is safe alongside
+`pyqtSignal` because signal declarations use `pyqtSignal(Type, ...)` argument
+syntax, not annotation syntax.
 
 ### `src/compat.py` — Qt 5 / Qt 6 enum shims
 

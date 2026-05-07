@@ -2,6 +2,7 @@
 Telemetry client for sharing anonymous usage data with the Riverscapes team.
 This helps us understand how our tools are used and prioritize improvements.
 """
+from __future__ import annotations
 
 import json
 import os

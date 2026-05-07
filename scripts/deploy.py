@@ -33,6 +33,7 @@ def copy_plugin(plugin_dir: str):
         ['README.md'],
         ['LICENSE'],
         ['config.json'],
+        ['secrets.json'],
         ['wheels', '**', '*.whl'],
         ['src', '**', '*.py'],
         ['src', '**', '*.graphql'],
