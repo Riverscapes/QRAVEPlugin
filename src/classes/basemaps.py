@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import urllib.parse
+import xml.etree.ElementTree as ET
 
 import lxml.etree
 from qgis.core import Qgis, QgsApplication, QgsTask
@@ -103,11 +104,12 @@ class QRaveBaseMap:
             lyr_item = QStandardItem(QIcon(icon_path), title)
 
             extra_meta = {"srs": srs, "name": name, "lyr_format": lyr_format}
-            lyr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, None, QRaveMapLayer(title, QRaveMapLayer.LayerTypes.WEBTILE, tile_type=self.tile_type, layer_uri=url_with_params, meta=extra_meta)), USER_ROLE)
+            map_layer = QRaveMapLayer(title, QRaveMapLayer.LayerTypes.WEBTILE, tile_type=self.tile_type, layer_uri=url_with_params, meta=extra_meta)
+            lyr_item.setData(ProjectTreeData(QRaveTreeTypes.LEAF, None, map_layer), USER_ROLE)
             lyr_item.setToolTip(wrap_by_word(abstract, 20))
 
         except AttributeError as e:
-            sourceline = root_el.sourceline if root_el is not None else None
+            sourceline = getattr(root_el, "sourceline", None)
             self.settings.log(f"Error parsing basemap layer Exception: {e}, Line: {sourceline}, Url: {self.layer_url + REQUEST_ARGS}", Qgis.Warning)
             title_fallback_el = self._child_by_localname(root_el, "Title")
             fallback_title = title_fallback_el.text.strip() if title_fallback_el is not None and title_fallback_el.text else "Unnamed Layer"
@@ -171,15 +173,15 @@ class QRaveBaseMap:
             else:
                 payload = result.encode("utf-8", errors="ignore")
             try:
-                return lxml.etree.fromstring(payload)
-            except lxml.etree.XMLSyntaxError as exc:
+                return ET.fromstring(payload.decode("utf-8", errors="replace"))
+            except ET.ParseError as exc:
                 preview = payload.decode("utf-8", errors="ignore")[:400]
-                raise ValueError(f"WMS capabilities from {self.layer_url} are not valid XML: {exc.msg} (line {exc.lineno}, column {exc.position[1]}). Preview: {preview}")
+                raise ValueError(f"WMS capabilities from {self.layer_url} are not valid XML: {exc}. Preview: {preview}")
 
         if self.tile_type == "wms":
             self.settings.log(f"Fetching WMS Capabilities: {self.layer_url}", Qgis.Info)
             ns_task = QgsTask.fromFunction("Loading WMS Data", _wms_fetch, on_finished=self._wms_fetch_done)
-            if QGSTASK_SILENT:
+            if QGSTASK_SILENT and hasattr(ns_task, "setFlags"):
                 ns_task.setFlags(ns_task.flags() | QGSTASK_SILENT)
             self.tm.addTask(ns_task)
 
