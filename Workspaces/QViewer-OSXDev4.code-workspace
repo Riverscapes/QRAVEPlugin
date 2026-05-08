@@ -5,15 +5,15 @@
         }
     ],
     "settings": {
-        // ── Personal aesthetic: yellow title bar distinguishes QGIS 4 from QGIS 3 ─
-        // FROM: https://gist.github.com/NicolaiMogensen/acfd8723720c4761aefef3cdfc2aa55a
         "workbench.colorCustomizations": {
-            "titleBar.activeBackground": "#ffbb00"
+            "titleBar.activeBackground": "#ffbb00",
+            "titleBar.inactiveBackground": "#cb9500",
+            "titleBar.activeForeground": "#000000",
+            "titleBar.inactiveForeground": "#000000",
+            "titleBar.border": "#000000",
+            "commandCenter.foreground": "#000000",
+            "commandCenter.activeForeground": "#000000",
         },
-
-        // ── macOS QGIS 4 — machine-specific paths set via $QGIS4_PATH env var ────
-        // Add  export QGIS4_PATH=/Applications/QGIS4.app  (or wherever installed)
-        // to your shell profile so the paths below resolve correctly.
         "terminal.integrated.env.osx": {
             // PYTHONHOME redirects Python's stdlib lookup from the baked-in CI
             // build-server path to the actual stdlib inside the app bundle.

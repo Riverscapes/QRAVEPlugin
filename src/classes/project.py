@@ -343,7 +343,7 @@ class Project:
                             ProjectTreeData(
                                 QRaveTreeTypes.PROJECT_REPEATER_FOLDER,
                                 project=self,
-                                data=dict(children_container.attrib),
+                                data=dict(child_node.attrib),
                             ),
                             USER_ROLE,
                         ),
