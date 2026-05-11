@@ -47,7 +47,7 @@ from .icon_utils import qrave_icon
 from .meta_widget import MetaType
 from .project_download_dialog import ProjectDownloadDialog
 from .project_upload_dialog import ProjectUploadDialog
-from .ui.dock_widget import Ui_QRAVEDockWidgetBase
+from .ui.dock_widget_ui import Ui_QRAVEDockWidgetBase
 
 ADD_TO_MAP_TYPES = ["polygon", "raster", "point", "line"]
 

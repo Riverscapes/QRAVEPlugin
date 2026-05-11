@@ -7,9 +7,9 @@
 
 """
 
-__author__ = 'info@northarrowresearch.com'
-__date__ = '2021-04-13'
-__copyright__ = 'Copyright 2021, North Arrow Research'
+__author__ = "info@northarrowresearch.com"
+__date__ = "2021-04-13"
+__copyright__ = "Copyright 2021, North Arrow Research"
 
 import unittest
 
@@ -29,14 +29,12 @@ class QRAVEDialogTest(unittest.TestCase):
 
     def test_icon_png(self):
         """Test we can click OK."""
-        path = ':/plugins/QRAVE/icon.png'
+        path = ":/plugins/QRAVE/icon.png"
         icon = QIcon(path)
         self.assertFalse(icon.isNull())
+
 
 if __name__ == "__main__":
     suite = unittest.makeSuite(QRAVEDialogTest)
     runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)
-
-
-

@@ -15,7 +15,7 @@ from .classes.settings import CONSTANTS, Settings
 from .classes.util import extract_project_id, get_project_details_html
 from .compat import ASCENDING_ORDER, MSGBOX_BTN_NO, MSGBOX_BTN_YES
 from .file_selection_widget import ProjectFileSelectionWidget
-from .ui.project_download_dialog import Ui_ProjectDownloadDialog
+from .ui.project_download_dialog_ui import Ui_ProjectDownloadDialog
 
 # Removed SortableTreeWidgetItem - now in file_selection_widget.py
 

@@ -14,6 +14,7 @@ from qgis.core import (
     QgsLayerMetadata,
     QgsLayerTreeGroup,
     QgsLayerTreeLayer,
+    QgsMapLayer,
     QgsMessageLog,
     QgsProject,
     QgsRasterLayer,

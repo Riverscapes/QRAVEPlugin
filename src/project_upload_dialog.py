@@ -34,7 +34,7 @@ from .compat import (
     MSGBOX_BTN_YES,
     USER_ROLE,
 )
-from .ui.project_upload_dialog import Ui_Dialog
+from .ui.project_upload_dialog_ui import Ui_Dialog
 
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS["logCategory"]

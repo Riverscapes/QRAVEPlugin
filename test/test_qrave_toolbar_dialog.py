@@ -7,9 +7,9 @@
 
 """
 
-__author__ = 'info@northarrowresearch.com'
-__date__ = '2021-04-13'
-__copyright__ = 'Copyright 2021, North Arrow Research'
+__author__ = "info@northarrowresearch.com"
+__date__ = "2021-04-13"
+__copyright__ = "Copyright 2021, North Arrow Research"
 
 import unittest
 

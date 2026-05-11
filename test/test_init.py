@@ -1,18 +1,18 @@
 """Tests QGIS plugin init."""
 
-__author__ = 'Tim Sutton <tim@linfiniti.com>'
-__revision__ = '$Format:%H$'
-__date__ = '17/10/2010'
+__author__ = "Tim Sutton <tim@linfiniti.com>"
+__revision__ = "$Format:%H$"
+__date__ = "17/10/2010"
 __license__ = "GPL"
-__copyright__ = 'Copyright 2012, Australia Indonesia Facility for '
-__copyright__ += 'Disaster Reduction'
+__copyright__ = "Copyright 2012, Australia Indonesia Facility for "
+__copyright__ += "Disaster Reduction"
 
 import configparser  # noqa: E402
 import logging  # noqa: E402
 import os  # noqa: E402
 import unittest  # noqa: E402
 
-LOGGER = logging.getLogger('QGIS')
+LOGGER = logging.getLogger("QGIS")
 
 
 class TestInit(unittest.TestCase):
@@ -33,30 +33,23 @@ class TestInit(unittest.TestCase):
         # https://github.com/qgis/qgis-django/blob/master/qgis-app/
         #        plugins/validator.py
 
-        required_metadata = [
-            'name',
-            'description',
-            'version',
-            'qgisMinimumVersion',
-            'email',
-            'author']
+        required_metadata = ["name", "description", "version", "qgisMinimumVersion", "email", "author"]
 
-        file_path = os.path.abspath(os.path.join(
-            os.path.dirname(__file__), os.pardir,
-            'metadata.txt'))
+        file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "metadata.txt"))
         LOGGER.info(file_path)
         metadata = []
         parser = configparser.ConfigParser()
         parser.optionxform = str
         parser.read(file_path)
         message = f'Cannot find a section named "general" in {file_path}'
-        assert parser.has_section('general'), message
-        metadata.extend(parser.items('general'))
+        assert parser.has_section("general"), message
+        metadata.extend(parser.items("general"))
 
         for expectation in required_metadata:
-            message = (f'Cannot find metadata "{expectation}" in metadata source ({file_path}).')
+            message = f'Cannot find metadata "{expectation}" in metadata source ({file_path}).'
 
             self.assertIn(expectation, dict(metadata), message)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

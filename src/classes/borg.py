@@ -5,6 +5,7 @@ Credit: Alex Martelli
 
 https://www.oreilly.com/library/view/python-cookbook/0596001673/ch05s23.html
 """
+
 from typing import ClassVar
 
 

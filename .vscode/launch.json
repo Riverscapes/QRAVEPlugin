@@ -12,12 +12,6 @@
         "host": "localhost",
         "port": 5678
       },
-      // "pathMappings": [
-      //   {
-      //     "localRoot": "${workspaceFolder}",
-      //     "remoteRoot": "${workspaceFolder}",
-      //   }
-      // ],
       "justMyCode": true
     },
     {
