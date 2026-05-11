@@ -215,12 +215,20 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
     def recalc_state(self) -> None:
 
         self.loading = self.dataExchangeAPI.api.loading
-        allow_user_action = not self.loading and self.flow_state in [
-            ProjectUploadDialogStateFlow.USER_ACTION,
+        # In CANCELLED or ERROR states the user must always be able to interact with
+        # the dialog (e.g. go back, restart, close) even if a background API call that
+        # was in-flight when they stopped is still technically "loading".  Treating
+        # those as terminal/user-actionable states unconditionally prevents the form
+        # from becoming permanently grayed-out after a stop.
+        allow_user_action = self.flow_state in [
             ProjectUploadDialogStateFlow.CANCELLED,
             ProjectUploadDialogStateFlow.ERROR,
-            ProjectUploadDialogStateFlow.NO_ACTION,
-        ]
+        ] or (
+            not self.loading and self.flow_state in [
+                ProjectUploadDialogStateFlow.USER_ACTION,
+                ProjectUploadDialogStateFlow.NO_ACTION,
+            ]
+        )
 
         can_update_project = self.warehouse_id is not None and self.existing_project is not None and bool(self.existing_project.permissions.get("update", False))
 
@@ -969,7 +977,8 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             btn_id = self.mine_group.checkedId()
             if btn_id == 1:
                 index = self.orgSelect.currentIndex()
-                self.org_id = self.OrgModel.item(index).data(USER_ROLE)
+                item = self.OrgModel.item(index) if index >= 0 else None
+                self.org_id = item.data(USER_ROLE) if item is not None else None
             else:
                 self.org_id = None
         self.recalc_state()
@@ -1152,6 +1161,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             return
 
     def handle_stop_click(self):
+        # Disable the stop button immediately so re-entrant clicks while cancel_all
+        # is blocking inside its nested QEventLoop can't trigger a second cancel_all
+        # (which would create another nested event loop whose completion counter might
+        # never be reached, leaving QGIS stuck processing events indefinitely).
+        self.stopBtn.setEnabled(False)
         self.queue.cancel_all()
         self.flow_state = ProjectUploadDialogStateFlow.CANCELLED
         self.recalc_state()
