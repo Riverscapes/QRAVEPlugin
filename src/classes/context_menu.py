@@ -51,6 +51,7 @@ class ContextMenu(QMenu):
         "DOWNLOAD_ADD_PROJECT": ("Download or Update Project", ":/plugins/qrave_toolbar/download.svg"),
         "WAREHOUSE_VIEW": ("View in Data Exchange", ":/plugins/qrave_toolbar/data-exchange-icon.svg"),
         "BROWSE_REMOTE_DATA_EXCHANGE": ("Browse Remote Data Exchange", ":/plugins/qrave_toolbar/data-exchange-icon.svg"),
+        "RETRY_LOAD": ("Reload Project", ":/plugins/qrave_toolbar/refresh.png"),
         "OPEN_REPORT": ("Open Report", ":/plugins/qrave_toolbar/description.svg"),
         "ADD_WEB_TILES_TO_MAP": (
             "Add WebTiles to Map",

@@ -1199,9 +1199,19 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         data: ProjectTreeData,
     ):
         """Context menu for a project-load-error placeholder node."""
-        project_path = data.data  # stored as raw path string in _make_load_error_node
+        # Prefer the path from the Project object itself — it is always a
+        # proper absolute string set in Project.__init__.  data.data is a
+        # fallback in case the project object is missing or incomplete.
+        project = data.project
+        if project is not None and isinstance(getattr(project, "project_xml_path", None), str):
+            project_path = project.project_xml_path
+        elif isinstance(data.data, str):
+            project_path = data.data
+        else:
+            project_path = None
+
         menu.addAction("RETRY_LOAD", self.reload_tree)
-        if project_path and not str(project_path).startswith("remote:"):
+        if project_path and not project_path.startswith("remote:"):
             menu.addAction(
                 "BROWSE_PROJECT_FOLDER",
                 lambda p=project_path: self.file_system_locate(p),
@@ -1212,15 +1222,25 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             lambda p=project_path: self._close_error_project(p),
         )
 
-    def _close_error_project(self, project_path: str) -> None:
+    def _close_error_project(self, project_path: str | None) -> None:
         """Remove a failed-load project from settings by its file path."""
+        if not project_path:
+            self.settings.log("Cannot close error project: path is unknown", Qgis.Warning)
+            return
         try:
             qrave_projects = self.get_project_settings()
         except Exception as e:
             self.settings.log(f"Error closing error project: {e}", Qgis.Warning)
             qrave_projects = []
 
-        qrave_projects = [(name, basename, xml) for name, basename, xml in qrave_projects if xml != project_path]
+        # Match by normalised absolute path so relative vs absolute differences
+        # don't cause the project to linger in settings.
+        abs_target = os.path.abspath(project_path)
+        qrave_projects = [
+            (name, basename, xml)
+            for name, basename, xml in qrave_projects
+            if xml.startswith("remote:") or os.path.abspath(xml) != abs_target
+        ]
         self.set_project_settings(qrave_projects)
         QTimer.singleShot(0, self.reload_tree)
 
