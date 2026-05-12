@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
 import os
+import socket
 import threading
 import time
 import traceback
@@ -44,6 +45,21 @@ class GraphQLAPIError(Exception):
 
     def __str__(self) -> str:
         return f"GraphQLAPIError: {self.message}"
+
+
+class GraphQLAPIPortError(GraphQLAPIError):
+    """Raised when the OAuth callback port is unavailable (blocked or already in use).
+
+    Attributes:
+        port -- the port number that could not be bound
+    """
+
+    def __init__(self, port: int) -> None:
+        self.port = port
+        super().__init__(f"Port {port} is unavailable for the authentication callback. A corporate VPN or firewall may be blocking this port, or another application is already using port {port}.")
+
+    def __str__(self) -> str:
+        return f"GraphQLAPIPortError: {self.message}"
 
 
 class RunGQLQueryTask(QgsTask):
@@ -486,7 +502,23 @@ class GraphQLAPI(QObject):
                 except Exception as e:
                     self.logger(f"Failed to shut down server: {e}", Qgis.Warning)
 
-        server = ThreadingHTTPServer(("localhost", self.config.port), lambda *args, **kwargs: AuthHandler(self.config, self.log, *args, **kwargs))
+        # Check that the port is available before attempting to start the server.
+        # This provides an early, actionable error when a corporate firewall or
+        # another process has the port blocked/in use.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _probe:
+            try:
+                _probe.bind(("127.0.0.1", self.config.port))
+            except OSError:
+                raise GraphQLAPIPortError(self.config.port)
+
+        try:
+            server = ThreadingHTTPServer(
+                ("localhost", self.config.port),
+                lambda *args, **kwargs: AuthHandler(self.config, self.log, *args, **kwargs),
+            )
+        except OSError:
+            raise GraphQLAPIPortError(self.config.port)
+
         # Keep the server running until it is manually stopped
         try:
             self.log("Starting server to wait for auth code...")

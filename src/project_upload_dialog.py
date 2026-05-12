@@ -20,7 +20,7 @@ from .classes.data_exchange.DataExchangeAPI import (
     UploadFileList,
 )
 from .classes.data_exchange.uploader import UploadMultiPartFileTask, UploadQueue
-from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
+from .classes.GraphQLAPI import GraphQLAPIPortError, RefreshTokenTask, RunGQLQueryTask
 from .classes.project import Project
 from .classes.settings import CONSTANTS, Settings
 from .classes.util import error_level_to_str, get_project_details_html, humane_bytes
@@ -224,7 +224,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             ProjectUploadDialogStateFlow.CANCELLED,
             ProjectUploadDialogStateFlow.ERROR,
         ] or (
-            not self.loading and self.flow_state in [
+            not self.loading
+            and self.flow_state
+            in [
                 ProjectUploadDialogStateFlow.USER_ACTION,
                 ProjectUploadDialogStateFlow.NO_ACTION,
             ]
@@ -467,7 +469,22 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """
         if not task.success:
             self.upload_log("Could not log in to the data exchange API", Qgis.Critical, task)
-            self.error = ProjectUploadDialogError("Could not log in to the data exchange API", task.error)
+            if isinstance(task.error, GraphQLAPIPortError):
+                port = task.error.port
+                self.error = ProjectUploadDialogError(
+                    f"Port {port} is blocked or unavailable",
+                    f"The OAuth authentication callback requires port {port} to be accessible on "
+                    f"localhost, but it could not be opened.\n\n"
+                    "Possible causes:\n"
+                    f"  \u2022 A corporate VPN or firewall is blocking port {port}\n"
+                    f"  \u2022 Another application is already using port {port}\n\n"
+                    "What to do:\n"
+                    f"  \u2022 Contact your IT department to allow port {port} on localhost\n"
+                    "  \u2022 Try authenticating from a different network (e.g. without VPN)\n"
+                    f"  \u2022 Check if another application is using port {port} and close it",
+                )
+            else:
+                self.error = ProjectUploadDialogError("Could not log in to the data exchange API", task.error)
         else:
             self.upload_log("  - SUCCESS: Logged in to the data exchange API", Qgis.Info)
             self.upload_log("Fetching User profile...", Qgis.Info)
