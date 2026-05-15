@@ -1,14 +1,15 @@
+import html
+import json
 import os
+import re
 import sys
 import types
 import unittest
 from unittest.mock import MagicMock
-import html
-import re
-import json
 
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 
 def mock_module(name, attrs=None):
     m = types.ModuleType(name)
@@ -17,6 +18,7 @@ def mock_module(name, attrs=None):
             setattr(m, k, v)
     sys.modules[name] = m
     return m
+
 
 # Mock QGIS modules
 qgis = mock_module("qgis")
@@ -59,10 +61,11 @@ mock_module("qgis.PyQt.QtGui")
 
 from src.classes.settings import Settings
 
+
 class TestBug4TelemetrySetting(unittest.TestCase):
     def test_telemetry_persistence(self):
         """Bug 4: Test that telemetry setting can be round-tripped."""
-        
+
         # We need to mock QgsSettings since Settings uses it
         with unittest.mock.patch("src.classes.settings.QgsSettings") as MockQSettings:
             mock_settings_inst = MockQSettings.return_value
@@ -89,6 +92,7 @@ class TestBug4TelemetrySetting(unittest.TestCase):
 
             settings.setValue("telemetryEnabled", False)
             self.assertEqual(settings.getValue("telemetryEnabled"), False)
+
 
 class TestBug5RecentProjects(unittest.TestCase):
     def test_recent_projects_logic(self):
@@ -123,11 +127,7 @@ class TestBug5RecentProjects(unittest.TestCase):
                 entry = {"path": path, "name": name}
 
                 # Remove if exists (either as string or dict)
-                recent = [
-                    r
-                    for r in recent
-                    if (r if isinstance(r, str) else r.get("path")) != path
-                ]
+                recent = [r for r in recent if (r if isinstance(r, str) else r.get("path")) != path]
                 recent.insert(0, entry)
                 settings.setValue("recentProjects", recent[:10])
 
@@ -164,9 +164,11 @@ class TestBug5RecentProjects(unittest.TestCase):
             self.assertEqual(p, "/local/path.xml")
             self.assertEqual(n, None)
 
+
 class TestBug3MetaWidgetUrl(unittest.TestCase):
     def test_description_to_html(self):
         """Bug 3: Test that URLs in descriptions are converted to links."""
+
         def _description_to_html(description):
             if not description:
                 return ""
@@ -182,6 +184,7 @@ class TestBug3MetaWidgetUrl(unittest.TestCase):
         desc_with_html = "Search <script>alert(1)</script> at http://google.com"
         expected = 'Search &lt;script&gt;alert(1)&lt;/script&gt; at <a href="http://google.com">http://google.com</a>'
         self.assertEqual(_description_to_html(desc_with_html), expected)
+
 
 if __name__ == "__main__":
     unittest.main()
