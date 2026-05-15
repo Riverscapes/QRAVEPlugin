@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-import json
 import os.path
 from pathlib import Path
 import re
@@ -693,15 +692,7 @@ class QRAVE:
                 self.toggle_widget(forceOn=True)
             self.dockwidget.add_remote_project(response)
         else:
-            err_msg = f"Could not find project with ID: {task.variables.get('id')}"
-            if task.error:
-                err_msg += f"\n\nError: {task.error}"
-            elif response and "errors" in response:
-                err_msg += f"\n\nAPI Errors:\n{json.dumps(response['errors'], indent=2)}"
-            elif response and "data" in response and response["data"]["project"] is None:
-                err_msg += "\n\nNote: The API returned null for this project ID. It may be private or deleted."
-
-            QMessageBox.warning(self.iface.mainWindow(), "Project Not Found", err_msg)
+            QMessageBox.warning(self.iface.mainWindow(), "Project Not Found", "This project could not be found in the Riverscapes Data Exchange. It may be private, deleted, or the ID may be incorrect.")
 
     def closeAllProjects(self) -> None:
         """Close all open projects"""
