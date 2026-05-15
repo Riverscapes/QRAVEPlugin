@@ -21,7 +21,7 @@ import sys
 from time import time
 
 from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsProject
-from qgis.PyQt.QtCore import QCoreApplication, QSettings, QTranslator, QUrl
+from qgis.PyQt.QtCore import QCoreApplication, QSettings, QTimer, QTranslator, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QMenu, QMessageBox, QToolButton
 
@@ -380,11 +380,16 @@ class QRAVE:
         # If the project has the plugin enabled then restore it.
         qrave_enabled, type_conversion_ok = self.qproject.readEntry(CONSTANTS["settingsCategory"], "enabled")
         if type_conversion_ok and qrave_enabled == "1":
-            self.dockwidget.fix_broken_project_paths()
             self.toggle_widget(forceOn=True)
             self.settings.setValue("dockVisible", True)
             if self.dockwidget is not None:
                 self.dockwidget.reload_tree()
+
+        # Always check for broken project paths after the project finishes loading,
+        # regardless of the enabled flag, as long as the dock widget is present.
+        # Deferred via QTimer so the dialog does not block the QGIS load sequence.
+        if self.dockwidget is not None:
+            QTimer.singleShot(0, self.dockwidget.fix_broken_project_paths)
 
     def onClosePlugin(self) -> None:
         """Cleanup necessary items here when plugin dockwidget is closed"""
@@ -581,10 +586,26 @@ class QRAVE:
         """Rebuild the recent projects submenu."""
         self.recentProjectsMenu.clear()
         stored = self.settings.getValue("recentProjects") or []
-        recent = [p for p in stored if os.path.isfile(p)]
-        if recent != stored:
-            self.settings.setValue("recentProjects", recent)
-        if not recent:
+
+        # Normalise entries - legacy format is a bare string; new format is {"path": ..., "name": ...}
+        def _normalise(entry: object) -> tuple[str, str]:
+            if isinstance(entry, dict):
+                return entry.get("path", ""), entry.get("name", "")
+            return str(entry), ""
+
+        normalised = [_normalise(e) for e in stored]
+
+        # Keep remote entries and local files that still exist
+        def _is_valid(path: str) -> bool:
+            return path.startswith("remote:") or os.path.isfile(path)
+
+        valid = [(path, name) for path, name in normalised if _is_valid(path)]
+
+        # Persist cleaned list if stale entries were removed
+        if len(valid) != len(normalised):
+            self.settings.setValue("recentProjects", [{"path": p, "name": n} for p, n in valid])
+
+        if not valid:
             no_action = QAction(
                 self.tr("(No recent projects)"),
                 self.iface.mainWindow(),
@@ -592,12 +613,18 @@ class QRAVE:
             no_action.setEnabled(False)
             self.recentProjectsMenu.addAction(no_action)
             return
-        for path in recent:
-            label = os.path.basename(os.path.dirname(path))
-            action = QAction(label, self.iface.mainWindow())
+
+        for path, name in valid:
+            if not name:
+                if path.startswith("remote:"):
+                    name = path[7:]  # UUID fallback
+                else:
+                    name = os.path.basename(os.path.dirname(path)) or os.path.basename(path)
+            action = QAction(name, self.iface.mainWindow())
             action.setToolTip(path)
             action.triggered.connect(lambda checked, p=path: self._open_recent_project(p))
             self.recentProjectsMenu.addAction(action)
+
         self.recentProjectsMenu.addSeparator()
         clear_action = QAction(
             self.tr("Clear Recent Projects"),
@@ -608,6 +635,10 @@ class QRAVE:
 
     def _open_recent_project(self, xml_path: str) -> None:
         """Open a project from the recent projects list."""
+        if xml_path.startswith("remote:"):
+            project_id = xml_path[7:]
+            self.downloadProjectDlg(project_id=project_id)
+            return
         if not os.path.isfile(xml_path):
             msg = self.tr("Could not find project:\n") + xml_path
             QMessageBox.warning(

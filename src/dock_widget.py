@@ -260,7 +260,7 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
                 )
                 if result != MSGBOX_BTN_YES:
                     continue
-                new_path, _ = QFileDialog.getOpenFileName(self, f"Locate missing project file for '{name}'", "", "Riverscapes Project (*.xml);;All Files (*)")
+                new_path, _ = QFileDialog.getOpenFileName(self, f"Locate missing project file for '{name}'", "", "Riverscapes Project (project.rs.xml *.xml);;All Files (*)")
                 if new_path:
                     clean_projects.append((name, basename, new_path))
             else:
@@ -324,12 +324,31 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             Telemetry(MESSAGE_CATEGORY).send("Load_Project")
             self._add_to_recent_projects(xml_path)
 
-    def _add_to_recent_projects(self, xml_path: str) -> None:
-        """Prepend xml_path to the recent projects list, capped at 5."""
-        recent = self.settings.getValue("recentProjects") or []
-        abs_path = os.path.abspath(xml_path)
-        recent = [p for p in recent if p != abs_path]
-        recent.insert(0, abs_path)
+    def _add_to_recent_projects(self, xml_path: str, name: str | None = None) -> None:
+        """Prepend xml_path to the recent projects list, capped at 5.
+
+        Each entry is stored as a dict ``{"path": ..., "name": ...}`` so that
+        human-readable labels are available even for ``remote:`` entries.
+        Legacy entries (bare strings) are tolerated on read.
+        """
+        recent: list[dict] = []
+        for entry in self.settings.getValue("recentProjects") or []:
+            if isinstance(entry, dict):
+                recent.append(entry)
+            else:
+                # Back-compat: promote bare string to dict
+                recent.append({"path": str(entry), "name": ""})
+
+        is_remote = xml_path.startswith("remote:")
+        key = xml_path if is_remote else os.path.abspath(xml_path)
+        # Deduplicate by path
+        recent = [e for e in recent if e.get("path", "") != key]
+        if not name:
+            if is_remote:
+                name = key[7:]  # fall back to the UUID portion
+            else:
+                name = os.path.basename(os.path.dirname(key)) or os.path.basename(key)
+        recent.insert(0, {"path": key, "name": name})
         self.settings.setValue("recentProjects", recent[:5])
 
     @pyqtSlot(dict)
@@ -372,6 +391,9 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
         self.reload_tree()
         self.fetch_dataset_metadata(test_project.id)
+
+        # Track in recent projects so the toolbar menu shows this project by name
+        self._add_to_recent_projects(f"remote:{test_project.id}", name=name)
 
         # If this is a fresh load and the setting is set we load the default view
         new_project = self._get_project_by_name(name)
@@ -1236,18 +1258,14 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         # Match by normalised absolute path so relative vs absolute differences
         # don't cause the project to linger in settings.
         abs_target = os.path.abspath(project_path)
-        qrave_projects = [
-            (name, basename, xml)
-            for name, basename, xml in qrave_projects
-            if xml.startswith("remote:") or os.path.abspath(xml) != abs_target
-        ]
+        qrave_projects = [(name, basename, xml) for name, basename, xml in qrave_projects if xml.startswith("remote:") or os.path.abspath(xml) != abs_target]
         self.set_project_settings(qrave_projects)
         QTimer.singleShot(0, self.reload_tree)
 
     # Project-level context menu
     def project_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData) -> None:
-        menu.addAction("COLLAPSE_ALL", lambda: self.toggleSubtree(None, False))
-        menu.addAction("EXPAND_ALL", lambda: self.toggleSubtree(None, True))
+        menu.addAction("COLLAPSE_ALL", lambda: self.toggleSubtree(item, False))
+        menu.addAction("EXPAND_ALL", lambda: self.toggleSubtree(item, True))
         menu.addAction("ZOOM_TO_PROJECT", lambda: self.zoom_to_project(data.project), enabled=data.project.has_bounds)
         menu.addAction("ADD_PROJECT_BOUNDS_TO_MAP", lambda: QRaveMapLayer.add_project_bounds_to_map(data.project.bounds_path, "Project Bounds", data.project.qproject.text()), enabled=data.project.has_bounds_layer)
         menu.addSeparator()
