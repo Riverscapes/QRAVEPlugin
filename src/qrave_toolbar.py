@@ -638,7 +638,11 @@ class QRAVE:
         """Open a project from the recent projects list."""
         if xml_path.startswith("remote:"):
             project_id = xml_path[7:]
-            self.downloadProjectDlg(project_id=project_id)
+            if self.dockwidget is None or self.dockwidget.isHidden():
+                self.toggle_widget(forceOn=True)
+            if self.dockwidget:
+                self.dockwidget.show_loading(project_id)
+            self.dataExchangeAPI = DataExchangeAPI(on_login=lambda task: self._on_remote_login(task, project_id))
             return
         if not os.path.isfile(xml_path):
             msg = self.tr("Could not find project:\n") + xml_path
