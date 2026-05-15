@@ -620,7 +620,8 @@ class QRAVE:
                     name = path[7:]  # UUID fallback
                 else:
                     name = os.path.basename(os.path.dirname(path)) or os.path.basename(path)
-            action = QAction(name, self.iface.mainWindow())
+            icon = qrave_icon("data-exchange-icon.svg") if path.startswith("remote:") else qrave_icon("viewer-icon.svg")
+            action = QAction(icon, name, self.iface.mainWindow())
             action.setToolTip(path)
             action.triggered.connect(lambda checked, p=path: self._open_recent_project(p))
             self.recentProjectsMenu.addAction(action)
