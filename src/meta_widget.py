@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import html
 import json
+import re
 
 from qgis.core import Qgis
 from qgis.PyQt.QtCore import QUrl, pyqtSlot
@@ -15,7 +17,7 @@ from qgis.PyQt.QtWidgets import (
     QDockWidget,
     QMenu,
     QMessageBox,
-    QTextEdit,
+    QTextBrowser,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -80,10 +82,10 @@ class QRAVEMetaWidget(QDockWidget):
         self.model.setHorizontalHeaderLabels(["Meta Name", "Meta Value"])
 
         if description is not None and len(description) > 0:
-            self.descriptionBox.setPlainText(description)
+            self.descriptionBox.setHtml(self._description_to_html(description))
             self.descriptionBox.show()
         else:
-            self.descriptionBox.setPlainText("No description available.")
+            self.descriptionBox.setHtml("<i>No description available.</i>")
             self.descriptionBox.show()
         if meta_type == MetaType.PROJECT:
             self.treeView.setHeaderHidden(False)
@@ -176,6 +178,14 @@ class QRAVEMetaWidget(QDockWidget):
 
         root_item.appendRow([QStandardItem(key), val_item])
 
+    def _description_to_html(self, text: str) -> str:
+        """Convert a plain-text description to HTML, hyperlinking any http/https URLs."""
+        _URL_RE = re.compile(r"(https?://[^\s<>\"']+)")
+        escaped = html.escape(text)
+        linked = _URL_RE.sub(r'<a href="\1">\1</a>', escaped)
+        # Preserve newlines
+        return linked.replace("\n", "<br/>")
+
     def closeEvent(self, event):
         self.hide()
 
@@ -252,9 +262,11 @@ class QRAVEMetaWidget(QDockWidget):
         self.verticalLayout.setContentsMargins(0, 4, 0, 4)
         self.verticalLayout.setSpacing(0)
 
-        # Add a read-only QTextEdit for the description above the tree view
-        self.descriptionBox = QTextEdit(self.dockWidgetContents)
+        # Add a read-only QTextBrowser for the description above the tree view;
+        # QTextBrowser renders HTML links and opens them in the system browser.
+        self.descriptionBox = QTextBrowser(self.dockWidgetContents)
         self.descriptionBox.setReadOnly(True)
+        self.descriptionBox.setOpenExternalLinks(True)
         self.descriptionBox.setMinimumHeight(60)  # About 2 lines of text
         self.descriptionBox.setMaximumHeight(60)  # Prevents it from growing too tall
         self.verticalLayout.addWidget(self.descriptionBox)

@@ -1,15 +1,11 @@
 import os
 import sys
+import types
 import unittest
 from unittest.mock import MagicMock
 
-from src.classes.remote_project import RemoteProject
-
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-# Create dummy modules to satisfy imports
-import types
 
 
 def mock_module(name, attrs=None):
@@ -26,18 +22,27 @@ mock_module("qgis.core", {"Qgis": MagicMock(), "QgsMessageLog": MagicMock()})
 mock_module("qgis.PyQt")
 mock_module("qgis.PyQt.QtGui", {"QIcon": MagicMock(), "QStandardItem": MagicMock()})
 mock_module("qgis.PyQt.QtCore")
+mock_module("qgis.utils")
 
 # Mock our own package structure
-# We don't want to mock 'src.classes.remote_project' because we want to load it
 mock_module("src.compat", {"USER_ROLE": 1000})
 mock_module("src.icon_utils", {"qrave_icon": MagicMock()})
-mock_module("src.classes.qrave_map_layer", {"ProjectTreeData": MagicMock(), "QRaveMapLayer": MagicMock(), "QRaveTreeTypes": MagicMock()})
-mock_module("src.classes.settings", {"CONSTANTS": {"DE_API_URL": "http://test"}, "Settings": MagicMock()})
+mock_module(
+    "src.classes.qrave_map_layer",
+    {"ProjectTreeData": MagicMock(), "QRaveMapLayer": MagicMock(), "QRaveTreeTypes": MagicMock()},
+)
+mock_module(
+    "src.classes.settings", {"CONSTANTS": {"DE_API_URL": "http://test"}, "Settings": MagicMock()}
+)
+
+from src.classes.remote_project import RemoteProject
 
 
 class TestRemoteProject(unittest.TestCase):
     def setUp(self):
-        self.gql_data = {"project": {"id": "test-id", "name": "Test Project", "bounds": {"bbox": [0, 0, 1, 1]}}}
+        self.gql_data = {
+            "project": {"id": "test-id", "name": "Test Project", "bounds": {"bbox": [0, 0, 1, 1]}}
+        }
         self.project = RemoteProject(self.gql_data)
 
     def test_has_bounds_layer(self):

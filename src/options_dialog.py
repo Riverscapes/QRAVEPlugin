@@ -58,6 +58,7 @@ class OptionsDialog(QDialog):
         if role == DLGBTN_ROLE_APPLY:
             self.settings.setValue("basemapsInclude", self.basemapsInclude.isChecked())
             self.settings.setValue("loadDefaultView", self.loadDefaultView.isChecked())
+            self.settings.setValue("telemetryEnabled", self.chk_telemetry.isChecked())
             self.settings.setValue("basemapRegion", self.basemapRegion.currentText())
             self.settings.setValue("autoUpdate", self.autoUpdate.isChecked())
             self.settings.setValue("localBLFolder", self.txtBL.text())
