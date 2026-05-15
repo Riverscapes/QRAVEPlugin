@@ -58,6 +58,16 @@ class RemoteProject:
         bbox = self.bounds.get("bbox")
         return bool(bbox and len(bbox) >= 4)
 
+    @property
+    def has_bounds_layer(self) -> bool:
+        """Remote projects have no local bounds GeoJSON file"""
+        return False
+
+    @property
+    def bounds_path(self) -> None:
+        """Remote projects have no local bounds GeoJSON file path"""
+        return None
+
     def _extract_meta(self, meta_list: list[dict]) -> dict:
         meta = {}
         if meta_list is None:
