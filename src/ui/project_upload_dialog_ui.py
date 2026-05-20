@@ -238,6 +238,7 @@ class Ui_Dialog(object):
         self.errorMoreBtn = QtWidgets.QToolButton()
         self.errorMoreBtn.setText("More")
         self.errorMoreBtn.setToolTip("Copy error to clipboard")
+        self.errorLayout.addWidget(self.errorMoreBtn)
         self.verticalLayoutMain.addLayout(self.errorLayout)
 
         # =====================================================================
