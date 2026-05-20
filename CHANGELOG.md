@@ -1,3 +1,42 @@
+## 2.0.0 ***(May 20, 2026)***
+
+The major feature of 2.0 is support for QGIS 4.0 which runs on Qt6 and Python 3.12. In addition to the necessary changes for QGIS 4.0, this release also includes a number of new features and bug fixes to improve the overall user experience.
+
+### Added
+- Recent Projects Menu with separate local and remote entries #199
+- Add Project Bounds to Map #233
+- Downloader now fetches `project.rs.xml` first for faster project availability #236
+- Placeholder empty node for projects that failed to load #48
+- Icons in Recent Projects menu to distinguish local vs. remote projects
+- Dark mode capable software feature icons
+- `Desktop.ini` ignored by uploader by default #241
+
+### Fixed
+- Five Windows-specific bugs from issue #245:
+  - Broken/missing project path dialog now deferred so it no longer blocks QGIS project load
+  - Expand/Collapse All now scopes correctly to the selected project instead of all projects
+  - Metadata URLs are now clickable (replaced `QTextEdit` with `QTextBrowser`)
+  - Telemetry opt-out checkbox no longer resets to checked on every open
+  - Remote projects no longer appear as blank entries in the Recent Projects menu
+- `RemoteProject` missing `has_bounds_layer` / `bounds_path` attributes causing right-click crash #246
+- Port conflict check added to fix startup issue #235
+- Upload dialog refreshes correctly after a failure #230
+- Floating error button on project upload failure
+- Better error message when a remote project cannot be found
+- Context menu on broken/invalid project nodes
+- Bug when closing an invalid project
+- Remote recent project failing to reopen
+- Expanding NAIP plus basemap crashes QGIS #105
+- Repeater not respecting `collapsed` attribute #188
+- Layer addition bug after project reload
+- Remote layers now distinguished with a suffix #219
+- Pagination of files updated to match DEX API changes
+
+### Changed
+- Telemetry improvements and more robust event tracking
+- Code cleanup and upgraded linting across the codebase
+- Various compatibility fixes from cross-platform testing
+
 ## 1.1.1 ***(January 23, 2026)***
 
 ### Added
