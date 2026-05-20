@@ -704,8 +704,6 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
 
     def close_all(self) -> None:
         projects = list(self._get_projects())
-        if len(projects) == 0:
-            return
 
         for project in reversed(projects):
             try:
@@ -713,6 +711,21 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             except Exception as e:
                 self.settings.log(f"Error closing project: {e}", Qgis.Warning)
 
+        # Remove any PROJECT_LOAD_ERROR nodes directly from the model —
+        # _get_projects() skips them so close_project never touches them.
+        root = self.model.invisibleRootItem()
+        rows_to_remove = []
+        for row in range(root.rowCount()):
+            child = root.child(row)
+            if child is not None:
+                item_data = child.data(USER_ROLE)
+                if item_data and getattr(item_data, "type", None) == QRaveTreeTypes.PROJECT_LOAD_ERROR:
+                    rows_to_remove.append(row)
+        for row in reversed(rows_to_remove):
+            root.removeRow(row)
+
+        # Clear any remaining settings entries so error nodes don't reappear.
+        self.set_project_settings([])
         QTimer.singleShot(0, self.reload_tree)
 
     def close_project(self, project: Project, reload_tree: bool = True) -> None:
@@ -1236,31 +1249,36 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
         if project_path and not project_path.startswith("remote:"):
             menu.addAction(
                 "BROWSE_PROJECT_FOLDER",
-                lambda p=project_path: self.file_system_locate(p),
+                lambda checked=False, p=project_path: self.file_system_locate(p),
             )
         menu.addSeparator()
         menu.addAction(
             "CLOSE_PROJECT",
-            lambda p=project_path: self._close_error_project(p),
+            lambda checked=False, i=item, p=project_path: self._close_error_project(i, p),
         )
 
-    def _close_error_project(self, project_path: str | None) -> None:
-        """Remove a failed-load project from settings by its file path."""
+    def _close_error_project(self, item: QStandardItem, project_path: str | None) -> None:
+        """Remove a broken project node from the tree and clean up settings."""
+        # Step 1: remove the item from the model directly — use indexFromItem so
+        # we avoid Python-identity (`is`) comparisons which fail with PyQt wrappers.
+        idx = self.model.indexFromItem(item)
+        if idx.isValid():
+            self.model.removeRow(idx.row(), idx.parent())
+
+        # Step 2: best-effort removal from persisted settings so the entry does
+        # not reappear on the next QGIS session load.
         if not project_path:
-            self.settings.log("Cannot close error project: path is unknown", Qgis.Warning)
+            self.settings.log("Close error project: no path available — removed from tree only", Qgis.Warning)
             return
         try:
             qrave_projects = self.get_project_settings()
+            norm_target = os.path.normcase(os.path.abspath(project_path))
+            filtered = [(n, b, x) for n, b, x in qrave_projects if x.startswith("remote:") or os.path.normcase(os.path.abspath(x)) != norm_target]
+            if len(filtered) == len(qrave_projects):
+                self.settings.log(f"Close error project: '{project_path}' not found in settings — removed from tree only", Qgis.Warning)
+            self.set_project_settings(filtered)
         except Exception as e:
-            self.settings.log(f"Error closing error project: {e}", Qgis.Warning)
-            qrave_projects = []
-
-        # Match by normalised absolute path so relative vs absolute differences
-        # don't cause the project to linger in settings.
-        abs_target = os.path.abspath(project_path)
-        qrave_projects = [(name, basename, xml) for name, basename, xml in qrave_projects if xml.startswith("remote:") or os.path.abspath(xml) != abs_target]
-        self.set_project_settings(qrave_projects)
-        QTimer.singleShot(0, self.reload_tree)
+            self.settings.log(f"Close error project: could not update settings ({e}) — removed from tree only", Qgis.Warning)
 
     # Project-level context menu
     def project_context_menu(self, menu: ContextMenu, idx: QModelIndex, item: QStandardItem, data: ProjectTreeData) -> None:
