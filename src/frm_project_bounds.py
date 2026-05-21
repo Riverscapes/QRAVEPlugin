@@ -1,6 +1,6 @@
 import json
+import xml.etree.ElementTree as ET
 
-from lxml import etree as ET
 from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
@@ -126,9 +126,11 @@ class FrmProjectBounds(QtWidgets.QDialog):
             path_elem = ET.SubElement(project_bounds, "Path")
             path_elem.text = "project_bounds.geojson"
 
-        # lxml's tostring supports pretty_print natively and is not vulnerable
-        # to XXE or XML-bomb attacks (defused by default in lxml).
-        pretty_xml_str = ET.tostring(project_bounds, pretty_print=True, encoding="unicode")
+        # ET.indent() (stdlib, Python 3.9+) pretty-prints in-place.
+        # We avoid xml.dom.minidom (XXE/XML-bomb risk) and lxml (libxml2 DLL
+        # conflict with QGIS's own libxml2.dll on Windows).
+        ET.indent(project_bounds, space="  ")
+        pretty_xml_str = ET.tostring(project_bounds, encoding="unicode", method="xml")
 
         return pretty_xml_str
 
