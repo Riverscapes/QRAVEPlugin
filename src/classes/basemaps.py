@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import urllib.parse
-import xml.etree.ElementTree as ET
 
 import lxml.etree
 from qgis.core import Qgis, QgsApplication, QgsTask
@@ -173,8 +172,8 @@ class QRaveBaseMap:
             else:
                 payload = result.encode("utf-8", errors="ignore")
             try:
-                return ET.fromstring(payload.decode("utf-8", errors="replace"))
-            except ET.ParseError as exc:
+                return lxml.etree.fromstring(payload)
+            except lxml.etree.XMLSyntaxError as exc:
                 preview = payload.decode("utf-8", errors="ignore")[:400]
                 raise ValueError(f"WMS capabilities from {self.layer_url} are not valid XML: {exc}. Preview: {preview}")
 

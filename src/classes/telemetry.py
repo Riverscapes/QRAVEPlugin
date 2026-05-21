@@ -9,6 +9,7 @@ import json
 import os
 import platform
 from threading import Thread
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 import uuid
 
@@ -89,6 +90,11 @@ class Telemetry:
                         "event": event,
                     }
                 ).encode("utf-8")
+
+                parsed = urlparse(endpoint)
+                if parsed.scheme not in ("http", "https"):
+                    settings.log(f'Telemetry: rejected endpoint with disallowed scheme "{parsed.scheme}".', Qgis.Warning)
+                    return
 
                 req = Request(
                     endpoint,

@@ -512,7 +512,7 @@ class DataExchangeAPI(QObject):
                 download_url = ret_obj["downloadUrl"]
                 try:
                     with open(local_path, "wb") as f:
-                        f.write(requests.get(download_url).content)
+                        f.write(requests.get(download_url, timeout=30).content)
                 except Exception as e:
                     self.log(f"Error downloading file: {local_path}", Qgis.Critical)
                     self.log(f"Error: {e}", Qgis.Critical)

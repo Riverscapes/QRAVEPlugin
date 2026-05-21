@@ -33,7 +33,7 @@ class DownloadFileTask(QgsTask):
             # Ensure directory exists
             os.makedirs(os.path.dirname(self.abs_path), exist_ok=True)
 
-            response = requests.get(self.download_url, stream=True)
+            response = requests.get(self.download_url, stream=True, timeout=60)
             response.raise_for_status()
 
             downloaded = 0

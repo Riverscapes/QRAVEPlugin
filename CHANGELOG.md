@@ -1,3 +1,15 @@
+## 2.0.1 ***(May 20, 2026)***
+
+### Security
+
+This is a security hotfix to address several Bandit-reported issues in the codebase. The following changes were made:
+
+- Replaced `xml.etree.ElementTree.fromstring` with `lxml.etree.fromstring` for parsing remote WMS capabilities XML. `lxml` disables external entity resolution by default, preventing XXE injection attacks. Resolves Bandit B314.
+- Added `timeout=30` to `requests.get` call in `DataExchangeAPI` file download. Resolves Bandit B113.
+- Added `timeout=60` to streaming `requests.get` call in `Downloader`. Resolves Bandit B113.
+- Added URL scheme validation in `Telemetry` before calling `urlopen` — only `http` and `https` schemes are permitted, preventing use of `file://` or custom schemes. Resolves Bandit B310.
+- `hashlib.md5()` in file integrity / ETag calculation now passes `usedforsecurity=False` to explicitly indicate non-cryptographic use and satisfy FIPS-mode Python environments. Resolves Bandit B324.
+
 ## 2.0.0 ***(May 20, 2026)***
 
 The major feature of 2.0 is support for QGIS 4.0 which runs on Qt6 and Python 3.12. In addition to the necessary changes for QGIS 4.0, this release also includes a number of new features and bug fixes to improve the overall user experience.
