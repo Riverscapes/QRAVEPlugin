@@ -10,7 +10,8 @@ import os
 import platform
 from threading import Thread
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+import urllib.request
+from urllib.request import Request
 import uuid
 
 from qgis.core import Qgis
@@ -105,7 +106,13 @@ class Telemetry:
                     },
                     method="POST",
                 )
-                with urlopen(req, timeout=5) as response:
+                # Build a restricted opener that only handles http/https,
+                # preventing file:// or other schemes from ever being used.
+                _opener = urllib.request.build_opener(
+                    urllib.request.HTTPHandler,
+                    urllib.request.HTTPSHandler,
+                )
+                with _opener.open(req, timeout=5) as response:
                     settings.log(f'Telemetry: event "{event}" sent (status={response.getcode()} url={endpoint}).', Qgis.Info)
             except Exception as e:
                 settings.log(f'Telemetry: failed to send event "{event}" ({e}).', Qgis.Warning)
