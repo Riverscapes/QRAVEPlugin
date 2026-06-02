@@ -1,3 +1,8 @@
+## 2.0.3 ***(June 2, 2026)***
+
+### Fixed
+- Bug preventing telemetry files from being included in the plugin deployment.
+
 ## 2.0.1 ***(May 20, 2026)***
 
 ### Security
