@@ -21,8 +21,15 @@ from .settings import Settings
 
 
 class Telemetry:
-    def __init__(self, app_name: str):
+    def __init__(self, app_name: str, version: str | None = None):
+        """Initialize the Telemetry client.
+
+        Args:
+            app_name (str): The name of the application.
+            version (str | None, optional): The version of the application. Defaults to the Riverscapes Viewer plugin version.
+        """
         self.app_name = app_name.replace(" ", "_")
+        self.version = version if version is not None else __version__
         self.settings = Settings()
 
     def _load_secrets(self) -> tuple[str | None, str | None]:
@@ -53,15 +60,18 @@ class Telemetry:
             self.settings.setValue("telemetryClientId", client_id)
         return client_id
 
-    def send(self, event: str) -> None:
-        """
-        Send a telemetry ping in a background thread.
-        Failures are logged but never raised — telemetry must never break the app.
+    def send(self, event: str, use_telemetry: bool | None = None) -> None:
+        """Send a telemetry event in a background thread.
+
+        Args:
+            event (str): The name of the event to send.
+            use_telemetry (bool | None, optional): Whether to use telemetry. This should come from the settings of the app making the call. Defaults to None.
         """
 
         app_name = self.app_name
         client_id = self.get_client_id()
-        use_telemetry = self.settings.getValue("telemetryEnabled")
+
+        use_telemetry = self.settings.getValue("telemetryEnabled") if use_telemetry is None else use_telemetry
         endpoint, token = self._load_secrets()
 
         if use_telemetry is not True:
@@ -85,7 +95,7 @@ class Telemetry:
                 payload = json.dumps(
                     {
                         "app_name": app_name,
-                        "app_version": __version__,
+                        "app_version": self.version,
                         "os_platform": platform.system().lower(),
                         "client_id": client_id,
                         "event": event,
