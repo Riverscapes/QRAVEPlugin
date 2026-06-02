@@ -95,8 +95,8 @@ def yesno(msg):
 
 
 if __name__ == "__main__":
-    print('Did the UI compile and you forgot to run "pb_tool compile" (y/N)')
-    yesno('run "pb_tool compile" and then try again')
+    # print('Did the UI compile and you forgot to run "pb_tool compile" (y/N)')
+    # yesno('run "pb_tool compile" and then try again')
 
     if "QGIS_PLUGINS" not in os.environ:
         raise Exception("QGIS_PLUGINS is not set. You should set it in your .bashrc or .zshrc file to something like .../QGIS/QGIS3/profiles/user/python/plugins")
@@ -110,6 +110,14 @@ if __name__ == "__main__":
 
     print(f"Current version is: {version}. Is this ok? (y/N)")
     yesno("Go change the __version__.py file and come back")
+
+    # check if secrets.json file exists in the plugin root. If not, warn the user but allow them to continue with deployment.
+    secrets_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "secrets.json"))
+    if not os.path.isfile(secrets_file):
+        print("Warning: secrets.json file not found in plugin root. Telemetry will be disabled. Is this ok? (y/N)")
+        yesno("Go add a secrets.json file with telemetry config and come back")
+    else:
+        print("secrets.json file found.")
 
     deployfolder = copy_plugin(plugin_dir)
 

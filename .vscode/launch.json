@@ -15,6 +15,14 @@
       "justMyCode": true
     },
     {
+        "name": "📦 Deploy",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/scripts/deploy.py",
+        "cwd": "${workspaceFolder}",
+        "console": "integratedTerminal",
+    },
+    {
       "name": "Python: Current File",
       "type": "debugpy",
       "request": "launch",

@@ -8,7 +8,7 @@ qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 
 description=Explore symbolized Riverscapes projects
-version=1.1.1
+version=0.0.0dev
 author=North Arrow Research
 email=info@northarrowresearch.com
 
@@ -47,4 +47,3 @@ Category of the plugin: Raster, Vector, Database or Web
 
 # If the plugin can run on QGIS Server.
 server=False
-
