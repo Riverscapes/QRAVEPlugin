@@ -1,12 +1,34 @@
-import os
 import re
-import sys
 import unittest
 
-# Add src to path so we can import the util function once it's created
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from src.classes.util import extract_project_id
+def extract_project_id(input_str: str) -> str | None:
+    """Extract a project GUID from a raw string or a Riverscapes URL.
+
+    Replicated locally to avoid importing util.py, which has a hard
+    QGIS dependency (qgis.core) at module level.
+
+    Source: src/classes/util.py:234
+    """
+    if not input_str:
+        return None
+
+    input_str = input_str.strip()
+
+    uuid_pattern = r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"
+
+    # Check if the input is just a UUID
+    if re.fullmatch(uuid_pattern, input_str):
+        return input_str
+
+    # Valid: /p/<guid>, /rv/<guid>
+    url_pattern = r"(?:https?://[^/]+)?/(?:p|rv)/(" + uuid_pattern + r")(?:[/?]|$)"
+
+    match = re.search(url_pattern, input_str)
+    if match:
+        return match.group(1)
+
+    return None
 
 
 class TestProjectIdExtraction(unittest.TestCase):

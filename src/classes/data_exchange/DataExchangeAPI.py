@@ -351,7 +351,7 @@ class DataExchangeAPI(QObject):
 
         return self.api.run_query(
             self._load_query("validateProject"),
-            {"xml": xml_str, "owner": asdict(owner_obj), "files": files.get_rel_paths()},
+            {"xml": xml_str, "owner": asdict(owner_obj) if owner_obj is not None else None, "files": files.get_rel_paths()},
             _validate_project,
         )
 

@@ -6,6 +6,8 @@ from typing import Any, ClassVar
 
 from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsSettings
 
+from .borg import Borg
+
 try:
     with open(os.path.join(os.path.dirname(__file__), "..", "..", "config.json")) as cfg_file:
         cfg_json = json.load(cfg_file)
@@ -30,9 +32,6 @@ CONSTANTS = cfg_json["constants"]
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS["logCategory"]
 AUTH_CONFIG_NAME = "RiverscapesDataExchangeToken"
-
-
-from .borg import Borg
 
 
 class SettingsBorg(Borg):
