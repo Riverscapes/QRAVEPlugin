@@ -196,7 +196,7 @@ class UploadMultiPartFileTask(QgsTask):
             finally:
                 # Always disconnect handle_cancelled to prevent connections accumulating
                 # across retries and chunks.  Without this, every retry adds another
-                # closure to self.cancelled, so a cancel signal would fire N×retries
+                # closure to self.cancelled, so a cancel signal would fire N retries
                 # handler calls, each calling self.reply.abort() on the live reply.
                 if handle_cancelled_fn is not None:
                     try:
@@ -421,7 +421,7 @@ class UploadQueue(QObject):
         # event loop with its own tasks_need_cancel counter that might never be reached,
         # leaving QGIS processing events indefinitely (the "infinite dialogs" scenario).
         if self._cancelling:
-            self.queue_logger("cancel_all called while already cancelling – ignoring", Qgis.Warning)
+            self.queue_logger("cancel_all called while already cancelling - ignoring", Qgis.Warning)
             return
         self._cancelling = True
 
