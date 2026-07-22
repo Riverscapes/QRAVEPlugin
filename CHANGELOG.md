@@ -1,3 +1,8 @@
+## 2.0.5 ***(July 22, 2026)***
+
+### Fixed
+- Fix a bug where existing projects can't be updated #254
+
 ## 2.0.3 ***(June 2, 2026)***
 
 ### Fixed
