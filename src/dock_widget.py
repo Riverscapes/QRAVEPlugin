@@ -201,9 +201,17 @@ class QRAVEDockWidget(QDockWidget, Ui_QRAVEDockWidgetBase):
             project.load()
 
             if project is not None and project.exists and project.qproject is not None and project.loadable:
-                project.qproject.setText(project_name)
+                # Use the project name as read from project.rs.xml via _recurse_tree.
+                # This ensures that if the Name element changed on disk since the
+                # project was first opened, the tree shows the current name
+                # instead of the potentially stale saved project_name (Issue #183).
+                fresh_name = project.qproject.text()
                 self.model.appendRow(project.qproject)
-                if project_name in expanded_paths_by_project:
+                # Try expanded-state lookup with the fresh name; fall back to the
+                # saved name (which may be stale if the user renamed the project).
+                if fresh_name in expanded_paths_by_project:
+                    self.restore_expanded_state(self.model.indexFromItem(project.qproject), expanded_paths_by_project[fresh_name], "")
+                elif project_name in expanded_paths_by_project:
                     self.restore_expanded_state(self.model.indexFromItem(project.qproject), expanded_paths_by_project[project_name], "")
                 else:
                     self.expand_children_recursive(self.model.indexFromItem(project.qproject))

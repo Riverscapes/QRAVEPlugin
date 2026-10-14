@@ -295,13 +295,34 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         ########################################################################
 
         if self.flow_state not in [ProjectUploadDialogStateFlow.UPLOADING]:
-            self.progressBar.setValue(0)
+            # Keep the progress bar visible at its last value for terminal/completion
+            # states (WAITING_FOR_COMPLETION keeps 100% from handle_uploads_complete;
+            # COMPLETED keeps 100% as the final state) — Issue #258
+            if self.flow_state not in [
+                ProjectUploadDialogStateFlow.WAITING_FOR_COMPLETION,
+                ProjectUploadDialogStateFlow.COMPLETED,
+            ]:
+                self.progressBar.setValue(0)
             self.progressSubLabel.setText("...")
             self.progressBar.setEnabled(False)
             self.progressSubLabel.setEnabled(False)
         else:
             self.progressBar.setEnabled(True)
             self.progressSubLabel.setEnabled(True)
+
+        # Update the Step 3 header label based on current flow state (Issue #258)
+        if self.stackedWidget.currentIndex() == 2:
+            if self.flow_state == ProjectUploadDialogStateFlow.COMPLETED:
+                self.lblStep3.setText("Step 3: Upload Complete")
+            elif self.flow_state == ProjectUploadDialogStateFlow.WAITING_FOR_COMPLETION:
+                self.lblStep3.setText("Step 3: Upload Status")
+            elif self.flow_state in [
+                ProjectUploadDialogStateFlow.CANCELLED,
+                ProjectUploadDialogStateFlow.ERROR,
+            ]:
+                self.lblStep3.setText("Step 3: Upload Aborted")
+            else:
+                self.lblStep3.setText("Step 3: Uploading...")
 
         # We only show the "View in Data Exchange" button if we're sure the upload has succeeded
         self.openWebProjectBtn.setEnabled(self.flow_state in [ProjectUploadDialogStateFlow.COMPLETED])
@@ -471,6 +492,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             self.upload_log("Could not log in to the data exchange API", Qgis.Critical, task)
             if isinstance(task.error, GraphQLAPIPortError):
                 port = task.error.port
+                # Show a concise inline error in the login status area (Issue #259)
+                self.loginStatusValue.setText(
+                    f"<span style='color:#c0392b; font-weight:bold;'>"
+                    f"Login Failed: Port {port} is blocked or unavailable</span>"
+                )
                 self.error = ProjectUploadDialogError(
                     f"Port {port} is blocked or unavailable",
                     f"The OAuth authentication callback requires port {port} to be accessible on "
@@ -484,6 +510,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                     f"  \u2022 Check if another application is using port {port} and close it",
                 )
             else:
+                # Show the actual error inline, matching the downloader's pattern (Issue #259)
+                error_msg = str(task.error) if task.error else "Unknown error"
+                self.loginStatusValue.setText(
+                    f"<span style='color:#c0392b; font-weight:bold;'>"
+                    f"Login Failed: {error_msg}</span>"
+                )
                 self.error = ProjectUploadDialogError("Could not log in to the data exchange API", task.error)
         else:
             self.upload_log("  - SUCCESS: Logged in to the data exchange API", Qgis.Info)
@@ -1010,6 +1042,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         if project is None:
             self.upload_log("  - ERROR: Could not fetch existing project", Qgis.Critical, task)
             self.error = ProjectUploadDialogError("Could not fetch existing project", task.error)
+            # Transition to USER_ACTION so the form doesn't hang.
+            # The user can still re-try or upload as new (Issue #257).
+            self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
             self.existing_project = None
         elif project and project.deleted:
             # This is a limited case that only exists between when the user actually deletes the project and when the system
@@ -1023,6 +1058,11 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 "Project has been deleted remotely",
                 "The project has been deleted from the warehouse. You can still upload it as a new project if you want.",
             )
+            # Transition to USER_ACTION so the form controls re-enable
+            # (otherwise the form stays in FETCHING_CONTEXT and appears to hang).
+            # The modify/update radio button will auto-disable because
+            # existing_project is None above (Issue #257).
+            self.flow_state = ProjectUploadDialogStateFlow.USER_ACTION
             self.existing_project = None
         else:
             self.upload_log(
@@ -1245,8 +1285,14 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 self.flow_state = ProjectUploadDialogStateFlow.REQUESTING_UPLOAD
             else:
                 self.upload_log("  - ERROR: Project is not valid", Qgis.Critical, task)
-                detail_text = [f"[{err.severity}][{err.code}] {err.message}" for err in validation_obj.errors]
-                self.error = ProjectUploadDialogError("Project is not valid", detail_text)
+                # Surface the first validation error inline so the user knows what
+                # to fix without clicking "More..." (Issue #227)
+                first_error = validation_obj.errors[0]
+                summary = f"Validation Error: {first_error.message}"
+                detail_text = "\n".join(
+                    [f"[{err.severity}][{err.code}] {err.message}" for err in validation_obj.errors]
+                )
+                self.error = ProjectUploadDialogError(summary, detail_text)
                 self.flow_state = ProjectUploadDialogStateFlow.ERROR
 
         self.recalc_state()

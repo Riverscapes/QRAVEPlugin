@@ -1,3 +1,12 @@
+## 2.0.7 ***(unreleased)***
+
+### Fixed
+- Uploader now shows login errors inline in the login status area instead of hiding them behind the "More..." button, matching the downloader's pattern #259
+- Upload status no longer resets the progress bar to 0% after upload completes; the Step 3 header label now reflects the current state (Uploading / Upload Status / Upload Complete) #258
+- Uploader no longer hangs when the Data Exchange project has been deleted; it transitions to a usable state where the user can upload as a new project #257
+- Upload validation errors now show the first error message in the summary instead of a generic "Project is not valid" #227
+- Project tree now uses the current name from project.rs.xml when reloading, so name changes on disk are reflected without restarting QGIS #183
+
 ## 2.0.6 ***(October 14, 2026)***
 
 ### Added
