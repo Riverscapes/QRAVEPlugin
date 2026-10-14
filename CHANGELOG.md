@@ -1,3 +1,14 @@
+## 2.0.6 ***(October 14, 2026)***
+
+### Added
+- Server-side OAuth callback polling for Data Exchange authentication. Instead of requiring a local HTTP server on port 4721 to receive the Auth0 callback, the browser now redirects to the Data Exchange server, which parks the authorization code in DynamoDB keyed by a nonce. The plugin polls `<base>/auth/poll/<nonce>` until the code appears. This resolves authentication failures for users behind corporate firewalls, proxies, or VPNs that block loopback ports.
+
+### Changed
+- `GraphQLAPI._refresh_token()` now uses server-side callback via nonce-based polling (`_poll_for_auth_code`) instead of starting a local `ThreadingHTTPServer` (`_wait_for_auth_code` removed).
+- Nonce generated via `secrets.token_urlsafe(32)` for server-side format compliance (base64url charset only).
+- Removed unused imports: `BaseHTTPRequestHandler`, `ThreadingHTTPServer`, `socket`, `QUrlQuery`, `traceback`.
+- `GraphQLAPIPortError` class retained for backwards compatibility.
+
 ## 2.0.5 ***(July 22, 2026)***
 
 ### Fixed

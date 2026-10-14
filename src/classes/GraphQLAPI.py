@@ -2,19 +2,18 @@ from __future__ import annotations
 
 import base64
 import hashlib
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import logging
 import os
-import socket
+import re
+import secrets
 import threading
 import time
-import traceback
 from typing import Any, Callable
 from urllib.parse import urlencode, urlparse, urlunparse
 
 from qgis.core import Qgis, QgsApplication, QgsMessageLog, QgsTask
-from qgis.PyQt.QtCore import QObject, QUrl, QUrlQuery, pyqtSignal
+from qgis.PyQt.QtCore import QObject, QUrl, pyqtSignal
 from qgis.PyQt.QtGui import QDesktopServices
 import requests
 
@@ -30,6 +29,32 @@ MAX_RETRIES = 5
 
 # BASE is the name we want to use inside the settings keys
 MESSAGE_CATEGORY = CONSTANTS["logCategory"]
+
+# Nonce format enforced by the server-side OAuth callback (see rs-web-monorepo
+# docs/oauth-callback-flow.md): base64url charset, 16-128 chars.
+NONCE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
+
+
+def generate_nonce() -> str:
+    """Generate an unguessable nonce keying the server-side OAuth callback.
+
+    The nonce is embedded in the ``redirect_uri`` handed to Auth0 so the parked
+    authorization code can be matched back to this client. It must match the
+    server-side validation ``^[A-Za-z0-9_-]{16,128}$`` (base64url charset, no
+    padding) -- ``secrets.token_urlsafe`` already produces that shape; the check
+    below enforces the contract defensively. (``self._generate_random`` is NOT
+    suitable here: its charset includes ``.`` and ``~``, which the server rejects.)
+
+    Returns:
+        str: a fresh nonce (32 random bytes, base64url-encoded).
+
+    Raises:
+        GraphQLAPIError: if the generated nonce fails the server-side regex.
+    """
+    nonce = secrets.token_urlsafe(32)
+    if not NONCE_PATTERN.match(nonce):
+        raise GraphQLAPIError(f"Generated nonce does not match the server-side format: {nonce!r}")
+    return nonce
 
 
 class GraphQLAPIError(Exception):
@@ -47,8 +72,12 @@ class GraphQLAPIError(Exception):
         return f"GraphQLAPIError: {self.message}"
 
 
+# Kept for backwards compatibility: project_upload_dialog.py imports and handles
+# this error even though the localhost callback port is no longer used by the
+# OAuth flow (the callback now goes to the Data Exchange server and the client
+# polls for the parked authorization code).
 class GraphQLAPIPortError(GraphQLAPIError):
-    """Raised when the OAuth callback port is unavailable (blocked or already in use).
+    """Legacy error raised when the OAuth callback port was unavailable (blocked or already in use).
 
     Attributes:
         port -- the port number that could not be bound
@@ -344,8 +373,17 @@ class GraphQLAPI(QObject):
             code_verifier = self._generate_random(128)
             code_challenge = self._generate_challenge(code_verifier)
             state = self._generate_random(32)
+            # Unguessable nonce keying the server-side callback. Corporate
+            # firewalls/proxies block localhost redirects, so Auth0 now redirects
+            # the browser to the Data Exchange server, which parks the
+            # authorization code keyed by this nonce; we then poll for it. The
+            # code is useless without the PKCE verifier, which never leaves this
+            # machine. (Server-side nonce validation: ^[A-Za-z0-9_-]{16,128}$.)
+            nonce = generate_nonce()
 
-            redirect_url = f"http://localhost:{self.config.port}/rscli/"
+            # Server-side callback endpoint (replaces the old localhost redirect):
+            # <apiUrl>/auth/callback?nonce=<nonce> (self.uri may carry a /staging suffix)
+            redirect_url = f"{self.uri.rstrip('/')}/auth/callback?nonce={nonce}"
             login_url = urlparse(f"https://{self.config.domain}/authorize")
             query_params = {
                 "client_id": self.config.clientId,
@@ -366,7 +404,10 @@ class GraphQLAPI(QObject):
             auth_url = QUrl(urlunparse(login_url))
             self.open_browser_signal.emit(auth_url)
 
-            auth_code = self._wait_for_auth_code()
+            # Poll the Data Exchange server until the authorization code is
+            # parked for our nonce (blocks this background task thread; the Node
+            # CLI does exactly the same).
+            auth_code = self._poll_for_auth_code(nonce)
             authentication_url = f"https://{self.config.domain}/oauth/token"
 
             data = {
@@ -374,6 +415,9 @@ class GraphQLAPI(QObject):
                 "client_id": self.config.clientId,
                 "code_verifier": code_verifier,
                 "code": auth_code,
+                # Must EXACTLY match the redirect_uri used in the authorize
+                # request (including the ?nonce=... query parameter) -- Auth0
+                # validates this on the token exchange.
                 "redirect_uri": redirect_url,
             }
 
@@ -397,161 +441,68 @@ class GraphQLAPI(QObject):
             self.stateChange.emit()
             return self
 
-    def _wait_for_auth_code(self) -> str:
-        """Wait for the auth code to come back from the server using a simple HTTP server
+    def _poll_for_auth_code(self, nonce: str) -> str:
+        """Poll the server-side OAuth callback endpoint for the authorization code.
 
-        Raises:
-            Exception: _description_
+        The browser is redirected to the Data Exchange server (never localhost, so
+        corporate firewalls/proxies cannot break the flow), which parks the code
+        in DynamoDB keyed by the nonce. We poll ``<base>/auth/poll/<nonce>`` every
+        2 seconds until the code (or an error) shows up, or a 5-minute deadline
+        passes. This mirrors the Node CLI's ``GQLApi._pollForAuthCode`` (see
+        rs-web-monorepo docs/oauth-callback-flow.md).
+
+        Args:
+            nonce: the unguessable nonce embedded in the authorize redirect_uri.
 
         Returns:
-            _type_: _description_
+            the parked authorization code, ready for the token exchange.
+
+        Raises:
+            GraphQLAPIError: if the server reports an auth error (e.g. the user
+                denied consent) or the 5-minute deadline passes before the code
+                appears.
         """
+        logger = logging.getLogger(__name__)
+        poll_url = f"{self.uri.rstrip('/')}/auth/poll/{nonce}"
+        interval = 2  # seconds between polls (matches the Node CLI)
+        deadline = time.time() + 5 * 60  # give the user ~5 minutes to log in
+        iteration = 0
+        self.log(f"Waiting for browser authentication. Polling {poll_url}")
 
-        class AuthHandler(BaseHTTPRequestHandler):
-            """_summary_
-
-            Args:
-                BaseHTTPRequestHandler (_type_): _description_
-            """
-
-            def __init__(self, config, logger, *args, **kwargs):
-                self.config = config
-                self.logger = logger
-                super().__init__(*args, **kwargs)
-
-            def log_message(self, format, *args):
-                """Log an arbitrary message.
-
-                This is used by all other logging functions.  Override
-                it if you have specific logging wishes.
-
-                The first argument, FORMAT, is a format string for the
-                message to be logged.  If the format string contains
-                any % escapes requiring parameters, they should be
-                specified as subsequent arguments (it's just like
-                printf!).
-
-                The client ip and current date/time are prefixed to
-                every message.
-
-                Unicode control characters are replaced with escaped hex
-                before writing the output to stderr.
-
-                """
-                message = format % args
-                self.logger(f"{self.address_string()} - - [{self.log_date_time_string()}] {message}", Qgis.Info)
-
-            def do_GET(self):
-                """Do all the server stuff here"""
-                url = QUrl(self.path)
-                query = QUrlQuery(url.query())
-                # Now get the items as a key-value dictionary
-                self.server.query_resp = {k: v for k, v in query.queryItems()}
-                success = "code" in self.server.query_resp and "error" not in self.server.query_resp
-
-                success_html_body = f"""
-                    <html>
-                        <head>
-                            <title>GraphQL API: Authentication successful</title>
-                            <script>
-                                window.onload = function() {{
-                                    window.location.replace('{self.config.success_url}?code=ASDASD778587587JHKLJKHKJH88689');
-                                }}
-                            </script>
-                        </head>
-                        <body>
-                            <p>GraphQL API: Authentication successful. Redirecting....</p>
-                        </body>
-                    </html>
-                """
-                failed_html_body = f"""
-                    <html>
-                        <head>
-                            <title>GraphQL API: Authentication failed</title>
-                        </head>
-                        <body>
-                            <p>GraphQL API: Authentication failed. Please try again.</p>
-                            <code>{json.dumps(self.server.query_resp, indent=4, sort_keys=True)}</code>
-                        </body>
-                    </html>
-                """
-
-                # Make sure the connection is still open
-                if not self.wfile.closed:
-                    try:
-                        self.send_response(200)
-                        self.send_header("Content-type", "text/html")
-                        self.end_headers()
-                        if success:
-                            # self.logger(f"AUTH     SUCCESS: {self.path}", Qgis.Info)
-                            self.wfile.write(success_html_body.encode())
-                        else:
-                            # self.logger(f"AUTH     FAILED: {self.path}", Qgis.Warning)
-                            self.wfile.write(failed_html_body.encode())
-
-                    except Exception as e:
-                        self.logger(f"LOGIN ERROR: {e}", Qgis.Warning)
-                        # Drop a stacktrace too
-                        self.logger(f"LOGIN ERROR STACKTRACE: {traceback.format_exc()}", Qgis.Warning)
-                else:
-                    self.logger("Connection Closed. Killing the server", Qgis.Warning)
-                # Now regardless of the result shut down the server and return
-                try:
-                    self.server.shutdown()
-                    self.server.server_close()
-                except Exception as e:
-                    self.logger(f"Failed to shut down server: {e}", Qgis.Warning)
-
-        # Check that the port is available before attempting to start the server.
-        # This provides an early, actionable error when a corporate firewall or
-        # another process has the port blocked/in use.
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _probe:
+        while time.time() < deadline:
+            response = None
             try:
-                _probe.bind(("127.0.0.1", self.config.port))
-            except OSError:
-                raise GraphQLAPIPortError(self.config.port)
+                # 404 means the code is not parked yet; 5xx/network errors are
+                # transient -- keep polling in both cases (mirrors the Node CLI).
+                response = requests.get(poll_url, timeout=10)
+            except requests.RequestException as exc:
+                logger.debug("Auth poll request failed; retrying: %s", exc)
 
-        try:
-            server = ThreadingHTTPServer(
-                ("localhost", self.config.port),
-                lambda *args, **kwargs: AuthHandler(self.config, self.log, *args, **kwargs),
-            )
-        except OSError:
-            raise GraphQLAPIPortError(self.config.port)
+            if response is not None:
+                status = response.status_code
+                if status == 200:
+                    try:
+                        body = response.json()
+                    except ValueError as exc:
+                        logger.debug("Auth poll returned a non-JSON body; retrying: %s", exc)
+                        body = None
+                    if body is not None:
+                        if "error" in body:
+                            raise GraphQLAPIError(f"Browser authentication failed: {body['error']}")
+                        if "code" in body:
+                            self.log("Authorization code received. Exchanging for access token...")
+                            return body["code"]
+                elif status != 404:
+                    # 4xx/5xx other than 404 are transient -- keep polling
+                    logger.debug("Auth poll returned status %s; retrying", status)
 
-        # Keep the server running until it is manually stopped
-        try:
-            self.log("Starting server to wait for auth code...")
-            server_thread = threading.Thread(target=server.serve_forever)
-            server_thread.start()
+            iteration += 1
+            # Don't spam the QGIS message log every 2s -- report progress about once a minute
+            if iteration % 30 == 0:
+                self.log(f"Still waiting for browser authentication... ({iteration * interval}s elapsed)")
+            time.sleep(interval)
 
-            start_time = time.time()
-
-            # Loop for up to 120 seconds
-            counter = 0
-            while time.time() - start_time < 120:
-                # If the server thread is still running, shut it down
-                # self.log(f"Waiting for auth code...")
-                if not server_thread.is_alive():
-                    break
-                counter += 1
-                self.log(f"Waiting for auth code... {counter}", Qgis.Info)
-                time.sleep(2)
-
-        except KeyboardInterrupt:
-            pass
-
-        auth_code = None
-        if not hasattr(server, "query_resp"):
-            raise GraphQLAPIError("Authentication failed with unknown return")
-        else:
-            query_resp = server.query_resp
-            if "error" in query_resp or "code" not in query_resp:
-                raise GraphQLAPIError(f"Authentication failed: {json.dumps(query_resp, indent=4, sort_keys=True)}")
-
-            auth_code = query_resp["code"]
-
-        return auth_code
+        raise GraphQLAPIError("Timed out waiting for browser authentication. Please try again.")
 
     def run_query(self, query: str, variables: dict[str, Any], callback: Callable[[RunGQLQueryTask], None]) -> RunGQLQueryTask:
         """Run a query asynchronously against the GraphQL API
