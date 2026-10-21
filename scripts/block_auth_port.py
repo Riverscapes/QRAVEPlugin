@@ -46,7 +46,7 @@ def main() -> None:
     print("   Press Ctrl+C to release the port and restore normal behaviour.\n")
 
     # Handle Ctrl+C cleanly so the terminal doesn't show a traceback
-    def _handle_sigint(sig, frame):  # noqa: ANN001
+    def _handle_sigint(sig, frame):
         print(f"\n✓  Released port {port}. Normal authentication should work again.")
         sock.close()
         sys.exit(0)

@@ -22,6 +22,7 @@ after every test so that one test cannot pollute the next.
 
 import os
 import sys
+from typing import ClassVar
 import unittest
 
 # Add src/classes directly so we can import borg without triggering
@@ -263,8 +264,8 @@ class TestBorgGuardPattern(unittest.TestCase):
                     self.count = 0  # only runs once
                 self.count += 1  # runs every time
 
-        c1 = _Counter()
-        c2 = _Counter()
+        _c1 = _Counter()
+        _c2 = _Counter()
         c3 = _Counter()
         # guard fires once (count init'd to 0), then += 1 runs three times → 3
         self.assertEqual(c3.count, 3)
@@ -335,7 +336,7 @@ class TestBorgSubclasses(unittest.TestCase):
 
     def test_subclass_constructor_kwargs_immediately_shared(self):
         """Attributes set during subclass __init__ are immediately in shared state."""
-        a1 = _SubA(name="Alice", score=100)
+        _a1 = _SubA(name="Alice", score=100)
         a2 = _SubA()
         self.assertEqual(a2.name, "Alice")
         self.assertEqual(a2.score, 100)
@@ -366,7 +367,7 @@ class TestBorgIsolatedSubclass(unittest.TestCase):
         """A subclass with its own _shared_state is independent of Borg._shared_state."""
 
         class _Isolated(Borg):
-            _shared_state = {}  # own dict — not Borg's
+            _shared_state: ClassVar[dict] = {}  # own dict — not Borg's
 
             def __init__(self):
                 Borg.__init__(self)
@@ -381,7 +382,7 @@ class TestBorgIsolatedSubclass(unittest.TestCase):
         """Instances of the isolated subclass still share with *each other*."""
 
         class _Isolated(Borg):
-            _shared_state = {}
+            _shared_state: ClassVar[dict] = {}
 
             def __init__(self):
                 Borg.__init__(self)
@@ -396,13 +397,13 @@ class TestBorgIsolatedSubclass(unittest.TestCase):
         """Two different subclasses with their own _shared_state don't share."""
 
         class _IsoX(Borg):
-            _shared_state = {}
+            _shared_state: ClassVar[dict] = {}
 
             def __init__(self):
                 Borg.__init__(self)
 
         class _IsoY(Borg):
-            _shared_state = {}
+            _shared_state: ClassVar[dict] = {}
 
             def __init__(self):
                 Borg.__init__(self)

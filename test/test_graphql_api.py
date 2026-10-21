@@ -153,7 +153,7 @@ unittest.addModuleCleanup(_restore_qgis_modules)
 
 # The module under test. Its full import chain (src/__init__, src.classes.settings,
 # src.compat) touches qgis too -- all resolved through the stubs above.
-from src.classes.GraphQLAPI import GraphQLAPI, GraphQLAPIError, generate_nonce  # noqa: E402, I001
+from src.classes.GraphQLAPI import GraphQLAPI, GraphQLAPIError, generate_nonce  # noqa: I001
 
 
 # ---------------------------------------------------------------------------

@@ -57,6 +57,11 @@ def generate_nonce() -> str:
     return nonce
 
 
+def _never_cancelled() -> bool:
+    """Default ``cancel_check``: never treats the caller as cancelled."""
+    return False
+
+
 class GraphQLAPIError(Exception):
     """Exception raised for errors in the GraphQLAPI.
 
@@ -91,10 +96,7 @@ class GraphQLAPIPortError(GraphQLAPIError):
 
     def __init__(self, port: int) -> None:
         self.port = port
-        super().__init__(
-            f"Port {port} is unavailable for the authentication callback. "
-            "[Legacy error — the OAuth flow no longer uses a localhost port.]"
-        )
+        super().__init__(f"Port {port} is unavailable for the authentication callback. [Legacy error — the OAuth flow no longer uses a localhost port.]")
 
     def __str__(self) -> str:
         return f"GraphQLAPIPortError: {self.message}"
@@ -364,7 +366,7 @@ class GraphQLAPI(QObject):
             GraphQLAPIError: on auth failure, timeout, or cancellation.
         """
         if cancel_check is None:
-            cancel_check = lambda: False
+            cancel_check = _never_cancelled
         self.log(f"Authenticating on GraphQL API: {self.uri}")
         if self._auth_lock.locked():
             self.log("   Authentication already in progress. Waiting for lock...")
@@ -494,9 +496,7 @@ class GraphQLAPI(QObject):
             # Honour QGIS task cancellation so the user can abort a stuck auth
             # attempt instead of waiting the full 5-minute deadline.
             if cancel_check():
-                raise GraphQLAPIError(
-                    "Browser authentication cancelled by user."
-                )
+                raise GraphQLAPIError("Browser authentication cancelled by user.")
 
             response = None
             try:

@@ -55,8 +55,9 @@ ignore = [
 # Auto-generated Qt Designer output — do not lint naming or import order
 "src/ui/*.py" = ["N", "I", "E", "W", "UP", "B"]
 
-# Test suite — allow assert statements and relative imports
-"test/*.py" = ["S101", "F401"]
+# Test suite — allow assert statements and relative imports, and imports that
+# must follow the qgis mock_module() setup at the top of the file (E402)
+"test/*.py" = ["S101", "F401", "E402"]
 
 # The QGIS plugin loader requires the package directory to be named after the
 # plugin (e.g. QRAVEPlugin) which violates PEP 8 module naming — suppress N999.

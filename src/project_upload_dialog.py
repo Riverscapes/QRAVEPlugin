@@ -495,10 +495,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
             # the current server-side callback flow; all auth failures arrive as
             # GraphQLAPIError with a descriptive message.
             error_msg = str(task.error) if task.error else "Unknown error"
-            self.loginStatusValue.setText(
-                f"<span style='color:#c0392b; font-weight:bold;'>"
-                f"Login Failed: {error_msg}</span>"
-            )
+            self.loginStatusValue.setText(f"<span style='color:#c0392b; font-weight:bold;'>Login Failed: {error_msg}</span>")
             self.error = ProjectUploadDialogError("Could not log in to the data exchange API", task.error)
         else:
             self.upload_log("  - SUCCESS: Logged in to the data exchange API", Qgis.Info)
@@ -1272,9 +1269,7 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 # to fix without clicking "More..." (Issue #227)
                 first_error = validation_obj.errors[0]
                 summary = f"Validation Error: {first_error.message}"
-                detail_text = "\n".join(
-                    [f"[{err.severity}][{err.code}] {err.message}" for err in validation_obj.errors]
-                )
+                detail_text = "\n".join([f"[{err.severity}][{err.code}] {err.message}" for err in validation_obj.errors])
                 self.error = ProjectUploadDialogError(summary, detail_text)
                 self.flow_state = ProjectUploadDialogStateFlow.ERROR
 

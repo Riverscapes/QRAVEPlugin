@@ -31,18 +31,14 @@ mock_module(
     "src.classes.qrave_map_layer",
     {"ProjectTreeData": MagicMock(), "QRaveMapLayer": MagicMock(), "QRaveTreeTypes": MagicMock()},
 )
-mock_module(
-    "src.classes.settings", {"CONSTANTS": {"DE_API_URL": "http://test"}, "Settings": MagicMock()}
-)
+mock_module("src.classes.settings", {"CONSTANTS": {"DE_API_URL": "http://test"}, "Settings": MagicMock()})
 
 from src.classes.remote_project import RemoteProject
 
 
 class TestRemoteProject(unittest.TestCase):
     def setUp(self):
-        self.gql_data = {
-            "project": {"id": "test-id", "name": "Test Project", "bounds": {"bbox": [0, 0, 1, 1]}}
-        }
+        self.gql_data = {"project": {"id": "test-id", "name": "Test Project", "bounds": {"bbox": [0, 0, 1, 1]}}}
         self.project = RemoteProject(self.gql_data)
 
     def test_has_bounds_layer(self):
