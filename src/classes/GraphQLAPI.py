@@ -74,7 +74,7 @@ class GraphQLAPIError(Exception):
         super().__init__(self.message)
 
     def __str__(self) -> str:
-        return f"GraphQLAPIError: {self.message}"
+        return self.message
 
 
 # Kept for backwards compatibility: project_upload_dialog.py previously imported and
@@ -147,8 +147,14 @@ class RunGQLQueryTask(QgsTask):
                     # Log the error to the console
                     for err in resp_json["errors"]:
                         self.api.log(f"GraphQL Error: {err['message']}", Qgis.Critical)
+                    self.api.log(
+                        f"Full response: {json.dumps(resp_json, indent=4, sort_keys=True)}",
+                        Qgis.Critical,
+                    )
 
-                    raise GraphQLAPIError(f"Query failed to run by returning code of {request.status_code}. ERRORS: {json.dumps(resp_json, indent=4, sort_keys=True)}")
+                    # Use just the user-friendly GraphQL error message(s), not the raw JSON
+                    err_msgs = [err["message"] for err in resp_json["errors"]]
+                    raise GraphQLAPIError("; ".join(err_msgs))
                 else:
                     self.response = request.json()
                     self.success = True
@@ -374,6 +380,15 @@ class GraphQLAPI(QObject):
         with self._auth_lock:
             if self.token_timeout:
                 self.token_timeout.cancel()
+
+            # When forcing a fresh login (e.g. the Reset button), clear the
+            # shared in-memory token so the user can sign in as a different
+            # Auth0 account.  This must happen before the shared-token check
+            # below, otherwise the force flag has no effect.
+            if force:
+                GraphQLAPI._shared_access_token = None
+                GraphQLAPI._shared_token_expires = None
+                self.access_token = None
 
             # On development there's no reason to actually go get a token
             if self.dev_headers and len(self.dev_headers) > 0:

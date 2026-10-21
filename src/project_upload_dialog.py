@@ -428,15 +428,30 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         self.queue.reset()
 
     def handle_login_reset(self) -> None:
-        """This is the "reset" button at the top fo the form"""
+        """This is the "reset" button at the top of the form
+
+        Clears the current Auth0 session and kicks off a fresh browser-based
+        login so the user can sign in as a different account.
+        """
         self.upload_log("Resetting the upload form...\n\n\n", Qgis.Info)
-        # First reset the opload state completely
+        # Reset upload-specific state (progress, queue, etc.)
         self.reset_upload_state()
-        # Now log in using the data exchange API
+        # Clear the profile and existing project so stale info isn't shown
+        # while the new browser auth is pending.
+        self.profile = None
+        self.existing_project = None
+        self.flow_state = ProjectUploadDialogStateFlow.LOGGING_IN
+        self.loginStatusValue.setText("Logging in... (check your browser)")
+        # Clear any previous error
+        self.error = None
+        # Now force a new login from the Data Exchange API.
+        # The force=True flag in GraphQLAPI._refresh_token clears the shared
+        # in-memory token so the user must authenticate with Auth0 again.
         self.dataExchangeAPI.login()
         # Re-verify the MD5 checksums for all local files
         self.upload_log("Checking for files to upload...", Qgis.Info)
         self.upload_digest.scan_local_files(self.project_xml.project_dir, self.project_xml.project_type)
+        self.recalc_state()
 
     def calculate_end_time(self) -> tuple:
         """Calculate the estimated end time of the upload"""
@@ -641,7 +656,9 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                     self.orgSelect.setCurrentIndex(first_usable_idx)
         else:
             self.upload_log("  - No organizations found in the user profile.", Qgis.Warning)
-            self.orgSelect.addItem("No Organizations", None)
+            no_org_item = QStandardItem("No Organizations")
+            self.OrgModel.appendRow(no_org_item)
+            self.orgSelect.setModel(self.OrgModel)
 
         # If there's no project to look up we can go straight to the user action state
         if self.warehouse_id is None:
@@ -666,10 +683,12 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """
         # Get the current item's data
         if index > -1:
-            item_data = self.OrgModel.item(index).data(USER_ROLE)
-            if item_data is not None:
-                self.settings.log(f"Selected organization ID: {item_data}", Qgis.Info)
-                self.org_id = item_data
+            item = self.OrgModel.item(index)
+            if item is not None:
+                item_data = item.data(USER_ROLE)
+                if item_data is not None:
+                    self.settings.log(f"Selected organization ID: {item_data}", Qgis.Info)
+                    self.org_id = item_data
 
     def recalc_local_ops(self) -> int:
         """_summary_"""
@@ -1485,7 +1504,16 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
                 Qgis.Critical,
                 task,
             )
-            self.error = ProjectUploadDialogError("Upload failed", "The upload failed. Check the logs to see the reason")
+            # Surface the server-side error messages directly in the error dialog
+            # instead of the generic "check the logs" message (Issue #227).
+            errs = job_status_obj.get("errors", [])
+            if errs:
+                summary = f"Upload failed: {errs[0]}"
+                detail = "\n".join(errs)
+            else:
+                summary = "Upload failed"
+                detail = "The upload failed. Check the logs to see the reason."
+            self.error = ProjectUploadDialogError(summary, detail)
             self.flow_state = ProjectUploadDialogStateFlow.ERROR
 
         # Success case
