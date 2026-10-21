@@ -6,6 +6,7 @@
 - Uploader no longer hangs when the Data Exchange project has been deleted; it transitions to a usable state where the user can upload as a new project #257
 - Upload validation errors now show the first error message in the summary instead of a generic "Project is not valid" #227
 - Project tree now uses the current name from project.rs.xml when reloading, so name changes on disk are reflected without restarting QGIS #183
+- Fixed a startup crash (JSONDecodeError "Expecting value: line 1 column 1") when `resources/index.json` was left empty by an interrupted download. Resource downloads are now written atomically (temp file + `os.replace`), so a failed or interrupted download can never truncate the destination; a corrupt/empty digest is reset and re-downloaded on the next startup instead of crashing the sync
 
 ## 2.0.6 ***(October 14, 2026)***
 

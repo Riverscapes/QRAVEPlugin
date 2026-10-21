@@ -89,14 +89,35 @@ class NetSync(QgsTask):
         # Now get the JSON file
         json_url = CONSTANTS["resourcesUrl"] + "index.json"
         QgsMessageLog.logMessage(f"Requesting digest from: {json_url}", MESSAGE_CATEGORY, level=Qgis.Info)
-        requestDownload(json_url, self.digest_path)
+        if not requestDownload(json_url, self.digest_path):
+            # The atomic write guarantees the existing digest is still intact, so
+            # falling back to the stale copy keeps the plugin usable offline.
+            QgsMessageLog.logMessage(f"Digest download failed; using existing digest at {self.digest_path} (if any)", MESSAGE_CATEGORY, level=Qgis.Warning)
+
+        # Guard against a corrupt digest left behind by an interrupted write from
+        # an older plugin version. A corrupted digest must never crash the sync;
+        # delete it so the next startup re-downloads a clean copy.
+        if os.path.isfile(self.digest_path):
+            try:
+                with open(self.digest_path) as fl:
+                    json.load(fl)
+            except (json.JSONDecodeError, OSError) as e:
+                os.remove(self.digest_path)
+                QgsMessageLog.logMessage(f"Corrupt digest removed ({e}). It will be re-downloaded on the next startup.", MESSAGE_CATEGORY, level=Qgis.Warning)
 
     def _syncFiles(self) -> None:
         if not os.path.isfile(self.digest_path):
             raise Exception(f"Digest file could not be found at: {self.digest_path}")
 
-        with open(self.digest_path) as fl:
-            digest = json.load(fl)
+        try:
+            with open(self.digest_path) as fl:
+                digest = json.load(fl)
+        except (json.JSONDecodeError, OSError) as e:
+            # Corruption here means a pre-atomic-write interruption left a bad
+            # digest on disk. Reset it and surface a clear, actionable error
+            # instead of a raw JSONDecodeError crash; the next startup re-downloads.
+            os.remove(self.digest_path)
+            raise Exception(f"Riverscapes resource digest was corrupt ({e}) and has been reset. It will be re-downloaded on the next startup.")
 
         symbologies = {x: v for x, v in digest.items() if x.startswith("Symbology/qgis") and x.endswith(".qml")}
         businesslogics = {x: v for x, v in digest.items() if x.startswith("RaveBusinessLogic") and x.endswith(".xml")}

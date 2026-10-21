@@ -69,34 +69,48 @@ def requestFetch(remote_url: str, expected_md5: str | None = None) -> bytes | bo
 
 
 def requestDownload(remote_url: str, local_path: str, expected_md5: str | None = None) -> bool:
-    """Request a file from a remote URL and save it to a local path. Optionally check the MD5 hash of the file.
+    """Download a file from a remote URL and save it to local_path.
+
+    The file is written ATOMICALLY: content is first written to a temporary
+    file in the same directory, then moved into place with ``os.replace``.
+    If the download, write, or MD5 verification fails, the destination file
+    is left untouched and ``False`` is returned — the destination can never
+    be left truncated/empty. This matters most for ``resources/index.json``,
+    which is read back on every startup.
 
     Args:
-        remote_url (str): _description_
-        local_path (str): _description_
-        expected_md5 (_type_, optional): _description_. Defaults to None.
-
-    Raises:
-        SystemExit: _description_
+        remote_url: URL to fetch.
+        local_path: destination path.
+        expected_md5: if given, the downloaded content must match this MD5
+            or the file will not be installed.
 
     Returns:
-        _type_: _description_
+        True if the file was downloaded, written, and (optionally) verified;
+        False otherwise. On failure the destination file is never modified.
     """
-    # Get a file and put it somewhere local
+    temp_path = f"{local_path}.tmp"
     try:
         resp = requests.get(url=remote_url, timeout=15, headers={"Cache-Control": "no-cache"})
         resp.raise_for_status()  # Raise an HTTPError for bad responses (4xx and 5xx)
         local_dir = os.path.dirname(local_path)  # Excludes file name
-        if not os.path.exists(local_dir):
+        if local_dir and not os.path.exists(local_dir):
             os.makedirs(local_dir)
-        with open(local_path, "wb") as lf:
+        # Stream to a temp file in the same directory, then atomically move it
+        # into place. os.replace is atomic on POSIX and Windows (same volume),
+        # so a reader can never observe a partially-written destination.
+        with open(temp_path, "wb") as lf:
             lf.write(resp.content)
+            lf.flush()
+            os.fsync(lf.fileno())
 
-        # Do an MD5 check if we need to
-        if os.path.isfile(local_path) and expected_md5 is not None and expected_md5 != md5(local_path):
-            os.remove(local_path)
+        # Do an MD5 check if we need to (against the temp file, so a mismatch
+        # never discards a previously-good destination file)
+        if expected_md5 is not None and expected_md5 != md5(temp_path):
             QgsMessageLog.logMessage(f"MD5 did not match expected for file: {remote_url}", MESSAGE_CATEGORY, level=Qgis.Warning)
             return False
+
+        os.replace(temp_path, local_path)
+        return True
 
     except requests.exceptions.Timeout:
         QgsMessageLog.logMessage(f"Fetching file timed out: {remote_url}", MESSAGE_CATEGORY, level=Qgis.Critical)
@@ -106,10 +120,19 @@ def requestDownload(remote_url: str, local_path: str, expected_md5: str | None =
         # Tell the user their URL was bad and try a different one
         QgsMessageLog.logMessage(f"Fetching file failed with too many redirects: {remote_url}", MESSAGE_CATEGORY, level=Qgis.Critical)
         return False
-    except requests.exceptions.RequestException:
-        QgsMessageLog.logMessage(f"Unknown error downloading file: {remote_url}", MESSAGE_CATEGORY, level=Qgis.Critical)
+    except requests.exceptions.RequestException as e:
+        QgsMessageLog.logMessage(f"Unknown error downloading file: {remote_url} | {e}", MESSAGE_CATEGORY, level=Qgis.Critical)
         return False
-    return True
+    except OSError as e:
+        QgsMessageLog.logMessage(f"Error writing file to disk: {local_path} | {e}", MESSAGE_CATEGORY, level=Qgis.Critical)
+        return False
+    finally:
+        # Never leave a half-written temp file behind
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
 
 
 def error_level_to_str(level: int) -> str:
