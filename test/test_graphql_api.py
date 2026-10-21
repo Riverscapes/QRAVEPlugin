@@ -58,6 +58,13 @@ class _Dummy:
     def __init__(self, *args, **kwargs):
         pass
 
+    def __or__(self, other):
+        """Qt enum flags support ``|`` (e.g. ``QgsTask.Flag.CanCancel | QgsTask.Flag.Silent``)."""
+        return self
+
+    def __ror__(self, other):
+        return self
+
     def __call__(self, *args, **kwargs):
         return _Dummy()
 
@@ -93,7 +100,24 @@ class QObject(_Dummy, metaclass=_DummyMeta):
 
 
 class QgsTask(_Dummy, metaclass=_DummyMeta):
-    """Stand-in base class for the QgsTask subclasses in the module under test."""
+    """Stand-in base class for the QgsTask subclasses in the module under test.
+
+    Mirrors the REAL QGIS API surface for cancellation: ``isCanceled()`` (US
+    spelling, single 'l' — ``isCancelled`` does NOT exist on QgsTask) and
+    ``cancel()``. The flag-backed implementation lets tests assert exact
+    ``is True`` / ``is False`` return values, so a regression to the wrong
+    method spelling fails loudly instead of being masked by ``_Dummy``.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._cancelled = False
+
+    def isCanceled(self) -> bool:
+        return self._cancelled
+
+    def cancel(self) -> None:
+        self._cancelled = True
 
 
 class _DummyModule(types.ModuleType):
@@ -153,7 +177,7 @@ unittest.addModuleCleanup(_restore_qgis_modules)
 
 # The module under test. Its full import chain (src/__init__, src.classes.settings,
 # src.compat) touches qgis too -- all resolved through the stubs above.
-from src.classes.GraphQLAPI import GraphQLAPI, GraphQLAPIError, generate_nonce  # noqa: I001
+from src.classes.GraphQLAPI import GraphQLAPI, GraphQLAPIError, RefreshTokenTask, generate_nonce  # noqa: I001
 
 
 # ---------------------------------------------------------------------------
@@ -373,6 +397,53 @@ class TestRefreshTokenFlow(unittest.TestCase):
         self.assertEqual(data["code"], "auth-code-xyz")
         self.assertEqual(len(data["code_verifier"]), 128)
         self.assertEqual(data["redirect_uri"], expected_redirect_uri)
+
+
+# ---------------------------------------------------------------------------
+# Task cancellation wiring (RefreshTokenTask / RunGQLQueryTask -> _refresh_token)
+# ---------------------------------------------------------------------------
+
+
+class TestTaskCancelWiring(unittest.TestCase):
+    """RefreshTokenTask must wire a ``cancel_check`` that calls the REAL QGIS
+    QgsTask API method ``isCanceled()`` (US spelling). A regression to the
+    non-existent ``isCancelled()`` raises AttributeError at runtime in QGIS —
+    exactly what the stub's exact ``is True`` / ``is False`` assertions catch."""
+
+    def _make_task_for(self, api):
+        return RefreshTokenTask(api)
+
+    def test_cancel_check_tracks_qgstask_cancel_state(self):
+        api = _make_api("https://api.data.riverscapes.net")
+        task = RefreshTokenTask(api)
+
+        with mock.patch.object(GraphQLAPI, "_refresh_token", return_value=api) as m:
+            result = task.run()
+
+        self.assertTrue(result)
+        self.assertEqual(m.call_count, 1)
+        cancel_check = m.call_args.kwargs["cancel_check"]
+
+        # Fresh task: not cancelled -> must be exactly False (bool, not a dummy)
+        self.assertIs(cancel_check(), False)
+
+        # After QGIS cancels the task -> must be exactly True
+        task.cancel()
+        self.assertIs(cancel_check(), True)
+
+    def test_poll_loop_aborts_on_cancel_check(self):
+        """_poll_for_auth_code exits with a clear error when the caller is cancelled."""
+        api = _make_api("https://api.data.riverscapes.net")
+
+        def cancel_check() -> bool:
+            return True  # caller already cancelled -> poll must abort immediately
+
+        with mock.patch("src.classes.GraphQLAPI.requests.get") as mock_get, mock.patch("src.classes.GraphQLAPI.time.sleep"), mock.patch("src.classes.GraphQLAPI.time.time", side_effect=[1000.0, 1000.5]):
+            with self.assertRaises(GraphQLAPIError) as ctx:
+                api._poll_for_auth_code(NONCE, cancel_check)
+        self.assertIn("cancelled by user", str(ctx.exception))
+        # The cancel check fires before any HTTP request is made
+        mock_get.assert_not_called()
 
 
 if __name__ == "__main__":

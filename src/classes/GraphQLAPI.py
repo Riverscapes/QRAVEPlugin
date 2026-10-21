@@ -133,7 +133,7 @@ class RunGQLQueryTask(QgsTask):
                         if retries < MAX_RETRIES:
                             self.api.log("Authentication timed out. Fetching new token...")
                             try:
-                                self.api._refresh_token(force=True, cancel_check=lambda: self.isCancelled())
+                                self.api._refresh_token(force=True, cancel_check=lambda: self.isCanceled())
                             except Exception as e:
                                 self.api.log(f"Failed to refresh token: {e}")
                                 return  # or handle the error in some other way
@@ -238,7 +238,7 @@ class RefreshTokenTask(QgsTask):
 
     def run(self) -> bool:
         try:
-            self.api._refresh_token(self.force, cancel_check=lambda: self.isCancelled())
+            self.api._refresh_token(self.force, cancel_check=lambda: self.isCanceled())
             self.success = True
             return True
         except Exception as e:
@@ -350,13 +350,13 @@ class GraphQLAPI(QObject):
 
         This method blocks the calling thread until the user authenticates in the
         browser or the 5-minute polling deadline passes. When called from a
-        QgsTask, the caller should pass ``cancel_check=lambda: self.isCancelled()``
+        QgsTask, the caller should pass ``cancel_check=lambda: self.isCanceled()``
         so the polling loop can exit early if the user cancels the task in QGIS.
 
         Args:
             force: if True, force a new token even if an existing one is still valid.
             cancel_check: optional callable returning True when the caller has been
-                cancelled (e.g. QgsTask.isCancelled()). The polling loop checks this
+                cancelled (e.g. QgsTask.isCanceled()). The polling loop checks this
                 on every iteration and raises GraphQLAPIError on cancellation.
 
         Returns:
@@ -475,7 +475,7 @@ class GraphQLAPI(QObject):
         Args:
             nonce: the unguessable nonce embedded in the authorize redirect_uri.
             cancel_check: callable returning True when the caller has been cancelled
-                (e.g. QgsTask.isCancelled()). The loop exits early on cancellation.
+                (e.g. QgsTask.isCanceled()). The loop exits early on cancellation.
 
         Returns:
             the parked authorization code, ready for the token exchange.
