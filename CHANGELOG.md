@@ -1,12 +1,22 @@
-## 2.0.7 ***(unreleased)***
+## 2.0.7 ***(October 21, 2026)***
 
 ### Fixed
 - Uploader now shows login errors inline in the login status area instead of hiding them behind the "More..." button, matching the downloader's pattern #259
 - Upload status no longer resets the progress bar to 0% after upload completes; the Step 3 header label now reflects the current state (Uploading / Upload Status / Upload Complete) #258
 - Uploader no longer hangs when the Data Exchange project has been deleted; it transitions to a usable state where the user can upload as a new project #257
 - Upload validation errors now show the first error message in the summary instead of a generic "Project is not valid" #227
-- Project tree now uses the current name from project.rs.xml when reloading, so name changes on disk are reflected without restarting QGIS #183
+- Upload failure dialog now surfaces the server-side error message(s) directly instead of a generic "check the logs" message #227
+- GraphQL errors now show concise, human-readable messages instead of a raw JSON response dump
+- Project tree now uses the current name from `project.rs.xml` when reloading, so name changes on disk are reflected without restarting QGIS #183
+- Fixed login failures during token refresh ("Error refreshing token") caused by an invalid `QgsTask` method name; the auth poll now also exits promptly when the user cancels
 - Fixed a startup crash (JSONDecodeError "Expecting value: line 1 column 1") when `resources/index.json` was left empty by an interrupted download. Resource downloads are now written atomically (temp file + `os.replace`), so a failed or interrupted download can never truncate the destination; a corrupt/empty digest is reset and re-downloaded on the next startup instead of crashing the sync
+
+### Changed
+- The upload form's Reset button now forces a genuinely fresh Auth0 login by clearing the shared session token, so you can sign in as a different account; stale profile/project info is cleared while the new login is pending
+- The organization dropdown now handles the "no organizations" case gracefully instead of showing an empty selection
+- Removed the legacy localhost-port auth error path — the server-side callback flow from 2.0.6 never raises it (the `GraphQLAPIPortError` class itself is retained for backwards compatibility)
+- The 5-minute server-side auth poll now checks task cancellation, so cancelling the operation aborts the poll immediately
+- Internal: full `ruff` lint + format pass across the codebase; test suite hardened with QgsTask cancellation-wiring tests and atomic-download tests
 
 ## 2.0.6 ***(October 14, 2026)***
 

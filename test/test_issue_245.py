@@ -59,6 +59,7 @@ qtwidgets = mock_module(
 pyqt.QtWidgets = qtwidgets
 mock_module("qgis.PyQt.QtGui")
 
+import src.classes.settings as settings_module  # bound at import time so mock.patch.object survives sys.modules replacement by other test modules
 from src.classes.settings import Settings
 
 
@@ -66,8 +67,10 @@ class TestBug4TelemetrySetting(unittest.TestCase):
     def test_telemetry_persistence(self):
         """Bug 4: Test that telemetry setting can be round-tripped."""
 
-        # We need to mock QgsSettings since Settings uses it
-        with unittest.mock.patch("src.classes.settings.QgsSettings") as MockQSettings:
+        # patch.object on the bound module, not the string name: other test
+        # modules (test_remote_project) replace sys.modules["src.classes.settings"]
+        # with a stub, so a string patch would target a different module object.
+        with unittest.mock.patch.object(settings_module, "QgsSettings") as MockQSettings:
             mock_settings_inst = MockQSettings.return_value
             storage = {}
 
@@ -98,7 +101,7 @@ class TestBug5RecentProjects(unittest.TestCase):
     def test_recent_projects_logic(self):
         """Bug 5: Test storing and retrieving remote projects with names."""
 
-        with unittest.mock.patch("src.classes.settings.QgsSettings") as MockQSettings:
+        with unittest.mock.patch.object(settings_module, "QgsSettings") as MockQSettings:
             mock_settings_inst = MockQSettings.return_value
             storage = {}
 

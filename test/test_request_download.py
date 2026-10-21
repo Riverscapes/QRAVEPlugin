@@ -85,6 +85,14 @@ def _restore():
 
 unittest.addModuleCleanup(_restore)
 
+# pytest caveat: an earlier-collected test module (test_remote_project.py)
+# permanently installs a stub of ``src.classes.settings`` in ``sys.modules``
+# whose CONSTANTS dict lacks ``logCategory``. Drop it (and any cached
+# ``util``) so the real modules load here; their imports only need the
+# qgis stubs above. Standalone runs are unaffected (nothing polluted yet).
+for _name in ("src.classes.settings", "src.classes.util"):
+    sys.modules.pop(_name, None)
+
 from src.classes.util import requestDownload
 
 
