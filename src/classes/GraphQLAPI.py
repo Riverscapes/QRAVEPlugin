@@ -72,20 +72,29 @@ class GraphQLAPIError(Exception):
         return f"GraphQLAPIError: {self.message}"
 
 
-# Kept for backwards compatibility: project_upload_dialog.py imports and handles
-# this error even though the localhost callback port is no longer used by the
-# OAuth flow (the callback now goes to the Data Exchange server and the client
-# polls for the parked authorization code).
+# Kept for backwards compatibility: project_upload_dialog.py previously imported and
+# handled this error, but the localhost callback port is no longer used by the OAuth
+# flow (the callback now goes to the Data Exchange server and the client polls for
+# the parked authorization code). This class is retained so that any external code
+# catching it does not break, but it is NEVER raised by the current codebase.
 class GraphQLAPIPortError(GraphQLAPIError):
-    """Legacy error raised when the OAuth callback port was unavailable (blocked or already in use).
+    """Legacy error kept for backwards compatibility — no longer raised.
+
+    The old OAuth flow attempted to bind a localhost port to receive the Auth0
+    callback. If that port was blocked, this error was raised. The callback now
+    goes to the Data Exchange server (server-side callback with nonce polling),
+    so this error is never raised by the current code.
 
     Attributes:
-        port -- the port number that could not be bound
+        port -- the port number that could not be bound (legacy)
     """
 
     def __init__(self, port: int) -> None:
         self.port = port
-        super().__init__(f"Port {port} is unavailable for the authentication callback. A corporate VPN or firewall may be blocking this port, or another application is already using port {port}.")
+        super().__init__(
+            f"Port {port} is unavailable for the authentication callback. "
+            "[Legacy error — the OAuth flow no longer uses a localhost port.]"
+        )
 
     def __str__(self) -> str:
         return f"GraphQLAPIPortError: {self.message}"
@@ -122,7 +131,7 @@ class RunGQLQueryTask(QgsTask):
                         if retries < MAX_RETRIES:
                             self.api.log("Authentication timed out. Fetching new token...")
                             try:
-                                self.api._refresh_token(force=True)
+                                self.api._refresh_token(force=True, cancel_check=lambda: self.isCancelled())
                             except Exception as e:
                                 self.api.log(f"Failed to refresh token: {e}")
                                 return  # or handle the error in some other way
@@ -189,7 +198,7 @@ class FetchJsonTask(QgsTask):
 
 
 class GraphQLAPIConfig:
-    def __init__(self, domain: str, audience: str, clientId: str, scope: str, port: int, success_url: str) -> None:
+    def __init__(self, domain: str, audience: str, clientId: str, scope: str, port: int | None = None, success_url: str = "") -> None:
         # Now do some checking
         if not domain:
             raise GraphQLAPIError("Domain is required")
@@ -199,15 +208,13 @@ class GraphQLAPIConfig:
             raise GraphQLAPIError("scope is required")
         if not audience:
             raise GraphQLAPIError("audience is required")
-        if not port or port < 1:
-            raise GraphQLAPIError("port is required")
         if not success_url:
             raise GraphQLAPIError("success_url is required")
 
         self.domain = domain
         self.clientId = clientId
         self.scope = scope
-        self.port = port
+        self.port = port  # vestigial — no longer used by the OAuth callback flow
         self.audience = audience
         self.success_url = success_url
 
@@ -229,7 +236,7 @@ class RefreshTokenTask(QgsTask):
 
     def run(self) -> bool:
         try:
-            self.api._refresh_token(self.force)
+            self.api._refresh_token(self.force, cancel_check=lambda: self.isCancelled())
             self.success = True
             return True
         except Exception as e:
@@ -336,16 +343,28 @@ class GraphQLAPI(QObject):
         QgsApplication.taskManager().addTask(task)
         return task
 
-    def _refresh_token(self, force: bool = False) -> GraphQLAPI:
-        """This is the actual code for refreshing the token. It is called by the RefreshTokenTask
-        so that it can be run asynchronously
+    def _refresh_token(self, force: bool = False, cancel_check: Callable[[], bool] | None = None) -> GraphQLAPI:
+        """Refresh the auth token — opens a browser and polls for the auth code.
 
-        Raises:
-            error: _description_
+        This method blocks the calling thread until the user authenticates in the
+        browser or the 5-minute polling deadline passes. When called from a
+        QgsTask, the caller should pass ``cancel_check=lambda: self.isCancelled()``
+        so the polling loop can exit early if the user cancels the task in QGIS.
+
+        Args:
+            force: if True, force a new token even if an existing one is still valid.
+            cancel_check: optional callable returning True when the caller has been
+                cancelled (e.g. QgsTask.isCancelled()). The polling loop checks this
+                on every iteration and raises GraphQLAPIError on cancellation.
 
         Returns:
-            _type_: _description_
+            self, with ``self.access_token`` populated.
+
+        Raises:
+            GraphQLAPIError: on auth failure, timeout, or cancellation.
         """
+        if cancel_check is None:
+            cancel_check = lambda: False
         self.log(f"Authenticating on GraphQL API: {self.uri}")
         if self._auth_lock.locked():
             self.log("   Authentication already in progress. Waiting for lock...")
@@ -407,7 +426,7 @@ class GraphQLAPI(QObject):
             # Poll the Data Exchange server until the authorization code is
             # parked for our nonce (blocks this background task thread; the Node
             # CLI does exactly the same).
-            auth_code = self._poll_for_auth_code(nonce)
+            auth_code = self._poll_for_auth_code(nonce, cancel_check)
             authentication_url = f"https://{self.config.domain}/oauth/token"
 
             data = {
@@ -441,7 +460,7 @@ class GraphQLAPI(QObject):
             self.stateChange.emit()
             return self
 
-    def _poll_for_auth_code(self, nonce: str) -> str:
+    def _poll_for_auth_code(self, nonce: str, cancel_check: Callable[[], bool] = lambda: False) -> str:
         """Poll the server-side OAuth callback endpoint for the authorization code.
 
         The browser is redirected to the Data Exchange server (never localhost, so
@@ -453,14 +472,16 @@ class GraphQLAPI(QObject):
 
         Args:
             nonce: the unguessable nonce embedded in the authorize redirect_uri.
+            cancel_check: callable returning True when the caller has been cancelled
+                (e.g. QgsTask.isCancelled()). The loop exits early on cancellation.
 
         Returns:
             the parked authorization code, ready for the token exchange.
 
         Raises:
             GraphQLAPIError: if the server reports an auth error (e.g. the user
-                denied consent) or the 5-minute deadline passes before the code
-                appears.
+                denied consent), the caller was cancelled, or the 5-minute deadline
+                passes before the code appears.
         """
         logger = logging.getLogger(__name__)
         poll_url = f"{self.uri.rstrip('/')}/auth/poll/{nonce}"
@@ -470,6 +491,13 @@ class GraphQLAPI(QObject):
         self.log(f"Waiting for browser authentication. Polling {poll_url}")
 
         while time.time() < deadline:
+            # Honour QGIS task cancellation so the user can abort a stuck auth
+            # attempt instead of waiting the full 5-minute deadline.
+            if cancel_check():
+                raise GraphQLAPIError(
+                    "Browser authentication cancelled by user."
+                )
+
             response = None
             try:
                 # 404 means the code is not parked yet; 5xx/network errors are

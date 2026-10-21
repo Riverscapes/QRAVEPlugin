@@ -20,7 +20,7 @@ from .classes.data_exchange.DataExchangeAPI import (
     UploadFileList,
 )
 from .classes.data_exchange.uploader import UploadMultiPartFileTask, UploadQueue
-from .classes.GraphQLAPI import GraphQLAPIPortError, RefreshTokenTask, RunGQLQueryTask
+from .classes.GraphQLAPI import RefreshTokenTask, RunGQLQueryTask
 from .classes.project import Project
 from .classes.settings import CONSTANTS, Settings
 from .classes.util import error_level_to_str, get_project_details_html, humane_bytes
@@ -490,33 +490,16 @@ class ProjectUploadDialog(QDialog, Ui_Dialog):
         """
         if not task.success:
             self.upload_log("Could not log in to the data exchange API", Qgis.Critical, task)
-            if isinstance(task.error, GraphQLAPIPortError):
-                port = task.error.port
-                # Show a concise inline error in the login status area (Issue #259)
-                self.loginStatusValue.setText(
-                    f"<span style='color:#c0392b; font-weight:bold;'>"
-                    f"Login Failed: Port {port} is blocked or unavailable</span>"
-                )
-                self.error = ProjectUploadDialogError(
-                    f"Port {port} is blocked or unavailable",
-                    f"The OAuth authentication callback requires port {port} to be accessible on "
-                    f"localhost, but it could not be opened.\n\n"
-                    "Possible causes:\n"
-                    f"  \u2022 A corporate VPN or firewall is blocking port {port}\n"
-                    f"  \u2022 Another application is already using port {port}\n\n"
-                    "What to do:\n"
-                    f"  \u2022 Contact your IT department to allow port {port} on localhost\n"
-                    "  \u2022 Try authenticating from a different network (e.g. without VPN)\n"
-                    f"  \u2022 Check if another application is using port {port} and close it",
-                )
-            else:
-                # Show the actual error inline, matching the downloader's pattern (Issue #259)
-                error_msg = str(task.error) if task.error else "Unknown error"
-                self.loginStatusValue.setText(
-                    f"<span style='color:#c0392b; font-weight:bold;'>"
-                    f"Login Failed: {error_msg}</span>"
-                )
-                self.error = ProjectUploadDialogError("Could not log in to the data exchange API", task.error)
+            # Show the error inline, matching the downloader's pattern (Issue #259).
+            # The old localhost-port error (GraphQLAPIPortError) is never raised by
+            # the current server-side callback flow; all auth failures arrive as
+            # GraphQLAPIError with a descriptive message.
+            error_msg = str(task.error) if task.error else "Unknown error"
+            self.loginStatusValue.setText(
+                f"<span style='color:#c0392b; font-weight:bold;'>"
+                f"Login Failed: {error_msg}</span>"
+            )
+            self.error = ProjectUploadDialogError("Could not log in to the data exchange API", task.error)
         else:
             self.upload_log("  - SUCCESS: Logged in to the data exchange API", Qgis.Info)
             self.upload_log("Fetching User profile...", Qgis.Info)
