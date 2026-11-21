@@ -19,6 +19,8 @@ _PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _ALIAS_TO_FILE: dict = {
     "BrowseFolder.png": "Images/folder.svg",
     "Help.png": "Images/help.svg",
+    "help.svg": "Images/help.svg",
+    "format-paint.svg": "Images/format-paint.svg",
     "NewProject.png": "Images/add.svg",
     "open.svg": "Images/open.svg",
     "Options.png": "Images/settings.svg",
@@ -59,9 +61,10 @@ _ALIAS_TO_FILE: dict = {
 def qrave_icon(alias: str) -> QIcon:
     """Return a ``QIcon`` for the given resource *alias*.
 
-    Tries the compiled Qt resource path first (QGIS 3 / PyQt5).  If the
-    resource system was not registered (QGIS 4 / PyQt6) the icon will be
-    null and we fall back to loading the file directly from disk.
+    Loads from the plugin's ``Images/`` folder when the file is there (it
+    always is in a normal install), otherwise falls back to the compiled Qt
+    resource path.  Trying disk first avoids Qt's SVG loader logging a warning
+    for every alias the compiled resources do not happen to register.
 
     Args:
         alias: The resource alias as declared in ``src/resources.qrc``,
@@ -71,14 +74,13 @@ def qrave_icon(alias: str) -> QIcon:
         A valid :class:`QIcon`, or an empty :class:`QIcon` if the file
         cannot be found by either method.
     """
-    icon = QIcon(f":/plugins/qrave_toolbar/{alias}")
-    if not icon.isNull():
-        return icon
-
-    # Qt resource not registered — load from the file system.
     rel_path = _ALIAS_TO_FILE.get(alias, alias)
     fs_path = os.path.join(_PLUGIN_ROOT, rel_path)
     if os.path.exists(fs_path):
         return QIcon(fs_path)
+
+    icon = QIcon(f":/plugins/qrave_toolbar/{alias}")
+    if not icon.isNull():
+        return icon
 
     return QIcon()

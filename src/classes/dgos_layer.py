@@ -48,6 +48,7 @@ from .dgos_filters import (
     CAPACITY_MIN,
     HIST_CAPACITY_FIELD,
     OWNERSHIP_VALUES,
+    STREAM_ORDER_FIELD,
     STREAM_ORDER_VALUES,
     quote_string,
 )
@@ -141,6 +142,17 @@ SYMBOLOGY_MODES = (
     SYMBOLOGY_HISTORIC_CAPACITY,
 )
 DEFAULT_SYMBOLOGY = SYMBOLOGY_SINGLE
+
+#: Built-in presets that paint one specific field, keyed by field name.  Used
+#: when a filter control asks to be symbolized and no business-logic QML covers
+#: the field.
+SYMBOLOGY_FIELD_PRESETS = {
+    CAPACITY_FIELD: SYMBOLOGY_EXISTING_CAPACITY,
+    HIST_CAPACITY_FIELD: SYMBOLOGY_HISTORIC_CAPACITY,
+    # The stream-order QML is rule-based (no renderer ``attr``), so the preset is
+    # what paints that field.
+    STREAM_ORDER_FIELD: SYMBOLOGY_STREAM_ORDER,
+}
 
 # Colours: (fill, line).  Polygon fills use ``fill`` + an outline in ``line``;
 # lines and points use ``line`` for their stroke/marker colour.

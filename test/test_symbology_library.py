@@ -76,6 +76,11 @@ class TestColours(unittest.TestCase):
     def test_expression_is_rejected(self):
         self.assertIsNone(sl._normalise_colour("@symbol_color"))
 
+    def test_category_value_is_carried(self):
+        style = sl.parse_qml(sl.find_qml("ownership_rme3_dgo"))
+        self.assertEqual(style.classes[1].value, "BLM")
+        self.assertIsNone(style.classes[-1].value)
+
     def test_darken(self):
         self.assertEqual(sl._darken("#ffffff", 0.5), "#7f7f7f")
 
@@ -101,6 +106,68 @@ class TestCategorizedQml(unittest.TestCase):
         self.assertEqual(self.style.legend, tuple((item.label, item.fill) for item in self.style.classes))
 
 
+class TestCategorizedItems(unittest.TestCase):
+    def test_ownership_labels_and_values(self):
+        items = sl.categorized_items("ownership_rme3")
+        self.assertEqual(len(items), 9)
+        self.assertEqual(items[0], ("Bureau of Indian Affairs", "BIA"))
+        self.assertEqual(items[1], ("Bureau of Land Management", "BLM"))
+        self.assertEqual(items[6], ("State", "ST"))
+        self.assertEqual(items[7], ("Private", "PVT"))
+        # QGIS's "Other" bucket has no value, so it filters on NULL/blank.
+        self.assertEqual(items[8], ("Other", None))
+
+    def test_point_and_polygon_variants_share_the_labels(self):
+        self.assertEqual(sl.categorized_items("ownership_rme3"), sl.categorized_items("ownership_rme3_dgo"))
+
+    def test_unknown_or_graduated_symbology_is_empty(self):
+        self.assertEqual(sl.categorized_items("definitely_not_a_qml_file"), ())
+        self.assertEqual(sl.categorized_items("brat_capacity_rme3"), ())
+
+
+class TestFieldMatchesAttribute(unittest.TestCase):
+    def test_exact_match(self):
+        self.assertTrue(sl.field_matches_attribute("splow", "splow"))
+
+    def test_known_aliases(self):
+        self.assertTrue(sl.field_matches_attribute("primary_channel_gradient", "prim_channel_gradient"))
+        self.assertTrue(sl.field_matches_attribute("road_den", "road_dens"))
+        self.assertTrue(sl.field_matches_attribute("floodplain_area", "active_floodplain_area"))
+
+    def test_unrelated_attributes(self):
+        self.assertFalse(sl.field_matches_attribute("splow", "sphigh"))
+        self.assertFalse(sl.field_matches_attribute("road_den", "rail_dens"))
+
+    def test_missing_values(self):
+        self.assertFalse(sl.field_matches_attribute("splow", None))
+        self.assertFalse(sl.field_matches_attribute("", "splow"))
+
+
+class TestLimitationLabels(unittest.TestCase):
+    def test_dock_list_matches_the_symbology(self):
+        """The Limitations filter must show the RME layer's own strings."""
+        import dgos_filters  # noqa: PLC0415 - same directory, stdlib only
+
+        self.assertEqual(sl.categorized_items("brat_limitation_rme3"), dgos_filters.LIMITATION_CLASSES)
+
+
+class TestRangedItems(unittest.TestCase):
+    def test_land_use_intensity_breaks(self):
+        items = sl.ranged_items("lui_rme3")
+        self.assertEqual(items, (("Low", 0.0, 33.0), ("Moderate", 33.0, 66.0), ("High", 66.0, 100.0)))
+
+    def test_breaks_match_the_filter_list(self):
+        """The dock's Low/Medium/High classes must use the symbology's breaks."""
+        import dgos_filters  # noqa: PLC0415 - same directory, stdlib only
+
+        qml_bounds = [(lower, upper) for _label, lower, upper in sl.ranged_items("lui_rme3")]
+        dock_bounds = [(lower, upper) for _label, lower, upper in dgos_filters.LAND_USE_INTENSITY_CLASSES]
+        self.assertEqual(qml_bounds, dock_bounds)
+
+    def test_categorized_symbology_has_no_ranges(self):
+        self.assertEqual(sl.ranged_items("ownership_rme3"), ())
+
+
 class TestGraduatedQml(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -115,6 +182,12 @@ class TestGraduatedQml(unittest.TestCase):
         for symbology_class in self.style.classes:
             self.assertIn('"brat_capacity" >=', symbology_class.filter_expression)
             self.assertRegex(symbology_class.fill, HEX_COLOUR)
+
+    def test_ranges_carry_their_bounds(self):
+        first = self.style.classes[0]
+        self.assertIsInstance(first.lower, float)
+        self.assertIsInstance(first.upper, float)
+        self.assertLess(first.lower, first.upper)
 
     def test_zero_width_ranges_are_dropped(self):
         for symbology_class in self.style.classes:

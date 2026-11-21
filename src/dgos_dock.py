@@ -7,8 +7,9 @@ authentication are shared, so the rest of the panel serves both.
 
 Below the picker is a tab control: **Filters** holds a :class:`QToolBox` whose
 pages group the filter controls by theme, **Symbology** holds the symbology
-picker and its legend, **Metrics** is reserved for future metrics, and **About**
-shows the where clause currently applied to the layer.
+picker and its legend, **Metrics** holds an empty :class:`QToolBox` with the
+same theme panels (ready for future metric widgets), and **About** shows the
+where clause currently applied to the layer.
 
 The symbology picker offers the built-in presets and then every point/polygon
 map layer the ``rs_metric_engine`` business logic defines.  Pick one and the
@@ -19,12 +20,14 @@ shows the QML's classes as a legend below the picker.
 ===============  =============================================================
 Filters panel    Controls
 ===============  =============================================================
-Anthropogenic     Ownership, US state
-Hydrology         Stream order, Stream Permanence
-Geomorphology     (reserved — no filters yet)
+Anthropogenic     Ownership, Land Use Intensity, US state
+Hydrology         Stream order, Stream Permanence, Level Path, HUC 10, High
+                  and Low Stream Power
+Geomorphology     Gradient, Valley Bottom Area, Floodplain Area
 Beaver            Existing and historic beaver capacity (opt-in checkbox,
-                  off by default), Risk
-Transportation    (reserved — no filters yet)
+                  off by default), Risk, Restoration or Conservation
+                  Opportunities, Limitations
+Transportation    Road Density, Rail Density
 ===============  =============================================================
 
 Every change immediately rebuilds the current layer's renderer with a fresh
@@ -32,12 +35,16 @@ filter expression.
 
 The two capacity controls are :class:`FloatFilterWidget` instances, so each
 one carries its own field name and an on/off checkbox that decides whether that
-field narrows the layer at all.
+field narrows the layer at all.  The categorical lists are
+:class:`ListFilterWidget` instances, which pair the label the user sees with the
+value the layer stores, and free-text fields use
+:class:`TextFilterWidget`.
 
-Above the toolbox sit **Clear filters** and **Copy filters**, plus **Previous**
-and **Next**, which walk a running history of the filter combinations the user
-has built up.  Every distinct change appends to the history; navigating sets
-the relevant controls back to that combination and refreshes the map.
+Above the toolbox sit **Clear filters** (whose label counts the filter inputs
+currently switched on) and **Copy filters**, plus **Previous** and **Next**,
+which walk a running history of the filter combinations the user has built up.
+Every distinct change appends to the history; navigating sets the relevant
+controls back to that combination and refreshes the map.
 """
 
 from __future__ import annotations
@@ -50,7 +57,6 @@ from qgis.PyQt.QtWidgets import (
     QApplication,
     QComboBox,
     QDockWidget,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -67,9 +73,26 @@ from .classes.dgos_filters import (
     CAPACITY_FIELD,
     CAPACITY_MAX,
     CAPACITY_MIN,
+    GEOMORPHOLOGY_RANGES,
     HIST_CAPACITY_FIELD,
+    HUC10_FIELD,
+    HYDROLOGY_RANGES,
+    LAND_USE_INTENSITY_CLASSES,
+    LAND_USE_INTENSITY_FIELD,
+    LEVEL_PATH_FIELD,
+    LEVEL_PATH_MAX_LENGTH,
+    LIMITATION_CLASSES,
+    LIMITATION_FIELD,
+    TRANSPORTATION_RANGES,
+    OPPORTUNITY_FIELD,
+    OPPORTUNITY_VALUES,
+    OWNERSHIP_FIELD,
     OWNERSHIP_VALUES,
+    PERMANENCE_FIELD,
+    RISK_FIELD,
     RISK_VALUES,
+    STATE_FIELD,
+    STREAM_ORDER_FIELD,
     STREAM_ORDER_VALUES,
     STREAM_PERMANENCE_VALUES,
     US_STATES,
@@ -80,6 +103,7 @@ from .classes.dgos_layer import (
     DATASETS,
     DEFAULT_DATASET,
     DEFAULT_SYMBOLOGY,
+    SYMBOLOGY_FIELD_PRESETS,
     SYMBOLOGY_MODES,
     apply_style,
     apply_symbology_style,
@@ -91,18 +115,31 @@ from .classes.dgos_layer import (
 from .classes.settings import Settings
 from .classes.symbology_library import (
     RME_PROJECT_TYPE,
+    categorized_items,
+    field_matches_attribute,
     load_symbology_entries,
     parse_qml,
 )
 from .compat import (
     FOCUS_POLICY_NONE,
     MSGBOX_ICON_WARNING,
-    QABSTRACTITEMVIEW_MULTI_SELECTION,
     QABSTRACTITEMVIEW_NO_SELECTION,
     TEXT_SELECTABLE_BY_MOUSE,
-    USER_ROLE,
 )
 from .float_filter_widget import FloatFilterWidget
+from .list_filter_widget import ListFilterWidget
+from .text_filter_widget import TextFilterWidget
+
+
+#: The theme panels both toolboxes show, in order: the Filters tab fills them
+#: with controls, the Metrics tab keeps them empty for now.
+PANEL_TITLES = (
+    "Anthropogenic",
+    "Hydrology",
+    "Geomorphology",
+    "Beaver",
+    "Transportation",
+)
 
 
 class _FilterSnapshot(NamedTuple):
@@ -114,12 +151,18 @@ class _FilterSnapshot(NamedTuple):
     """
 
     ownerships: tuple
+    land_use: tuple
     stream_orders: tuple
     permanence: tuple
     risks: tuple
+    opportunities: tuple
+    limitations: tuple
+    level_path: str
+    huc10: str
     states: tuple
     existing_capacity: tuple
     historic_capacity: tuple
+    page_ranges: tuple
 
 
 class DGOsDockWidget(QDockWidget):
@@ -173,7 +216,7 @@ class DGOsDockWidget(QDockWidget):
         # Buttons above the toolbox: reset every filter panel, or copy the
         # resulting where clause to the clipboard.
         button_row = QHBoxLayout()
-        self.clear_button = QPushButton("Clear filters")
+        self.clear_button = QPushButton("Clear filters (0)")
         self.clear_button.setToolTip("Reset every filter in this tab")
         button_row.addWidget(self.clear_button)
 
@@ -196,44 +239,83 @@ class DGOsDockWidget(QDockWidget):
         # Filter panels, grouped by theme and collapsible one at a time.
         self.toolbox = QToolBox()
         filters_layout.addWidget(self.toolbox, 1)
+        panels = {title: self._make_toolbox_page(title) for title in PANEL_TITLES}
 
         # ── Anthropogenic: ownership + US state ──────────────────────────────
-        anthropogenic = self._make_toolbox_page("Anthropogenic")
-        self.ownership_list = self._make_group(anthropogenic, "Ownership", [(v, v) for v in OWNERSHIP_VALUES], min_height=70)
+        anthropogenic = panels["Anthropogenic"]
+        self.ownership_list = ListFilterWidget("Ownership", self._ownership_items(), field_name=OWNERSHIP_FIELD, min_height=160)
+        anthropogenic.addWidget(self.ownership_list)
+
+        # Land use intensity classes come straight from the RME symbology breaks.
+        land_use_items = [(label, (lower, upper)) for label, lower, upper in LAND_USE_INTENSITY_CLASSES]
+        self.land_use_list = ListFilterWidget("Land Use Intensity", land_use_items, field_name=LAND_USE_INTENSITY_FIELD, min_height=90)
+        anthropogenic.addWidget(self.land_use_list)
 
         state_items = [(f"{abbr}  {name}", abbr) for abbr, name in US_STATES]
-        self.state_list = self._make_group(anthropogenic, "US state", state_items, min_height=160)
+        self.state_list = ListFilterWidget("US state", state_items, field_name=STATE_FIELD, min_height=160)
+        anthropogenic.addWidget(self.state_list)
 
         # ── Hydrology: stream order + stream permanence ──────────────────────
-        hydrology = self._make_toolbox_page("Hydrology")
+        hydrology = panels["Hydrology"]
         order_items = [(str(order), order) for order in STREAM_ORDER_VALUES]
-        self.stream_order_list = self._make_group(hydrology, "Stream order", order_items, min_height=110)
+        self.stream_order_list = ListFilterWidget("Stream order", order_items, field_name=STREAM_ORDER_FIELD, min_height=110)
+        hydrology.addWidget(self.stream_order_list)
 
         permanence_items = [(label, code) for label, code in STREAM_PERMANENCE_VALUES]
-        self.stream_permanence_list = self._make_group(hydrology, "Stream Permanence", permanence_items, min_height=90)
+        self.stream_permanence_list = ListFilterWidget("Stream Permanence", permanence_items, field_name=PERMANENCE_FIELD, min_height=90)
+        hydrology.addWidget(self.stream_permanence_list)
+
+        self.level_path_filter = TextFilterWidget("Level Path", LEVEL_PATH_FIELD, max_length=LEVEL_PATH_MAX_LENGTH)
+        hydrology.addWidget(self.level_path_filter)
+
+        self.huc10_filter = TextFilterWidget("HUC 10", HUC10_FIELD)
+        hydrology.addWidget(self.huc10_filter)
+
+        high_power, low_power = HYDROLOGY_RANGES
+        self.high_stream_power_filter = self._make_range_widget(high_power)
+        self.low_stream_power_filter = self._make_range_widget(low_power)
+        for range_widget in self._hydrology_widgets():
+            hydrology.addWidget(range_widget)
         hydrology.addStretch(1)
 
-        # ── Geomorphology: reserved for future filters ───────────────────────
-        geomorphology = self._make_toolbox_page("Geomorphology")
-        geomorphology.addWidget(self._placeholder("No geomorphology filters yet."))
+        # ── Geomorphology: gradient and area ranges ──────────────────────────
+        geomorphology = panels["Geomorphology"]
+        gradient, valley_bottom, floodplain = GEOMORPHOLOGY_RANGES
+        self.gradient_filter = self._make_range_widget(gradient)
+        self.valley_bottom_filter = self._make_range_widget(valley_bottom)
+        self.floodplain_filter = self._make_range_widget(floodplain)
+        for range_widget in self._geomorphology_widgets():
+            geomorphology.addWidget(range_widget)
         geomorphology.addStretch(1)
 
         # ── Beaver: existing + historic capacity over 0-40 ───────────────────
         # Each control is its own widget; the on/off checkbox starts unchecked,
         # so neither field narrows the layer until the user asks for it.
-        beaver = self._make_toolbox_page("Beaver")
+        beaver = panels["Beaver"]
         self.existing_capacity = FloatFilterWidget("Existing Beaver Capacity", CAPACITY_FIELD, CAPACITY_MIN, CAPACITY_MAX)
         self.historic_capacity = FloatFilterWidget("Historic Beaver Capacity", HIST_CAPACITY_FIELD, CAPACITY_MIN, CAPACITY_MAX)
         beaver.addWidget(self.existing_capacity)
         beaver.addWidget(self.historic_capacity)
 
         risk_items = [(value, value) for value in RISK_VALUES]
-        self.risk_list = self._make_group(beaver, "Risk", risk_items, min_height=80)
+        self.risk_list = ListFilterWidget("Risk", risk_items, field_name=RISK_FIELD, min_height=80)
+        beaver.addWidget(self.risk_list)
+
+        opportunity_items = [(value, value) for value in OPPORTUNITY_VALUES]
+        self.opportunity_list = ListFilterWidget("Restoration or Conservation Opportunities", opportunity_items, field_name=OPPORTUNITY_FIELD, min_height=140)
+        beaver.addWidget(self.opportunity_list)
+
+        self.limitation_list = ListFilterWidget("Limitations", self._limitation_items(), field_name=LIMITATION_FIELD, min_height=140)
+        beaver.addWidget(self.limitation_list)
         beaver.addStretch(1)
 
-        # ── Transportation: reserved for future filters ──────────────────────
-        transportation = self._make_toolbox_page("Transportation")
-        transportation.addWidget(self._placeholder("No transportation filters yet."))
+        # ── Transportation: road and rail density ranges ─────────────────────
+        transportation = panels["Transportation"]
+        road_density, rail_density = TRANSPORTATION_RANGES
+        self.road_density_filter = self._make_range_widget(road_density)
+        self.rail_density_filter = self._make_range_widget(rail_density)
+        for range_widget in self._transportation_widgets():
+            transportation.addWidget(range_widget)
         transportation.addStretch(1)
 
         self.tabs.addTab(filters_page, "Filters")
@@ -271,8 +353,16 @@ class DGOsDockWidget(QDockWidget):
 
         self.tabs.addTab(symbology_page, "Symbology")
 
-        # ── Metrics tab: reserved for future metrics ────────────────────────
-        self.tabs.addTab(QWidget(), "Metrics")
+        # ── Metrics tab: same panels as Filters, still empty ─────────────────
+        metrics_page = QWidget()
+        metrics_layout = QVBoxLayout(metrics_page)
+
+        self.metrics_toolbox = QToolBox()
+        for title in PANEL_TITLES:
+            self.metrics_toolbox.addItem(QWidget(), title)
+        metrics_layout.addWidget(self.metrics_toolbox, 1)
+
+        self.tabs.addTab(metrics_page, "Metrics")
 
         # ── About tab: shows the where clause currently applied ─────────────
         about_page = QWidget()
@@ -298,35 +388,58 @@ class DGOsDockWidget(QDockWidget):
         return page_layout
 
     @staticmethod
-    def _placeholder(text: str) -> QLabel:
-        """A greyed-out note for a toolbox panel that has no controls yet."""
-        label = QLabel(text)
-        label.setWordWrap(True)
-        label.setEnabled(False)
-        return label
+    def _limitation_items() -> list:
+        """Limitation list items: the RME BRAT limitation class strings.
 
-    def _make_group(self, parent_layout, title: str, items, min_height: int) -> QListWidget:
-        """Add a titled multi-select list box to *parent_layout* and return it."""
-        group = QGroupBox(title)
-        group_layout = QVBoxLayout(group)
+        The labels/values come from the symbology itself (the layer stores the
+        long strings), falling back to the constants so the panel is never
+        empty if the QML cannot be read.
+        """
+        items = categorized_items("brat_limitation_rme3")
+        return list(items) if items else list(LIMITATION_CLASSES)
 
-        list_widget = QListWidget()
-        list_widget.setSelectionMode(QABSTRACTITEMVIEW_MULTI_SELECTION)
-        list_widget.setMinimumHeight(min_height)
-        for label, value in items:
-            item = QListWidgetItem(str(label))
-            item.setData(USER_ROLE, value)
-            list_widget.addItem(item)
+    @staticmethod
+    def _ownership_items() -> list:
+        """Ownership list items: symbology labels mapped to their filter values.
 
-        group_layout.addWidget(list_widget)
-        parent_layout.addWidget(group)
-        return list_widget
+        The labels come from the metric engine's "Dominant Land Ownership"
+        symbology, so the filter list reads like its legend, while the value
+        stored with each item stays the code the tiles actually carry
+        (``BIA``, ``BLM``, …).  Ownership codes that existed before the
+        symbology was wired in (and are not in it) are kept at the end so no
+        previous filter option is lost.  Falls back to the plain codes when the
+        QML cannot be read.
+        """
+        items = []
+        seen = set()
+
+        for label, value in categorized_items("ownership_rme3"):
+            items.append((label, value))
+            seen.add(value)
+
+        for value in OWNERSHIP_VALUES:
+            if value not in seen:
+                items.append((value, value))
+                seen.add(value)
+
+        return items or [(value, value) for value in OWNERSHIP_VALUES]
+
+    @staticmethod
+    def _make_range_widget(config) -> FloatFilterWidget:
+        """Build a geomorphology range control from a ``GEOMORPHOLOGY_RANGES`` row."""
+        label, field_name, minimum, maximum, decimals, step = config
+        return FloatFilterWidget(label, field_name, minimum, maximum, decimals=decimals, step=step)
 
     def _connect_signals(self) -> None:
         for list_widget in self._filter_lists():
-            list_widget.itemSelectionChanged.connect(self.update_filter)
-        for capacity_widget in self._capacity_widgets():
-            capacity_widget.changed.connect(self.update_filter)
+            list_widget.changed.connect(self.update_filter)
+            list_widget.paint_requested.connect(self.paint_by_field)
+        for text_widget in self._text_widgets():
+            text_widget.changed.connect(self.update_filter)
+            text_widget.paint_requested.connect(self.paint_by_field)
+        for range_widget in self._range_widgets():
+            range_widget.changed.connect(self.update_filter)
+            range_widget.paint_requested.connect(self.paint_by_field)
         self.symbology_combo.currentTextChanged.connect(self.update_filter)
         self.dataset_combo.currentIndexChanged.connect(self._on_dataset_changed)
         self.clear_button.clicked.connect(self.clear_filters)
@@ -338,15 +451,42 @@ class DGOsDockWidget(QDockWidget):
         """The multi-select lists, one per categorical filter."""
         return (
             self.ownership_list,
+            self.land_use_list,
             self.stream_order_list,
             self.stream_permanence_list,
             self.risk_list,
+            self.opportunity_list,
+            self.limitation_list,
             self.state_list,
         )
 
     def _capacity_widgets(self) -> tuple:
         """The capacity range controls, one per capacity field."""
         return (self.existing_capacity, self.historic_capacity)
+
+    def _geomorphology_widgets(self) -> tuple:
+        """The geomorphology range controls, in panel order."""
+        return (self.gradient_filter, self.valley_bottom_filter, self.floodplain_filter)
+
+    def _text_widgets(self) -> tuple:
+        """The free-text filter controls."""
+        return (self.level_path_filter, self.huc10_filter)
+
+    def _hydrology_widgets(self) -> tuple:
+        """The stream power range controls, in panel order."""
+        return (self.high_stream_power_filter, self.low_stream_power_filter)
+
+    def _transportation_widgets(self) -> tuple:
+        """The transportation range controls, in panel order."""
+        return (self.road_density_filter, self.rail_density_filter)
+
+    def _page_range_widgets(self) -> tuple:
+        """The range controls that live on toolbox pages."""
+        return self._geomorphology_widgets() + self._hydrology_widgets() + self._transportation_widgets()
+
+    def _range_widgets(self) -> tuple:
+        """Every min/max range control the dock owns."""
+        return self._capacity_widgets() + self._page_range_widgets()
 
     # ── Public API ───────────────────────────────────────────────────────────
     def current_dataset(self):
@@ -393,9 +533,11 @@ class DGOsDockWidget(QDockWidget):
         self._updating = True
         try:
             for list_widget in self._filter_lists():
-                list_widget.clearSelection()
-            for capacity_widget in self._capacity_widgets():
-                capacity_widget.reset()
+                list_widget.clear_selection()
+            for text_widget in self._text_widgets():
+                text_widget.clear()
+            for range_widget in self._range_widgets():
+                range_widget.reset()
         finally:
             self._updating = False
         self.update_filter()
@@ -423,13 +565,19 @@ class DGOsDockWidget(QDockWidget):
     def _current_snapshot(self) -> _FilterSnapshot:
         """Capture every filter control's current setting."""
         return _FilterSnapshot(
-            ownerships=tuple(self._selected_values(self.ownership_list)),
-            stream_orders=tuple(self._selected_values(self.stream_order_list)),
-            permanence=tuple(self._selected_values(self.stream_permanence_list)),
-            risks=tuple(self._selected_values(self.risk_list)),
-            states=tuple(self._selected_values(self.state_list)),
+            ownerships=tuple(self.ownership_list.values()),
+            land_use=tuple(self.land_use_list.values()),
+            stream_orders=tuple(self.stream_order_list.values()),
+            permanence=tuple(self.stream_permanence_list.values()),
+            risks=tuple(self.risk_list.values()),
+            opportunities=tuple(self.opportunity_list.values()),
+            limitations=tuple(self.limitation_list.values()),
+            level_path=self.level_path_filter.value(),
+            huc10=self.huc10_filter.value(),
+            states=tuple(self.state_list.values()),
             existing_capacity=self.existing_capacity.state(),
             historic_capacity=self.historic_capacity.state(),
+            page_ranges=tuple(range_widget.state() for range_widget in self._page_range_widgets()),
         )
 
     def _apply_snapshot(self, snapshot: _FilterSnapshot) -> None:
@@ -437,13 +585,20 @@ class DGOsDockWidget(QDockWidget):
         self._restoring = True
         self._updating = True
         try:
-            self._set_selected_values(self.ownership_list, snapshot.ownerships)
-            self._set_selected_values(self.stream_order_list, snapshot.stream_orders)
-            self._set_selected_values(self.stream_permanence_list, snapshot.permanence)
-            self._set_selected_values(self.risk_list, snapshot.risks)
-            self._set_selected_values(self.state_list, snapshot.states)
+            self.ownership_list.set_values(snapshot.ownerships)
+            self.land_use_list.set_values(snapshot.land_use)
+            self.stream_order_list.set_values(snapshot.stream_orders)
+            self.stream_permanence_list.set_values(snapshot.permanence)
+            self.risk_list.set_values(snapshot.risks)
+            self.opportunity_list.set_values(snapshot.opportunities)
+            self.limitation_list.set_values(snapshot.limitations)
+            self.level_path_filter.set_value(snapshot.level_path)
+            self.huc10_filter.set_value(snapshot.huc10)
+            self.state_list.set_values(snapshot.states)
             self.existing_capacity.set_state(*snapshot.existing_capacity)
             self.historic_capacity.set_state(*snapshot.historic_capacity)
+            for range_widget, state in zip(self._page_range_widgets(), snapshot.page_ranges):
+                range_widget.set_state(*state)
         finally:
             self._updating = False
 
@@ -492,14 +647,28 @@ class DGOsDockWidget(QDockWidget):
     def _current_expression(self) -> str:
         """The QGIS expression implied by the current filter selections."""
         return build_filter_expression(
-            ownerships=self._selected_values(self.ownership_list),
-            stream_orders=self._selected_values(self.stream_order_list),
-            permanence=self._selected_values(self.stream_permanence_list),
-            risks=self._selected_values(self.risk_list),
-            states=self._selected_values(self.state_list),
+            ownerships=self.ownership_list.values(),
+            land_use=self.land_use_list.values(),
+            stream_orders=self.stream_order_list.values(),
+            permanence=self.stream_permanence_list.values(),
+            risks=self.risk_list.values(),
+            opportunities=self.opportunity_list.values(),
+            limitations=self.limitation_list.values(),
+            level_path=self.level_path_filter.value(),
+            huc10=self.huc10_filter.value(),
+            states=self.state_list.values(),
             capacity_range=self.existing_capacity.filter_range(),
             hist_capacity_range=self.historic_capacity.filter_range(),
+            range_filters=self._active_range_filters(),
         )
+
+    def _active_range_filters(self) -> list:
+        """``(field, bounds, minimum, maximum)`` for every switched-on page range."""
+        return [
+            (range_widget.field_name, range_widget.filter_range(), *range_widget.full_range())
+            for range_widget in self._page_range_widgets()
+            if range_widget.filter_range() is not None
+        ]
 
     def update_filter(self) -> None:
         """Rebuild the current layer's renderer from the current selections."""
@@ -513,9 +682,62 @@ class DGOsDockWidget(QDockWidget):
 
         self.filter_label.setText(f"{dataset.label} filter: {expression}" if expression else f"{dataset.label} filter: (none — showing all features)")
 
+        self._update_clear_label()
         self._record_history()
 
+    def _filter_count(self) -> int:
+        """How many filter inputs are currently switched on.
+
+        Every selected list value counts once, and every capacity field whose
+        checkbox is ticked counts once — a min/max range is a single filter
+        however wide it is.
+        """
+        count = sum(len(list_widget.values()) for list_widget in self._filter_lists())
+        count += sum(1 for text_widget in self._text_widgets() if text_widget.value())
+        count += sum(1 for range_widget in self._range_widgets() if range_widget.is_active())
+        return count
+
+    def _update_clear_label(self) -> None:
+        """Keep the Clear filters button's count in step with the controls."""
+        self.clear_button.setText(f"Clear filters ({self._filter_count()})")
+
     # ── Symbology ────────────────────────────────────────────────────────────
+    def paint_by_field(self, field_name: str) -> None:
+        """Switch the symbology picker to whatever paints *field_name*.
+
+        Called by a range control's paint button.  Business-logic QML files win
+        (they carry the real class breaks); the built-in presets are the
+        fallback for fields no QML covers.  When nothing matches, the dock
+        keeps its current symbology and logs why.
+        """
+        if not field_name:
+            return
+
+        target = self._symbology_for_field(field_name)
+        if target is None:
+            Settings().log(f'No symbology found for the field "{field_name}".', Qgis.Info)
+            return
+
+        for index in range(self.symbology_combo.count()):
+            if self.symbology_combo.itemData(index) == target:
+                self.symbology_combo.setCurrentIndex(index)
+                return
+
+    def _symbology_for_field(self, field_name: str):
+        """The ``("preset", mode)``/``("business", index)`` that paints a field."""
+        dataset = self.current_dataset()
+
+        for index, entry in enumerate(self._symbology_entries):
+            style = self._business_style(entry, dataset.is_point)
+            if style is not None and field_matches_attribute(field_name, style.attr):
+                return "business", index
+
+        preset = SYMBOLOGY_FIELD_PRESETS.get(field_name)
+        if preset is not None:
+            return "preset", preset
+
+        return None
+
     def _current_symbology(self) -> tuple:
         """``("preset", mode)`` or ``("business", entry_index)`` for the combo."""
         data = self.symbology_combo.currentData()
@@ -584,15 +806,3 @@ class DGOsDockWidget(QDockWidget):
             painter.end()
         return pixmap
 
-    # ── Helpers ──────────────────────────────────────────────────────────────
-    @staticmethod
-    def _selected_values(list_widget: QListWidget) -> list:
-        return [item.data(USER_ROLE) for item in list_widget.selectedItems()]
-
-    @staticmethod
-    def _set_selected_values(list_widget: QListWidget, values) -> None:
-        """Select exactly the items whose value is in *values*."""
-        wanted = list(values)
-        for row in range(list_widget.count()):
-            item = list_widget.item(row)
-            item.setSelected(item.data(USER_ROLE) in wanted)

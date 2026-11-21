@@ -48,6 +48,15 @@ FALLBACK_OUTLINE = "#1f4e79"
 #: Only these node types can symbolize an IGO (point) or DGO (polygon) layer.
 SUPPORTED_GEOMETRIES = ("point", "polygon")
 
+#: Filter fields whose symbology attribute is spelled differently in the QML.
+#: Keys are the fields the dock filters on (see ``dgos_filters``); values are
+#: the extra ``attr`` names that paint the same thing.
+FIELD_ATTRIBUTE_ALIASES = {
+    "primary_channel_gradient": ("prim_channel_gradient",),
+    "road_den": ("road_dens",),
+    "floodplain_area": ("active_floodplain_area",),
+}
+
 # Matches a trailing "(IGO)"/"(DGO)" marker on a business-logic label.
 _GEOMETRY_SUFFIX = re.compile(r"\s*\((?:igo|dgo)\)\s*$", re.IGNORECASE)
 
@@ -68,12 +77,21 @@ class SymbologyClass:
         filter_expression: Query for this class (empty means "everything else").
         fill: ``#rrggbb`` colour for the polygon fill / marker fill.
         outline: ``#rrggbb`` colour for the outline.
+        value: For categorized renderers, the raw category value the layer
+            stores (``"BLM"``).  ``None`` means the category matches NULL or
+            blank values (QGIS's "Other" bucket).
+        lower: For graduated renderers, the inclusive lower bound.
+        upper: For graduated renderers, the upper bound (inclusive for the
+            top-most class, exclusive otherwise).
     """
 
     label: str
     filter_expression: str
     fill: str
     outline: str
+    value: str | None = None
+    lower: float | None = None
+    upper: float | None = None
 
 
 @dataclass(frozen=True)
@@ -154,6 +172,19 @@ def find_qml(symbology: str, project_type: str = RME_PROJECT_TYPE) -> str | None
         if os.path.isfile(candidate):
             return candidate
     return None
+
+
+def field_matches_attribute(field: str, attribute: str | None) -> bool:
+    """Whether a symbology attribute paints the data *field* filters on.
+
+    Exact matches win; :data:`FIELD_ATTRIBUTE_ALIASES` covers the handful of
+    fields whose QML spells the attribute slightly differently.
+    """
+    if not field or not attribute:
+        return False
+    if attribute == field:
+        return True
+    return attribute in FIELD_ATTRIBUTE_ALIASES.get(field, ())
 
 
 def _clean_label(label: str) -> str:
@@ -328,6 +359,7 @@ def _parse_categories(renderer, symbols) -> list:
             continue
 
         kind = category.get("type", "string")
+        raw_value = None if kind == "NULL" or value == "" else value
         if kind == "int":
             try:
                 clause = f'to_int("{attr}") = {int(value)}'
@@ -340,7 +372,7 @@ def _parse_categories(renderer, symbols) -> list:
             clause = f'"{attr}" = {_quote(value)}'
 
         fill, outline = _symbol_colours(symbols[int(category.get("symbol", 0))]) if symbols else (FALLBACK_FILL, FALLBACK_OUTLINE)
-        classes.append(SymbologyClass(label=category.get("label") or value, filter_expression=clause, fill=fill, outline=outline))
+        classes.append(SymbologyClass(label=category.get("label") or value, filter_expression=clause, fill=fill, outline=outline, value=raw_value))
     return classes
 
 
@@ -375,7 +407,7 @@ def _parse_ranges(renderer, symbols) -> list:
 
         item = ranges[index]
         fill, outline = _symbol_colours(symbols[int(item.get("symbol", 0))]) if symbols else (FALLBACK_FILL, FALLBACK_OUTLINE)
-        classes.append(SymbologyClass(label=item.get("label") or clause, filter_expression=clause, fill=fill, outline=outline))
+        classes.append(SymbologyClass(label=item.get("label") or clause, filter_expression=clause, fill=fill, outline=outline, lower=lower, upper=upper))
     return classes
 
 
@@ -395,6 +427,41 @@ def _parse_rules(renderer, symbols) -> list:
         fill, outline = _symbol_colours(symbols[int(rule.get("symbol", 0))]) if symbols else (FALLBACK_FILL, FALLBACK_OUTLINE)
         classes.append(SymbologyClass(label=label, filter_expression=clause, fill=fill, outline=outline))
     return classes
+
+
+def categorized_items(symbology: str, project_type: str = RME_PROJECT_TYPE) -> tuple:
+    """``((label, value), …)`` for a symbology's categories, in QML order.
+
+    Labels are the human-readable class names the legend shows; the values are
+    what the layer actually stores, which is what a filter needs.  A NULL/blank
+    category (QGIS's "Other" bucket) yields ``None``.
+    """
+    path = find_qml(symbology, project_type)
+    if path is None:
+        return ()
+
+    style = parse_qml(path)
+    if style.renderer_type != "categorizedSymbol":
+        return ()
+
+    return tuple((symbology_class.label, symbology_class.value) for symbology_class in style.classes)
+
+
+def ranged_items(symbology: str, project_type: str = RME_PROJECT_TYPE) -> tuple:
+    """``((label, lower, upper), …)`` for a graduated symbology, in QML order.
+
+    This is what lets a filter use the symbology's own class breaks instead of
+    re-inventing them.
+    """
+    path = find_qml(symbology, project_type)
+    if path is None:
+        return ()
+
+    style = parse_qml(path)
+    if style.renderer_type != "graduatedSymbol":
+        return ()
+
+    return tuple((symbology_class.label, symbology_class.lower, symbology_class.upper) for symbology_class in style.classes)
 
 
 def parse_qml(qml_path: str) -> SymbologyStyle:
