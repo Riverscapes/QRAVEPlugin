@@ -7,8 +7,14 @@ authentication are shared, so the rest of the panel serves both.
 
 Below the picker is a tab control: **Filters** holds a :class:`QToolBox` whose
 pages group the filter controls by theme, **Symbology** holds the symbology
-preset picker, **Metrics** is reserved for future metrics, and **About** shows
-the where clause currently applied to the layer.
+picker and its legend, **Metrics** is reserved for future metrics, and **About**
+shows the where clause currently applied to the layer.
+
+The symbology picker offers the built-in presets and then every point/polygon
+map layer the ``rs_metric_engine`` business logic defines.  Pick one and the
+dock resolves its QML file (see :mod:`~.classes.symbology_library`), applies the
+geometry-appropriate symbol class — markers for IGOs, fills for DGOs — and
+shows the QML's classes as a legend below the picker.
 
 ===============  =============================================================
 Filters panel    Controls
@@ -38,6 +44,8 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+from qgis.core import Qgis
+from qgis.PyQt.QtGui import QColor, QIcon, QPainter, QPixmap
 from qgis.PyQt.QtWidgets import (
     QApplication,
     QComboBox,
@@ -55,7 +63,6 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 
-from .float_filter_widget import FloatFilterWidget
 from .classes.dgos_filters import (
     CAPACITY_FIELD,
     CAPACITY_MAX,
@@ -75,16 +82,27 @@ from .classes.dgos_layer import (
     DEFAULT_SYMBOLOGY,
     SYMBOLOGY_MODES,
     apply_style,
+    apply_symbology_style,
     dataset_for,
     find_auth_config_id,
+    legend_entries,
     remove_layer,
 )
+from .classes.settings import Settings
+from .classes.symbology_library import (
+    RME_PROJECT_TYPE,
+    load_symbology_entries,
+    parse_qml,
+)
 from .compat import (
+    FOCUS_POLICY_NONE,
     MSGBOX_ICON_WARNING,
     QABSTRACTITEMVIEW_MULTI_SELECTION,
+    QABSTRACTITEMVIEW_NO_SELECTION,
     TEXT_SELECTABLE_BY_MOUSE,
     USER_ROLE,
 )
+from .float_filter_widget import FloatFilterWidget
 
 
 class _FilterSnapshot(NamedTuple):
@@ -118,6 +136,10 @@ class DGOsDockWidget(QDockWidget):
         self._history = []
         self._history_index = -1
         self._restoring = False
+
+        # Parsed QML files, keyed by path: the dock re-applies symbology on every
+        # filter change, so the files themselves are parsed only once.
+        self._qml_cache = {}
 
         self.setObjectName("DGOsDock")
         self.setWindowTitle(dataset_for(DEFAULT_DATASET).label)
@@ -223,11 +245,29 @@ class DGOsDockWidget(QDockWidget):
         symbology_row = QHBoxLayout()
         symbology_row.addWidget(QLabel("Symbology:"))
         self.symbology_combo = QComboBox()
-        self.symbology_combo.addItems(SYMBOLOGY_MODES)
-        self.symbology_combo.setCurrentText(DEFAULT_SYMBOLOGY)
+        for mode in SYMBOLOGY_MODES:
+            self.symbology_combo.addItem(mode, ("preset", mode))
         symbology_row.addWidget(self.symbology_combo, 1)
         symbology_layout.addLayout(symbology_row)
-        symbology_layout.addStretch(1)
+
+        # Every point/polygon layer in the metric engine's business logic gets a
+        # menu item, below the built-in presets.
+        self._symbology_entries = load_symbology_entries(RME_PROJECT_TYPE)
+        if self._symbology_entries:
+            self.symbology_combo.insertSeparator(self.symbology_combo.count())
+            for index, entry in enumerate(self._symbology_entries):
+                self.symbology_combo.addItem(f"RME \u00b7 {entry.label}", ("business", index))
+
+        self.symbology_combo.setCurrentIndex(0)
+
+        # Legend for whatever symbology is applied, drawn with plain Qt widgets.
+        self.legend_label = QLabel("Legend")
+        symbology_layout.addWidget(self.legend_label)
+
+        self.legend_list = QListWidget()
+        self.legend_list.setSelectionMode(QABSTRACTITEMVIEW_NO_SELECTION)
+        self.legend_list.setFocusPolicy(FOCUS_POLICY_NONE)
+        symbology_layout.addWidget(self.legend_list, 1)
 
         self.tabs.addTab(symbology_page, "Symbology")
 
@@ -469,11 +509,80 @@ class DGOsDockWidget(QDockWidget):
         expression = self._current_expression()
 
         dataset = self.current_dataset()
-        apply_style(dataset.key, self.symbology_combo.currentText(), expression)
+        self._apply_symbology(dataset, expression)
 
         self.filter_label.setText(f"{dataset.label} filter: {expression}" if expression else f"{dataset.label} filter: (none — showing all features)")
 
         self._record_history()
+
+    # ── Symbology ────────────────────────────────────────────────────────────
+    def _current_symbology(self) -> tuple:
+        """``("preset", mode)`` or ``("business", entry_index)`` for the combo."""
+        data = self.symbology_combo.currentData()
+        if isinstance(data, tuple) and len(data) == 2:
+            return data
+        return "preset", self.symbology_combo.currentText() or DEFAULT_SYMBOLOGY
+
+    def _business_style(self, entry, is_point: bool):
+        """Parse (and cache) the QML for *entry* that suits the active geometry."""
+        qml_path = entry.qml_for(is_point)
+        if not qml_path:
+            return None
+
+        if qml_path not in self._qml_cache:
+            try:
+                self._qml_cache[qml_path] = parse_qml(qml_path)
+            except Exception as error:  # a broken QML must not break the dock
+                self._qml_cache[qml_path] = None
+                Settings().log(f"Could not read symbology file {qml_path}: {error}", Qgis.Warning)
+
+        return self._qml_cache[qml_path]
+
+    def _apply_symbology(self, dataset, expression: str) -> None:
+        """Apply the chosen symbology (preset or business-logic QML) and its legend."""
+        kind, payload = self._current_symbology()
+
+        if kind == "business":
+            style = self._business_style(self._symbology_entries[payload], dataset.is_point)
+            if style is not None:
+                apply_symbology_style(dataset.key, style, expression)
+                self._render_legend(style.legend)
+                return
+
+            # Missing/unreadable QML: fall back to the single-colour preset.
+            payload = DEFAULT_SYMBOLOGY
+
+        apply_style(dataset.key, payload, expression)
+        self._render_legend(legend_entries(dataset.key, payload))
+
+    def _render_legend(self, entries) -> None:
+        """Fill the legend list with a colour swatch and label per class."""
+        self.legend_list.clear()
+        for label, colour in entries:
+            item = QListWidgetItem(QIcon(self._colour_swatch(colour)), str(label))
+            item.setToolTip(f"{label} ({colour})")
+            self.legend_list.addItem(item)
+
+        count = len(entries)
+        self.legend_label.setText(f"Legend ({count})" if count else "Legend")
+
+    @staticmethod
+    def _colour_swatch(colour: str) -> QPixmap:
+        """A small outlined colour square for a legend row."""
+        swatch = QColor(colour)
+        if not swatch.isValid():
+            swatch = QColor("#BDBDBD")
+
+        pixmap = QPixmap(14, 14)
+        pixmap.fill(swatch)
+
+        painter = QPainter(pixmap)
+        try:
+            painter.setPen(QColor("#404040"))
+            painter.drawRect(0, 0, pixmap.width() - 1, pixmap.height() - 1)
+        finally:
+            painter.end()
+        return pixmap
 
     # ── Helpers ──────────────────────────────────────────────────────────────
     @staticmethod

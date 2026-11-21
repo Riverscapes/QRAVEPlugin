@@ -255,11 +255,39 @@ def _categories(dataset: TileDataset, mode: str) -> list:
     return [(dataset.label, "", fill, line)]
 
 
+def _strip_outer_parens(expression: str) -> str:
+    """Drop one pair of parentheses that wraps the whole expression.
+
+    :func:`~.dgos_filters.build_filter_expression` already parenthesises each
+    clause, so combining without this step yields ``(a) AND ((b))``.  An
+    expression like ``(a) AND (b)`` is left alone because its outer pair does
+    not wrap the whole thing.
+    """
+    if len(expression) < 2 or not (expression.startswith("(") and expression.endswith(")")):
+        return expression
+
+    depth = 0
+    for index, character in enumerate(expression):
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0 and index != len(expression) - 1:
+                return expression
+    return expression[1:-1]
+
+
 def _combine(first: str, second: str) -> str:
     """AND-combine two expressions, tolerating either being empty."""
     if first and second:
-        return f"({first}) AND ({second})"
+        return f"({_strip_outer_parens(first)}) AND ({_strip_outer_parens(second)})"
     return first or second
+
+
+def legend_entries(dataset_key: str = DEFAULT_DATASET, mode: str = DEFAULT_SYMBOLOGY) -> list:
+    """``[(label, fill_colour), …]`` for a preset, used to draw the legend."""
+    dataset = dataset_for(dataset_key)
+    return [(label, fill) for label, _filter, fill, _line in _categories(dataset, mode)]
 
 
 def build_styles(dataset_key: str = DEFAULT_DATASET, mode: str = DEFAULT_SYMBOLOGY, filter_expression: str = "") -> list:
@@ -287,6 +315,30 @@ def build_styles(dataset_key: str = DEFAULT_DATASET, mode: str = DEFAULT_SYMBOLO
         style.setSymbol(_make_symbol(dataset, fill, line))
         styles.append(style)
 
+    return styles
+
+
+def build_symbology_styles(dataset_key: str = DEFAULT_DATASET, symbology_style=None, filter_expression: str = "") -> list:
+    """Build renderer styles from a parsed QML style (see symbology_library).
+
+    Every QML class becomes one vector-tile style, so the QML's categories,
+    ranges or rules carry over as per-style filters.  Colours come from the
+    QML, while the geometry type always comes from the dataset: IGOs get
+    markers, DGOs get fills.  Falls back to the default preset when the style
+    has no classes.
+    """
+    dataset = dataset_for(dataset_key)
+    classes = getattr(symbology_style, "classes", ()) if symbology_style is not None else ()
+
+    styles = []
+    for symbology_class in classes:
+        style = QgsVectorTileBasicRendererStyle(symbology_class.label, SOURCE_LAYER, dataset.geometry_type)
+        style.setFilterExpression(_combine(symbology_class.filter_expression, filter_expression))
+        style.setSymbol(_make_symbol(dataset, symbology_class.fill, symbology_class.outline))
+        styles.append(style)
+
+    if not styles:
+        return build_styles(dataset_key, DEFAULT_SYMBOLOGY, filter_expression)
     return styles
 
 
@@ -396,8 +448,17 @@ def apply_style(dataset_key: str = DEFAULT_DATASET, mode: str = DEFAULT_SYMBOLOG
     bound to the same renderer, so old rules cannot linger in the UI either.
     """
     layer = get_or_create_layer(dataset_key)
-    styles = build_styles(dataset_key, mode, filter_expression)
+    return _install_styles(layer, build_styles(dataset_key, mode, filter_expression))
 
+
+def apply_symbology_style(dataset_key: str = DEFAULT_DATASET, symbology_style=None, filter_expression: str = "") -> QgsVectorTileLayer:
+    """Apply a parsed QML style to a layer, creating it if needed."""
+    layer = get_or_create_layer(dataset_key)
+    return _install_styles(layer, build_symbology_styles(dataset_key, symbology_style, filter_expression))
+
+
+def _install_styles(layer: QgsVectorTileLayer, styles: list) -> QgsVectorTileLayer:
+    """Replace the layer's renderer rules with *styles*, in place."""
     renderer = layer.renderer()
     if not isinstance(renderer, QgsVectorTileBasicRenderer):
         renderer = QgsVectorTileBasicRenderer()

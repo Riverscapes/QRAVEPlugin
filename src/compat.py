@@ -39,6 +39,7 @@ try:
     SCROLL_BAR_ALWAYS_OFF = Qt.ScrollBarPolicy.ScrollBarAlwaysOff
     TEXT_BROWSER_INTERACTION = Qt.TextInteractionFlag.TextBrowserInteraction
     TEXT_SELECTABLE_BY_MOUSE = Qt.TextInteractionFlag.TextSelectableByMouse
+    FOCUS_POLICY_NONE = Qt.FocusPolicy.NoFocus
     FOREGROUND_ROLE = Qt.ItemDataRole.ForegroundRole
     COLOR_BLUE = Qt.GlobalColor.blue
     COLOR_GRAY = Qt.GlobalColor.gray
@@ -66,6 +67,7 @@ except AttributeError:
     SCROLL_BAR_ALWAYS_OFF = Qt.ScrollBarAlwaysOff  # type: ignore[attr-defined]
     TEXT_BROWSER_INTERACTION = Qt.TextBrowserInteraction  # type: ignore[attr-defined]
     TEXT_SELECTABLE_BY_MOUSE = Qt.TextSelectableByMouse  # type: ignore[attr-defined]
+    FOCUS_POLICY_NONE = Qt.NoFocus  # type: ignore[attr-defined]
     FOREGROUND_ROLE = Qt.ForegroundRole  # type: ignore[attr-defined]
     COLOR_BLUE = Qt.blue  # type: ignore[attr-defined]
     COLOR_GRAY = Qt.gray  # type: ignore[attr-defined]
@@ -174,10 +176,12 @@ try:
     # Qt 6 / PyQt6 — scoped enum
     QABSTRACTITEMVIEW_NO_EDIT_TRIGGERS = QAbstractItemView.EditTrigger.NoEditTriggers
     QABSTRACTITEMVIEW_MULTI_SELECTION = QAbstractItemView.SelectionMode.MultiSelection
+    QABSTRACTITEMVIEW_NO_SELECTION = QAbstractItemView.SelectionMode.NoSelection
 except AttributeError:
     # Qt 5 / PyQt5 — flat enum
     QABSTRACTITEMVIEW_NO_EDIT_TRIGGERS = QAbstractItemView.NoEditTriggers  # type: ignore[attr-defined]
     QABSTRACTITEMVIEW_MULTI_SELECTION = QAbstractItemView.MultiSelection  # type: ignore[attr-defined]
+    QABSTRACTITEMVIEW_NO_SELECTION = QAbstractItemView.NoSelection  # type: ignore[attr-defined]
 
 
 from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
