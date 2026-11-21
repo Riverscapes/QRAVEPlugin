@@ -38,6 +38,7 @@ try:
     TOOL_BTN_TEXT_ONLY = Qt.ToolButtonStyle.ToolButtonTextOnly
     SCROLL_BAR_ALWAYS_OFF = Qt.ScrollBarPolicy.ScrollBarAlwaysOff
     TEXT_BROWSER_INTERACTION = Qt.TextInteractionFlag.TextBrowserInteraction
+    TEXT_SELECTABLE_BY_MOUSE = Qt.TextInteractionFlag.TextSelectableByMouse
     FOREGROUND_ROLE = Qt.ItemDataRole.ForegroundRole
     COLOR_BLUE = Qt.GlobalColor.blue
     COLOR_GRAY = Qt.GlobalColor.gray
@@ -64,6 +65,7 @@ except AttributeError:
     TOOL_BTN_TEXT_ONLY = Qt.ToolButtonTextOnly  # type: ignore[attr-defined]
     SCROLL_BAR_ALWAYS_OFF = Qt.ScrollBarAlwaysOff  # type: ignore[attr-defined]
     TEXT_BROWSER_INTERACTION = Qt.TextBrowserInteraction  # type: ignore[attr-defined]
+    TEXT_SELECTABLE_BY_MOUSE = Qt.TextSelectableByMouse  # type: ignore[attr-defined]
     FOREGROUND_ROLE = Qt.ForegroundRole  # type: ignore[attr-defined]
     COLOR_BLUE = Qt.blue  # type: ignore[attr-defined]
     COLOR_GRAY = Qt.gray  # type: ignore[attr-defined]
@@ -167,13 +169,15 @@ except AttributeError:
     HEADER_FIXED = QHeaderView.Fixed  # type: ignore[attr-defined]
 
 
-# ── QAbstractItemView edit triggers ──────────────────────────────────────────
+# ── QAbstractItemView edit triggers & selection modes ────────────────────────
 try:
     # Qt 6 / PyQt6 — scoped enum
     QABSTRACTITEMVIEW_NO_EDIT_TRIGGERS = QAbstractItemView.EditTrigger.NoEditTriggers
+    QABSTRACTITEMVIEW_MULTI_SELECTION = QAbstractItemView.SelectionMode.MultiSelection
 except AttributeError:
     # Qt 5 / PyQt5 — flat enum
     QABSTRACTITEMVIEW_NO_EDIT_TRIGGERS = QAbstractItemView.NoEditTriggers  # type: ignore[attr-defined]
+    QABSTRACTITEMVIEW_MULTI_SELECTION = QAbstractItemView.MultiSelection  # type: ignore[attr-defined]
 
 
 from qgis.PyQt.QtNetwork import QNetworkReply, QNetworkRequest
@@ -236,6 +240,17 @@ except AttributeError:
     # QgsMapLayer enum which was the only form available before 3.26.
     MAPLAYER_VECTOR = QgsMapLayer.VectorLayer  # type: ignore[attr-defined]
     MAPLAYER_RASTER = QgsMapLayer.RasterLayer  # type: ignore[attr-defined]
+
+
+# ── Qgis.GeometryType ────────────────────────────────────────────────────────
+try:
+    # Qt 6 / PyQt6 — scoped enum
+    GEOM_POINT = Qgis.GeometryType.Point
+    GEOM_POLYGON = Qgis.GeometryType.Polygon
+except AttributeError:
+    # Qt 5 / PyQt5 — flat enum
+    GEOM_POINT = Qgis.Point  # type: ignore[attr-defined]
+    GEOM_POLYGON = Qgis.Polygon  # type: ignore[attr-defined]
 
 
 # ── QClipboard ───────────────────────────────────────────────────────────────

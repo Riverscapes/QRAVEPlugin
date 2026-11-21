@@ -46,6 +46,7 @@ from .compat import (
     TOOL_BTN_TEXT_ONLY,
     VERTICAL,
 )
+from .dgos_dock import DGOsDockWidget
 from .dock_widget import QRAVEDockWidget
 from .frm_project_bounds import FrmProjectBounds
 from .icon_utils import qrave_icon
@@ -94,6 +95,7 @@ class QRAVE:
 
         self.dockwidget = QRAVEDockWidget()
         self.metawidget = QRAVEMetaWidget()
+        self.dgos_dockwidget = None
 
         # Populated on load from a URL
         self.acknowledgements = None
@@ -239,6 +241,16 @@ class QRAVE:
         self.browseExchangeProjectsAction.triggered.connect(self.browseExchangeProjects)
         self.actions.append(self.browseExchangeProjectsAction)
 
+        self.dgosAction = QAction(
+            qrave_icon("layers/Polygon.png"),
+            self.tr("Add Riverscapes to Map"),
+            self.iface.mainWindow(),
+        )
+        self.dgosAction.triggered.connect(self.show_dgos)
+        self.dgosAction.setStatusTip("Add the IGO or DGO vector tile layer and filter/symbolize it")
+        self.dgosAction.setWhatsThis("Add the IGO or DGO vector tile layer and open the filter panel")
+        self.actions.append(self.dgosAction)
+
         self.downloadProjectAction = QAction(
             qrave_icon("download.svg"),
             self.tr("Download Riverscapes Project"),
@@ -344,6 +356,10 @@ class QRAVE:
         self.menu.addMenu(self.toolsButton.menu())
         self.menu.addMenu(self.helpButton.menu())
 
+        # DGOs: add the vector tile layer and open the filter/symbology dock.
+        self.menu.addSeparator()
+        self.menu.addAction(self.dgosAction)
+
         # Create a single QToolButton with icon and text, and set the menu
         self.viewer_button = QToolButton(self.toolbar)
         self.viewer_button.setText("  Riverscapes Viewer")
@@ -425,6 +441,12 @@ class QRAVE:
             self.dockwidget.hide()
             self.iface.removeDockWidget(self.dockwidget)
             self.dockwidget.deleteLater()
+
+        if self.dgos_dockwidget is not None:
+            self.dgos_dockwidget.hide()
+            self.iface.removeDockWidget(self.dgos_dockwidget)
+            self.dgos_dockwidget.deleteLater()
+            self.dgos_dockwidget = None
 
         for action in self.actions:
             self.iface.removePluginMenu(self.tr("&Riverscapes Viewer Plugin"), action)
@@ -822,3 +844,11 @@ class QRAVE:
         search_url = f"{CONSTANTS['warehouseUrl']}/s?type=Project&bounded=1&view=map&geo={center.x()}%2C{center.y()}%2C{zoom}"
         # Open the URL in the default web browser
         QDesktopServices.openUrl(QUrl(search_url))
+
+    def show_dgos(self) -> None:
+        """Add the selected IGO/DGO vector tile layer and open the filter/symbology dock."""
+        if self.dgos_dockwidget is None:
+            self.dgos_dockwidget = DGOsDockWidget(self.iface.mainWindow())
+            self.iface.addDockWidget(RIGHT_DOCK, self.dgos_dockwidget)
+
+        self.dgos_dockwidget.show_layer()
